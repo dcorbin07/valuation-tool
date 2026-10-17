@@ -312,3 +312,72 @@ quality. This project already measured the real thing: a live options trade pays
 thirds** of the quoted half-spread (`O18`, rho 0.6743), and resting at the mid gives back
 **74%** of the gross saving to adverse selection (`O10`). Those are the numbers to use for
 cost; the paper fills are for checking the plumbing.
+
+
+## SETTLEMENT AND FRACTIONAL SHARES — what Alpaca publishes, quoted (item 67, 2026-10-17)
+
+Don asked for two things: wait for cash to settle before buying, and check whether fractional
+shares work in the IRA. Both turn on what Alpaca's own documentation says, so it is quoted here
+rather than paraphrased — three earlier items in this file were caused by a paraphrase.
+
+### THE ACCOUNT'S BUYING-POWER FIELDS ARE NOT INTERCHANGEABLE
+
+`GET /v2/account`, Alpaca's own words:
+
+| field | what Alpaca says | used here? |
+|---|---|---|
+| **`non_marginable_buying_power`** | *"Current available non-margin dollar buying power"* | **YES — the primary** |
+| `buying_power` | *"If multiplier = 4, this is your daytrade buying power …; If multiplier = 2, buying_power = max(equity - initial_margin,0) * 2; **If multiplier = 1, buying_power = cash**"* | only as `min(cash, buying_power)` |
+| `regt_buying_power` | *"Your buying power under Regulation T"* | **never** — levered by definition |
+| `cash` | *"Cash Balance"* | as the fallback, and as the bound on the one above |
+| `multiplier` | *"1 (standard limited margin account with 1x buying power), 2 (reg T margin account …), 4 (PDT account …)"* | reported, never relied on |
+
+**`daytrading_buying_power` and `cash_withdrawable` are NOT in that schema.** A design reaching
+for either is reaching for a field that does not exist.
+
+**WHY `min(cash, buying_power)` IS THE RIGHT FALLBACK AND A MULTIPLIER BRANCH IS NOT.** Buying
+power equals cash only at `multiplier` 1. Taking the minimum is safe at every multiplier, so an
+unreported or wrong multiplier cannot widen the budget — whereas `if multiplier == 1: use
+buying_power` trusts a field to be right about itself.
+
+### THE IRA PROBABLY NEVER WAITS, AND THAT IS WHY THE CODE ASKS RATHER THAN MODELS
+
+Alpaca's IRA documentation: accounts are *"by default setup with limited margin (1x margin)"*;
+limited margin *"allows you to avoid certain Federal Reserve Board Regulation T settlement
+periods"* and *"permits the purchase of securities with the use of unsettled funds"*; it *"does
+not allow for borrowing of funds, creating a margin debit, short selling, or selling naked
+options"*; and *"Alpaca will not extend any credit or margin in the Alpaca IRA."*
+
+**So a sell-then-buy rebalance may never wait at all.** The code models no settlement calendar: it
+asks the broker what is spendable without borrowing and sizes to that. An account whose proceeds
+are immediately spendable is simply never deferred. **The wait is built for the case where it
+does, not predicted.**
+
+### FRACTIONAL SHARES — THREE DIFFERENT QUESTIONS, AND ONLY ONE IS ANSWERED YET
+
+1. **Does the API accept a fractional order?** YES, measured: 85 accepted on the paper account on
+   2026-10-16. A fractional quantity requires `time_in_force=day` — Alpaca permits no other.
+2. **Will Alpaca trade THIS NAME fractionally?** Per-asset, and readable: `GET /v2/assets` carries
+   **`fractionable`** and **`tradable`**. Alpaca's eligibility rule is roughly exchange-listed
+   stocks above $1 with 10,000+ average daily volume, plus some ADRs — so **the answer moves with
+   price and volume and a census taken once is wrong later.** The cycle records it every run.
+3. **May THIS ACCOUNT trade fractionally?** `GET /v2/account/configurations` documents
+   **`fractional_trading`** — *"If true, account is able to participate in fractional trading"*.
+   **For the IRA this is UNMEASURED until its keys are on Render and one live-mode cycle runs.**
+   The report says *"NOT REPORTED by the API"* rather than guessing, because item 65 is a fresh
+   demonstration that the documentation and the wire can disagree. **The definitive test is a $1
+   buy placed by hand in Alpaca's own app, and no lane places one.**
+
+**AND A NAME THAT IS NOT FRACTIONABLE COSTS MORE THAN THAT NAME, EVENTUALLY.** One cycle: the
+order is rejected and every other name trades. Over several days: its target is never met, the
+event is retried, and the no-progress ceiling stops the **whole** event after five trading days
+with an alert — including the names that would have traded. **The remedy is a choice: leave it,
+round that name to whole shares, or skip it. The last two are construction changes.**
+
+### WHERE THESE ARE READ FROM — AND IT IS NOT A DOOR
+
+`/admin/live-slots?check=fractional` reports both, and **constructs no client**. The reads happen
+inside the cycle, because two invariants forbid a door doing it: a live client is constructed in
+exactly one gated place, and the status door builds nothing at all. So both answers are as fresh
+as the last cycle, and each carries the time it was read.
+

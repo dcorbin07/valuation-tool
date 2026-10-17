@@ -43,6 +43,13 @@ BOOK = {"ok": True, "formed_on": "2026-10-22", "reason": "",
                       {"ticker": "MSFT", "status": "held", "weight": 0.4}]}
 MARKS = {"AAPL": {"mid": 100.0}, "MSFT": {"mid": 200.0}}
 ARMED = {"armed": True, "reason": "fixture"}
+#: THE BROKER'S ACCOUNT REPLY, consistent with the equity these fixtures already pass:
+#: `multiplier` 1 and a no-borrow figure equal to the cash, which is what Alpaca documents a
+#: limited-margin account as reporting. **Deliberately NOT generous** -- an account with more
+#: spendable than the book costs would never exercise item 67's deferral at all, and a budget
+#: that is never binding is a budget that is never tested.
+ACCOUNT = {"cash": "1000.00", "buying_power": "1000.00",
+           "non_marginable_buying_power": "1000.00", "multiplier": "1"}
 
 
 # ----------------------------------------------------------------------------------------- #
@@ -85,7 +92,13 @@ class RecordedAlpaca:
             body = json.loads(data or "{}")
             self.placed.append(body)
             if self.reject:
-                return Reply({"message": "insufficient buying power"}, status=403)
+                # **A GENERIC, PERMANENT rejection -- Alpaca's own validation shape.** This
+                # used to replay `insufficient buying power`, which item 67 classifies as a
+                # SETTLEMENT WAIT: temporary by definition, keeps the sells, and deliberately
+                # does NOT raise a `broker_error` or feed the retry ceiling. The ceiling exists
+                # for a condition that will never clear, so its fixture has to be one.
+                return Reply({"code": 42210000, "message": "qty must be a positive value"},
+                             status=422)
             return Reply(dict(body, id="srv-%d" % len(self.placed),
                               status="new", filled_qty="0"))
         if "/v2/stocks/" in url or "snapshots" in url:
@@ -256,7 +269,7 @@ class ARealPaperOrderReachesTheRealBroker(_Tmp):
         sess = RecordedAlpaca()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+                          send=True, account=ACCOUNT)
         self.assertTrue(got["acted"], got["reason"])
         self.assertEqual(len(sess.placed), 2, sess.placed)
         self.assertTrue(all(o["ok"] for o in got["sent"]), got["sent"])
@@ -278,7 +291,7 @@ class ARealPaperOrderReachesTheRealBroker(_Tmp):
         got = LC.run_slot("1", pct=10.0, armed_state=ARMED, book=BOOK,
                           client=OldInterface(), equity=1000.0, marks=MARKS, root=self.root,
                           send=True, paper_targets={"AAPL": 60.0, "MSFT": 40.0},
-                          paper_value=100.0)
+                          paper_value=100.0, account=ACCOUNT)
         kinds = [a["kind"] for a in got["alerts"]]
         self.assertIn("broker_error", kinds, got)
         self.assertIn("AttributeError", json.dumps(got["alerts"]))
@@ -286,7 +299,7 @@ class ARealPaperOrderReachesTheRealBroker(_Tmp):
     def test_the_orders_carry_the_owned_namespace(self):
         sess = RecordedAlpaca()
         LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
-                    client=broker(sess), equity=1000.0, marks=MARKS, root=self.root, send=True)
+                    client=broker(sess), equity=1000.0, marks=MARKS, root=self.root, send=True, account=ACCOUNT)
         for body in sess.placed:
             self.assertTrue(body["client_order_id"].startswith("valquo-paper-"), body)
 
@@ -294,7 +307,7 @@ class ARealPaperOrderReachesTheRealBroker(_Tmp):
         sess = RecordedAlpaca(reject=True)
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+                          send=True, account=ACCOUNT)
         self.assertIn("broker_error", [a["kind"] for a in got["alerts"]])
         self.assertEqual(len(sess.placed), 2, "both orders should still be attempted")
 
@@ -377,9 +390,24 @@ class TheDuplicateBuyInIsClosed(_Tmp):
                      "limit_price": "200", "filled_avg_price": "200"}])
         self.assertFalse(os.path.exists(LC.state_path(LC.PAPER_SLOT, self.root)),
                          "the fixture must start with NO state file")
-        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
-                          client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+        def cycle():
+            return LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
+                               client=broker(sess), equity=1000.0, marks=MARKS,
+                               root=self.root, send=True, account=ACCOUNT)
+
+        # **TWO CYCLES NOW, AND THAT IS STRICTLY STRONGER [item 67].** Item 67 added the
+        # auditor's recommendation 2: a BRAND-NEW record meeting a NON-EMPTY account is
+        # ambiguous -- it is either Don's own holdings or this slot's record having been lost --
+        # so it refuses ONCE and records that it asked. This fixture is exactly that state, so
+        # the first cycle now refuses on the ambiguity and the second self-heals through the
+        # route the auditor confirmed. **The property this test exists for holds on BOTH:
+        # nothing is transmitted.**
+        first = cycle()
+        self.assertEqual(sess.placed, [], "A SECOND FULL BUY-IN WAS TRANSMITTED")
+        self.assertIn("brand new", first["reason"])
+        self.assertTrue(first["fresh_record_refusal_recorded"])
+
+        got = cycle()
         self.assertEqual(sess.placed, [], "A SECOND FULL BUY-IN WAS TRANSMITTED")
         self.assertIn("targets are already met", got["reason"])
 
@@ -395,7 +423,7 @@ class EveryStateWriteIsRead(_Tmp):
         try:
             got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                               client=broker(sess), equity=1000.0, marks=MARKS,
-                              root=self.root, send=True)
+                              root=self.root, send=True, account=ACCOUNT)
         finally:
             LC.write_state = orig
         self.assertEqual(sess.placed, [], "orders went out with no record of them")
@@ -417,7 +445,7 @@ class EveryStateWriteIsRead(_Tmp):
         try:
             LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                         client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                        send=True)
+                        send=True, account=ACCOUNT)
         finally:
             LC.write_state = orig
         self.assertEqual(seen.get("placed_at_write"), 0,
@@ -445,7 +473,7 @@ class EveryStateWriteIsRead(_Tmp):
                                           "avg_entry_price": "100", "side": "long"}])
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+                          send=True, account=ACCOUNT)
         self.assertIn("AAPL", got["slot_symbols"])
         self.assertEqual(sess.placed, [], "it sent orders despite an unrecorded position")
         self.assertFalse(got["preflight"]["ok"])
@@ -487,7 +515,7 @@ class AnUnreadablePositionListRefuses(_Tmp):
         sess = Blind()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+                          send=True, account=ACCOUNT)
         self.assertEqual(sess.placed, [])
         self.assertIsNone(got["broker_positions_read"])
         self.assertIn("could not be read", got["reason"])
@@ -512,7 +540,7 @@ class AnUnreadablePositionListRefuses(_Tmp):
         them would pass while measuring nothing."""
         got = LC.run_slot("1", pct=10.0, armed_state=ARMED, book=BOOK, client=None,
                           equity=1000.0, marks=MARKS, root=self.root, send=False,
-                          paper_targets={"AAPL": 60.0, "MSFT": 40.0}, paper_value=100.0)
+                          paper_targets={"AAPL": 60.0, "MSFT": 40.0}, paper_value=100.0, account=ACCOUNT)
         self.assertTrue(got["orders"], got["reason"])
         self.assertEqual(got["broker_positions_read"], "not_supplied")
 
@@ -525,7 +553,7 @@ class ParityBlocksALiveSend(_Tmp):
         base = dict(pct=10.0, armed_state=ARMED, book=BOOK, equity=1000.0, marks=MARKS,
                     root=self.root, send=True)
         base.update(kw)
-        return LC.run_slot("1", **base)
+        return LC.run_slot("1", **base, account=ACCOUNT)
 
     def test_a_MISMATCH_sends_nothing(self):
         sess = RecordedAlpaca()
@@ -558,7 +586,7 @@ class ParityBlocksALiveSend(_Tmp):
         sess = RecordedAlpaca()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True, paper_targets=None)
+                          send=True, paper_targets=None, account=ACCOUNT)
         self.assertTrue(got["acted"], got["reason"])
         self.assertEqual(len(sess.placed), 2)
 
@@ -580,7 +608,7 @@ class TheAccountIdIsRecordedAndPinned(_Tmp):
         sess = RecordedAlpaca()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True, account_id="acct-A")
+                          send=True, account_id="acct-A", account=ACCOUNT)
         self.assertEqual(got["account_id"], "acct-A")
         st = LC.read_state(LC.PAPER_SLOT, self.root)
         self.assertEqual(st["account_id"], "acct-A")
@@ -589,11 +617,11 @@ class TheAccountIdIsRecordedAndPinned(_Tmp):
         sess = RecordedAlpaca()
         LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                     client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                    send=True, account_id="acct-A")
+                    send=True, account_id="acct-A", account=ACCOUNT)
         sess2 = RecordedAlpaca()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess2), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True, account_id="acct-B")
+                          send=True, account_id="acct-B", account=ACCOUNT)
         self.assertEqual(sess2.placed, [], "it traded an account it has no record of")
         self.assertIn("account_changed", [a["kind"] for a in got["alerts"]])
         self.assertEqual(LC.read_state(LC.PAPER_SLOT, self.root)["account_id"], "acct-A")
@@ -603,7 +631,7 @@ class TheAccountIdIsRecordedAndPinned(_Tmp):
         sess = RecordedAlpaca()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+                          send=True, account=ACCOUNT)
         self.assertTrue(got["acted"], got["reason"])
 
     def test_the_paper_broker_reports_its_account_id(self):
@@ -616,26 +644,84 @@ class TheRetryCeilingStopsASilentLoop(_Tmp):
     """`live_notify` dedupes on `(kind, slot, event, reason[:120])`, so a permanently-rejecting
     condition is announced ONCE and retried into silence for ever."""
 
-    def test_it_stops_after_the_declared_number_of_attempts(self):
-        self.assertEqual(LC.MAX_EVENT_ATTEMPTS, 5)
-        placed_each = []
-        for _ in range(LC.MAX_EVENT_ATTEMPTS + 2):
-            sess = RecordedAlpaca(reject=True)
-            got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
-                              client=broker(sess), equity=1000.0, marks=MARKS,
-                              root=self.root, send=True)
-            placed_each.append(len(sess.placed))
-        self.assertEqual(placed_each[:LC.MAX_EVENT_ATTEMPTS],
-                         [2] * LC.MAX_EVENT_ATTEMPTS, placed_each)
-        self.assertEqual(placed_each[LC.MAX_EVENT_ATTEMPTS:], [0, 0], placed_each)
+    def _cycles(self, days):
+        """One rejecting cycle per supplied date. Returns how many orders each transmitted."""
+        placed_each, got = [], None
+        real = LC._stamp
+        try:
+            for d in days:
+                LC._stamp = (lambda d=d: "%sT14:40:00Z" % d)
+                sess = RecordedAlpaca(reject=True)
+                got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
+                                  client=broker(sess), equity=1000.0, marks=MARKS,
+                                  root=self.root, send=True, account=ACCOUNT)
+                placed_each.append(len(sess.placed))
+        finally:
+            LC._stamp = real
+        return placed_each, got
+
+    def test_it_stops_after_the_declared_number_of_TRADING_DAYS(self):
+        """**THE UNIT IS TRADING DAYS, NOT CYCLES [item 67].**"""
+        from valuation.edge import settlement as SETTLE
+        self.assertEqual(SETTLE.MAX_EVENT_TRADING_DAYS, 5)
+        days = ["2026-10-22", "2026-10-23", "2026-10-26", "2026-10-27", "2026-10-28",
+                "2026-10-29", "2026-10-30"]
+        placed_each, got = self._cycles(days)
+        self.assertEqual(placed_each[:5], [2] * 5, placed_each)
+        self.assertEqual(placed_each[5:], [0, 0], placed_each)
         self.assertIn("event_attempts_exhausted", [a["kind"] for a in got["alerts"]])
         self.assertTrue(got["attempts_exhausted"])
+        self.assertIn("TRADING DAYS", got["reason"])
+
+    def test_FIVE_CYCLES_IN_ONE_DAY_DO_NOT_TRIP_IT(self):
+        """**THE FALSE ALARM THE CHANGE EXISTS TO REMOVE, AND IT IS THE REAL SCHEDULE.**
+
+        Item 64 added four backup schedules after measuring the GitHub scheduler running
+        3.45-7.48 hours late, so `live-cycle.yml` now carries FIVE crons. A five-CYCLE ceiling
+        is therefore spendable inside a single morning by a rebalance behaving exactly as
+        designed -- the false alarm item 64 existed to remove, reintroduced by item 64's own
+        fix. Driven at the five scheduled times of one real trading day.
+        """
+        one_day = ["2026-10-22"] * 5
+        placed_each, got = self._cycles(one_day)
+        self.assertEqual(placed_each, [2] * 5, placed_each)
+        self.assertFalse(got.get("attempts_exhausted"))
+        self.assertEqual(got["attempts_without_progress"], 1, got.get("attempt_days"))
+        self.assertEqual(got["attempt_days"], ["2026-10-22"])
+        self.assertEqual(got["attempts_counted_in"], "trading days")
 
     def test_the_alert_says_WHY_it_stopped(self):
         # **BOTH THE COUNT AND A BASELINE [repointed item 64].** A count alone is a number
         # written under the OLD meaning -- "cycles that acted" -- and item 64's rule resets it,
         # because a changed definition does not inherit its old values. A genuinely stuck event
         # carries a recorded holdings baseline that has NOT moved, which is what this says now.
+        # **SEEDED IN THE UNIT THE CEILING NOW COUNTS [item 67].** The old seed was
+        # `event_attempts: 99` plus an `event_progress` float, and item 67 reads neither --
+        # item 64's rule, applied a second time to item 64's own keys: a changed definition
+        # does not inherit its old values, so a count written in cycles is not evidence about
+        # trading days. Six distinct days with an unchanged fingerprint is the stuck state.
+        key = "rebalance:2026-10-22"
+        st = {"slot": LC.PAPER_SLOT, "holdings": {}, "processed": [],
+              "event_fingerprint": {key: ""},
+              "event_attempt_days": {key: ["2026-10-%d" % d for d in (14, 15, 16, 19, 20)]}}
+        p = LC.state_path(LC.PAPER_SLOT, self.root)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(st, fh)
+        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
+                          client=broker(RecordedAlpaca()), equity=1000.0, marks=MARKS,
+                          root=self.root, send=True, account=ACCOUNT)
+        self.assertIn("deduped into silence", got["reason"])
+        self.assertIn("TRADING DAYS", got["reason"])
+
+    def test_A_CYCLE_COUNT_WRITTEN_UNDER_THE_OLD_RULE_IS_NOT_INHERITED(self):
+        """Item 64's migration lesson, applied to item 64's own keys.
+
+        Its fourth real cycle read 5 of 5 while the book advanced 72 -> 77 -- one cycle from
+        stopping a healthy rebalance on a number that meant something else when it was written.
+        A state file carrying `event_attempts: 99` in CYCLES must not stop a slot whose ceiling
+        is now counted in DAYS.
+        """
         st = {"slot": LC.PAPER_SLOT, "holdings": {}, "processed": [],
               "event_attempts": {"rebalance:2026-10-22": 99},
               "event_progress": {"rebalance:2026-10-22": 0.0}}
@@ -643,10 +729,13 @@ class TheRetryCeilingStopsASilentLoop(_Tmp):
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8") as fh:
             json.dump(st, fh)
+        sess = RecordedAlpaca()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
-                          client=broker(RecordedAlpaca()), equity=1000.0, marks=MARKS,
-                          root=self.root, send=True)
-        self.assertIn("deduped into silence", got["reason"])
+                          client=broker(sess), equity=1000.0, marks=MARKS,
+                          root=self.root, send=True, account=ACCOUNT)
+        self.assertFalse(got.get("attempts_exhausted"), got.get("reason"))
+        self.assertEqual(len(sess.placed), 2)
+        self.assertEqual(got["attempts_without_progress"], 1)
 
 
 class TheFeedGapHasADenominator(_Tmp):
@@ -731,7 +820,7 @@ class TheOrderWindowCannotSilentlyTruncate(_Tmp):
         sess = Full()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+                          send=True, account=ACCOUNT)
         self.assertEqual(sess.placed, [])
         self.assertIn("reconcile_truncated", [a["kind"] for a in got["alerts"]])
 
@@ -849,7 +938,7 @@ class ThePriceCoverageRefusalIsAttributable(_Tmp):
         return LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                            client=broker(RecordedAlpaca()), equity=1000.0, marks=marks,
                            root=self.root, send=True, session_ok=session_ok,
-                           sess_reason="fixture")
+                           sess_reason="fixture", account=ACCOUNT)
 
     def test_a_closed_market_is_named_as_the_likely_cause(self):
         got = self._run({"AAPL": {"mid": 100.0}}, False)
@@ -902,7 +991,7 @@ class ThePriceCoverageRefusalIsAttributable(_Tmp):
             {"ticker": "T%03d" % i, "status": "held", "weight": 1.0} for i in range(90)]}
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=book,
                           client=broker(RecordedAlpaca()), equity=1000.0, marks={},
-                          root=self.root, send=True, session_ok=True)
+                          root=self.root, send=True, session_ok=True, account=ACCOUNT)
         self.assertEqual(got["marks_coverage"]["n_needed"], 90)
         self.assertLessEqual(len(got["marks_coverage"]["missing"]), 40)
 
@@ -922,7 +1011,7 @@ class WhatTheFirstRealCycleProved(_Tmp):
         # one that fails outright, because the first failure reads as a regression.
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
                           client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
-                          send=True)
+                          send=True, account=ACCOUNT)
         self.assertNotIn("broker_error", [a["kind"] for a in got["alerts"]])
         self.assertEqual(len(sess.placed), 2)
 

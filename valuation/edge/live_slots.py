@@ -298,15 +298,77 @@ def targets(pct: float, equity: float, positions) -> dict:
 
 
 def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
-               min_order_value: float = 1.0) -> dict:
+               min_order_value: float = 1.0, resting=None) -> dict:
     """The orders that move the slot's own holdings to `targets_map`. Limit orders only.
 
     `held_by_slot` is **the slot's OWN record** of what it bought, never the broker's whole
     position list — Don's other holdings in the account are never touched, and that is enforced
     by what this function is given rather than by a filter it could forget to apply.
+
+    **A NAME ABSENT FROM `targets_map` IS NOT IN THE PLAN AT ALL, and that is load-bearing
+    rather than incidental.** It is what makes the paragraph above true by construction. An
+    EXIT is expressed as an explicit target of ZERO, which this function sells in full -- and
+    building those zero targets is `run_slot`'s job, because deciding that a held name should
+    no longer be held is a statement about the BOOK and not about a price.
+
+    I briefly made this iterate the holdings as well, to sell a name the book had dropped. Item
+    58's `test_a_name_the_slot_did_not_buy_is_not_in_the_plan_at_all` caught it by planning a
+    sale of `DONS_OWN` -- a defensive contract catching a change that would have sold a holding
+    the slot never bought.
+
+    **`resting` IS THIS SLOT'S OWN UNFILLED ORDERS, AND SUBTRACTING THEM IS WHAT STOPS A
+    REMAINDER STACKING [item 67 part 0].** `have` is otherwise FILLED quantity alone, so a
+    cycle that finds last cycle's order still working re-plans the whole remainder on top of it
+    -- five cycles, five full orders, five times the authorised target. The auditor reproduced
+    exactly that, and item 64's five-cron schedule makes two or three in-window cycles routine.
+
+    **ONLY THE SAME SIDE IS SUBTRACTED.** An opposite-side resting order is CANCELLED just
+    before the send (item 65's confirmed-cancel machinery), so subtracting it as well would
+    over-size this order by exactly the quantity about to be cancelled -- a stacking fix that
+    stacks. My first cut netted the two and did that: held 6, resting sell 6, target 6 planned
+    a buy of 6, the cancel removed the sell, and the account ended at 12.
+
+    A SELL is still capped at what is actually HELD, so this can never plan a short. One
+    residual, bounded and stated: if a target SHRINKS while a buy rests, the resting buy still
+    fills and overshoots -- by at most the target authorised when that order was placed, and
+    the next cycle sells it down. One previously-authorised order, not five, and
+    self-correcting.
     """
     orders, skipped = [], []
-    for tkr, tgt in sorted((targets_map or {}).items()):
+    # **PER TICKER AND PER SIDE, from this slot's own orders only.** `reconcile` has already
+    # filtered by the `valquo-<slot>-` prefix; an entry whose open quantity could not be read
+    # is counted as ZERO rather than skipped silently, and reported, because a resting order of
+    # unknown size is the one case this cannot subtract.
+    pend_buy, pend_sell, unknown = {}, {}, []
+    for r in (resting or []):
+        tk = str((r or {}).get("ticker") or "").strip().upper()
+        if not tk:
+            continue
+        q = _f((r or {}).get("qty_open"))
+        if q is None:
+            # **AND THAT NAME DOES NOT TRADE, which my first cut got backwards.** It reported
+            # the unknown and planned the full remainder anyway -- failing OPEN in the one
+            # state the subtraction exists for. An unreadable open quantity means the
+            # committed quantity is unknown, and planning against an unknown is how the
+            # stacking happened.
+            unknown.append(tk)
+            continue
+        if str((r or {}).get("side") or "").lower() == "sell":
+            pend_sell[tk] = pend_sell.get(tk, 0.0) + max(0.0, q)
+        else:
+            pend_buy[tk] = pend_buy.get(tk, 0.0) + max(0.0, q)
+    held_now = {str(k).upper(): v for k, v in (held_by_slot or {}).items()
+                if (_f(v) or 0.0) > 0}
+    plan_for = {str(k).upper(): v for k, v in (targets_map or {}).items()}
+    unknown_set = set(unknown)
+    for tkr, tgt in sorted(plan_for.items()):
+        if tkr in unknown_set:
+            skipped.append({"ticker": tkr,
+                            "reason": ("this slot has an order resting on %s whose open "
+                                       "quantity the broker did not report, so what it is "
+                                       "already committed to is unknown and nothing more is "
+                                       "planned for it this cycle" % tkr)})
+            continue
         mark = _f((marks or {}).get(tkr, {}).get("mid") if isinstance(
             (marks or {}).get(tkr), dict) else (marks or {}).get(tkr))
         if mark is None or mark <= 0:
@@ -316,19 +378,56 @@ def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
             continue
         have_qty = _f((held_by_slot or {}).get(tkr)) or 0.0
         have_val = have_qty * mark
+        # **THE SIDE COMES FROM FILLED HOLDINGS** -- which way does this slot need to move --
+        # and the SAME-SIDE resting quantity is then taken off the amount. Only the same side:
+        # an opposite-side order is CANCELLED immediately before the send (item 65), so
+        # subtracting it would over-size this order by exactly the quantity that is about to be
+        # cancelled. My first cut netted the two and did precisely that.
         delta = tgt - have_val
-        if abs(delta) < float(min_order_value):
-            continue
         side = "buy" if delta > 0 else "sell"
         qty = abs(delta) / mark
+        already = (pend_buy if side == "buy" else pend_sell).get(tkr, 0.0)
+        committed_qty = have_qty + (already if side == "buy" else -already)
+        committed_val = committed_qty * mark
+        # **WHAT IS ALREADY WORKING ON THIS SIDE IS NOT RE-SENT.** Without this the planner
+        # re-plans the whole remainder every cycle and the orders STACK -- five cycles, five
+        # full orders, five times the authorised target, which is what the auditor reproduced.
+        qty = qty - already
+        if qty * mark < float(min_order_value):
+            # Already committed to within a dollar, or a move too small to be worth an order.
+            continue
         if side == "sell":
             qty = min(qty, have_qty)      # NEVER sell more than this slot bought
             if qty <= 0:
                 continue
         orders.append({"ticker": tkr, "side": side, "qty": round(qty, 9),
                        "limit_price": round(mark, 2), "target_value": round(tgt, 2),
-                       "current_value": round(have_val, 2)})
-    return {"orders": orders, "skipped": skipped}
+                       "current_value": round(have_val, 2),
+                       # BOTH, because they answer different questions: what is held, and what
+                       # is held plus what is already working. The second is what was planned
+                       # against, so it is the one a reader needs to check the arithmetic.
+                       "committed_value": round(committed_val, 2),
+                       "resting_qty_subtracted": round(already, 9)})
+    # **SELLS FIRST, ALWAYS. [item 67]** A rebalance's buys are funded by its sells, so the
+    # transmission order decides whether the cash is there when the buy arrives. Alpaca's IRAs
+    # run limited margin and let unsettled proceeds be spent, so this may never bind -- but the
+    # order costs nothing and the alternative is a buy refused for want of money the same cycle
+    # was about to raise. Ticker is the tie-break so the plan is deterministic.
+    orders.sort(key=lambda o: (0 if str(o["side"]).lower() == "sell" else 1, o["ticker"]))
+    return {"orders": orders, "skipped": skipped,
+            "sells_first": True,
+            # Named so a reader can see the exits were planned rather than inferring it from a
+            # count. A held name whose whole value is under `min_order_value` is dust and is
+            # deliberately left alone -- an order that small is refused by the broker anyway.
+            "exiting": sorted(t for t in held_now if float(plan_for.get(t) or 0.0) <= 0),
+            "resting_considered": sum(len(x) for x in (pend_buy, pend_sell)),
+            # **NOT FOLDED INTO A COUNT AND NOT SILENT.** A resting order whose open quantity
+            # the broker did not report cannot be subtracted, so the name it is on could still
+            # stack. It has never happened -- Alpaca sends `qty` on every order -- and if it
+            # does, this is what says so.
+            "resting_qty_unknown": sorted(set(unknown)),
+            "n_sell": sum(1 for o in orders if str(o["side"]).lower() == "sell"),
+            "n_buy": sum(1 for o in orders if str(o["side"]).lower() == "buy")}
 
 
 #: `broker_positions` was not supplied at all -- a caller doing pure arithmetic. DISTINCT from
@@ -338,7 +437,7 @@ POSITIONS_NOT_SUPPLIED = object()
 
 def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
               broker_positions=POSITIONS_NOT_SUPPLIED, slot_symbols=None,
-              tolerance: float = 0.01) -> dict:
+              record_is_fresh: bool = False, tolerance: float = 0.01) -> dict:
     """Every "is anything broken" check, in one place. `ok: False` means NO ORDERS this cycle.
 
     The list is the brief's, and each entry exists because the alternative is an order placed
@@ -362,6 +461,15 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
     `broker_positions=None` means the list could NOT BE READ and is a refusal; omitting the
     argument means no broker was consulted and the check is skipped and reported as skipped.
     `None` cannot carry both facts, which is why the sentinel exists.
+
+    **`record_is_fresh` CLOSES THE LAST CORNER OF THAT FAMILY [item 67, the auditor's
+    recommendation 2].** The reverse check above is scoped to names this slot has itself
+    ordered, which is right -- but the scope is derived from the order read, so state loss PLUS
+    an order read that SUCCEEDS AND RETURNS EMPTY leaves an empty scope, every held position
+    reads as Don's own, and the whole book is bought a second time. A record with no holdings,
+    no processed events and no pinned account id meeting an account that already holds
+    something is ambiguous, so it refuses once. **It can fire at most once in a slot's life**,
+    on its very first cycle, which is what stops it crying wolf.
     """
     problems = []
     if not isinstance(book, dict) or not book.get("ok"):
@@ -429,6 +537,20 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
         # duplicate buy-in rather than a refusal.
         mine_names = {str(t).upper() for t in (slot_record or {})}
         scope = {str(t).upper() for t in (slot_symbols or [])}
+        # **AN ENTIRELY FRESH RECORD AGAINST A NON-EMPTY ACCOUNT IS AMBIGUOUS.** Either this is
+        # a genuinely new slot in an account holding Don's own names -- fine, and clearing this
+        # once costs a cycle -- or the record was lost and these are the slot's own positions,
+        # in which case proceeding buys the book twice. The reverse check above cannot tell
+        # them apart, because the scope it needs comes from the order read that is missing.
+        held_names = sorted(t for t, q in by_broker.items() if (_f(q) or 0.0) > 0)
+        if record_is_fresh and held_names:
+            problems.append(
+                "this slot's record is brand new -- no holdings, no processed event, no "
+                "account id -- and the account already holds %d position(s) (%s). That is "
+                "either Don's own holdings or this slot's record having been lost, and this "
+                "cycle cannot tell which, so it sends nothing. If they are Don's, the next "
+                "cycle after this slot records anything at all will not ask again"
+                % (len(held_names), ", ".join(held_names[:8])))
         for tkr, qty in sorted(by_broker.items()):
             if tkr in mine_names or tkr not in scope:
                 continue
@@ -553,6 +675,85 @@ class _LiveClient:
     def positions(self) -> dict:
         return self._request("GET", "/v2/positions")
 
+    def configurations(self) -> dict:
+        """`GET /v2/account/configurations`. READ-ONLY -- GET, and nothing is constructed.
+
+        Item 67 part 2: whether the IRA may place a fractional order. Alpaca documents
+        `fractional_trading` here -- *"If true, account is able to participate in fractional
+        trading"* -- and the same reply carries the options level. **Absence is reported as
+        absence**, never as disabled: item 65 is a fresh demonstration that the documentation
+        and the wire can disagree, and "the API does not say" is the honest answer when they do.
+        """
+        got = self._request("GET", "/v2/account/configurations")
+        if not got.get("ok"):
+            return {"ok": False, "reason": "the account configuration could not be read",
+                    "detail": got}
+        d = got.get("data") or {}
+        has = "fractional_trading" in d
+        return {"ok": True, "reported": bool(has),
+                "fractional_trading": (bool(d.get("fractional_trading")) if has else None),
+                "max_options_trading_level": d.get("max_options_trading_level"),
+                "max_margin_multiplier": d.get("max_margin_multiplier"),
+                "no_shorting": d.get("no_shorting"),
+                "reason": ("fractional trading: %s"
+                           % ("enabled" if (has and d.get("fractional_trading"))
+                              else "disabled" if has
+                              else "NOT REPORTED by this endpoint"))}
+
+    def account_report(self) -> dict:
+        """What this account says about itself, in the fields a rebalance depends on.
+
+        READ-ONLY and deliberately NARROW: the settlement fields, the multiplier, and the
+        SHAPE of the account number rather than the number. An account number is an identifier
+        Don did not ask to see printed, and its shape is the only part any check here uses.
+        """
+        got = self._request("GET", "/v2/account")
+        if not got.get("ok"):
+            return {"ok": False, "reason": "the account could not be read", "detail": got}
+        d = got.get("data") or {}
+        num = str(d.get("account_number") or "")
+        return {
+            "ok": True, "status": d.get("status"),
+            "multiplier": _f(d.get("multiplier")),
+            "cash": _f(d.get("cash")),
+            "buying_power": _f(d.get("buying_power")),
+            "non_marginable_buying_power": _f(d.get("non_marginable_buying_power")),
+            "regt_buying_power": _f(d.get("regt_buying_power")),
+            "trading_blocked": bool(d.get("trading_blocked")),
+            "account_blocked": bool(d.get("account_blocked")),
+            # THE SHAPE, NOT THE NUMBER.
+            "account_number_shape": ("%d characters, starts with %s"
+                                     % (len(num), (num[:1] or "(nothing)"))),
+        }
+
+    def assets(self, symbols=None) -> dict:
+        """`fractionable` and `tradable` per symbol from Alpaca's asset master. READ-ONLY.
+
+        One request for the whole active US equity master rather than one per name, and a
+        symbol MISSING from it is reported missing rather than as `fractionable: False` --
+        absent is not a measured False (`C5`), and the two have different fixes.
+        """
+        got = self._request("GET", "/v2/assets",
+                            params={"status": "active", "asset_class": "us_equity"})
+        if not got.get("ok"):
+            return {"ok": False, "reason": "the asset master could not be read",
+                    "detail": got, "assets": {}, "n_master": 0}
+        by = {}
+        for r in (got.get("data") or []):
+            if not isinstance(r, dict):
+                continue
+            sym = str(r.get("symbol") or "").strip().upper()
+            if sym:
+                by[sym] = {"fractionable": bool(r.get("fractionable")),
+                           "tradable": bool(r.get("tradable")),
+                           "exchange": r.get("exchange"), "status": r.get("status")}
+        want = ([str(x).strip().upper() for x in symbols if str(x).strip()]
+                if symbols is not None else sorted(by))
+        return {"ok": True, "n_master": len(by),
+                "assets": {k: by[k] for k in want if k in by},
+                "missing": [k for k in want if k not in by],
+                "reason": "read %d active US equities from the asset master" % len(by)}
+
     def positions_result(self) -> dict:
         """`{"ok", "data", "reason"}`, matching `AlpacaPaperBroker.positions_result` exactly.
         [item 65]
@@ -575,14 +776,21 @@ class _LiveClient:
                 "reason": ""}
 
     def orders_result(self, status: str = "all", limit: int = 100) -> dict:
-        """`{"ok", "data", "reason"}` -- see `positions_result`. [item 65]"""
-        got = self._request("GET", "/v2/orders",
-                            params={"status": status, "limit": int(limit)})
-        if not got.get("ok"):
-            return {"ok": False, "data": [],
-                    "reason": "the broker's orders could not be read (HTTP %s)"
-                              % got.get("status")}
-        return {"ok": True, "data": list(got.get("data") or []), "reason": ""}
+        """`{"ok", "data", "reason", "truncated"}` -- see `positions_result`. [item 65]
+
+        **PAGED [item 67 part 0].** One event produced 239 orders, so a single 500-order page
+        fills in about two events. `truncated` is a refusal the caller honours, not a partial
+        answer -- see `paged_orders`.
+        """
+        from .settlement import paged_orders
+
+        res = paged_orders(
+            lambda p: self._request("GET", "/v2/orders", params=p),
+            page_limit=int(limit), status=status)
+        return {"ok": bool(res.get("ok")), "data": list(res.get("data") or []),
+                "truncated": bool(res.get("truncated")), "pages": res.get("pages"),
+                "reason": ("" if (res.get("ok") and not res.get("truncated"))
+                           else res.get("reason") or "")}
 
     def orders(self, status: str = "all", limit: int = 100) -> list:
         """THIS SLOT'S ORDERS, raw, for `live_cycle.reconcile` to total the fills from.

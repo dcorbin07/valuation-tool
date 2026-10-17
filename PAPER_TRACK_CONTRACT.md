@@ -1534,3 +1534,78 @@ event — the Index construction is untouched and only the execution container m
 | **Auditor design review** | REQUIRED before any live key is entered (§8, unchanged). `PROMPT_auditor_live_path.md` |
 | **Slot 1 live authorization** | NOT YET — Don enters the keys himself, after the review |
 | **Slot 2 live authorization** | NOT YET — needs that holder's own signed row here |
+
+---
+
+## §8b AMENDMENT — SETTLEMENT IS A WAIT, NOT AN ERROR; AND THE FRACTIONAL QUESTION IS HALF
+## ANSWERED — 2026-10-17
+
+Don, 2026-10-17: *"let's account for waiting for cash to settle now and try again to buy next day
+when it is settled. also the whole point of us switching to alpaca from tradier was because we
+could use fractional shares so lets check that now."*
+
+**THIS AMENDS §8a's OPEN QUESTION 2, WHICH SPECIFIED THE OPPOSITE.** That paragraph reads: *"a buy
+rejected for insufficient buying power is a broker error, which means no orders for that slot that
+cycle plus an alert, and the re-send-next-cycle behaviour resolves it once the cash settles."* It
+is left above, unedited, as the record of what was signed. **What changes:**
+
+| | §8a as written (2026-10-14) | **§8b (2026-10-17)** |
+|---|---|---|
+| a buy refused for want of funds | a broker error | **a SETTLEMENT WAIT** |
+| what happens to that cycle's sells | no orders for the slot that cycle | **the sells STAND** |
+| when Don is alerted | immediately | **only once the wait outlasts T+1 by a full trading day** |
+| what bounds a buy | not specified | **the broker's `non_marginable_buying_power`, never a margin figure** |
+| order within an event | not specified | **sells first** |
+
+**EVERY OTHER BROKER ERROR IS UNCHANGED: no orders that cycle, plus an alert.** The distinction is
+matched on a declared vocabulary rather than a loose substring, because getting it backwards one
+way cancels a correct rebalance and the other way hides a real fault behind a daily retry.
+
+**AND THE WAIT MAY NEVER HAPPEN, WHICH IS WHY THE DESIGN ASKS RATHER THAN MODELS.** Alpaca
+documents its IRAs as running *"limited margin (1x margin)"*, which *"allows you to avoid certain
+Federal Reserve Board Regulation T settlement periods"* and *"permits the purchase of securities
+with the use of unsettled funds"*, while it *"does not allow for borrowing of funds, creating a
+margin debit, short selling, or selling naked options"*. So the code does not model settlement at
+all: it asks the broker what is spendable **without borrowing** and sizes to that. **An account
+whose proceeds are immediately spendable never waits.** §8a's instruction stands either way —
+*"Don should expect to watch this on the first real rebalance"* — and that rebalance is
+**2026-10-22**.
+
+**A MARGIN DEBIT IS FORBIDDEN AND IS PINNED BY TEST.** `non_marginable_buying_power` is Alpaca's
+own *"current available non-margin dollar buying power"*; `buying_power` equals cash only at
+`multiplier` 1 and is levered above it; `regt_buying_power` is levered by definition and is read
+nowhere. A test drives an account whose `buying_power` is four times its cash and fails if a
+single order above the no-borrow figure is transmitted.
+
+### THE FRACTIONAL QUESTION — HALF ANSWERED, AND THE OTHER HALF NAMED
+
+§8a records that *"Alpaca's documentation does not state whether fractional shares work in an
+IRA"*. Measured since:
+
+1. **Fractional orders work on the paper account** — 85 accepted on 2026-10-16 (item 64).
+2. **Which names Alpaca will trade fractionally is per-asset and readable**: `/v2/assets` carries
+   `fractionable` and `tradable`, and the cycle now records the census for the book in force.
+   **It has not run yet**, so which of the book's names are whole-share-only is UNMEASURED.
+3. **Whether the IRA may trade fractionally is reported by
+   `GET /v2/account/configurations`** — Alpaca documents `fractional_trading` there — and that is
+   read by the first live-mode cycle after Don's keys go in. **It is UNMEASURED until then, and the
+   report says so rather than leaving a blank.** The definitive test is a $1 buy placed by hand in
+   Alpaca's own app; **that is Don's to make or not, and no lane places it.**
+4. **What happens today to a name that is NOT fractionable, both halves.** One cycle: that name is
+   rejected and **no other name is affected**. Over several days: its target is never met, so the
+   event is retried, and the no-progress ceiling stops the **whole** event after five trading days
+   with an alert — including the names that would have traded. **The remedy is Don's choice between
+   leaving it, rounding that name to whole shares, or skipping it; the last two are construction
+   changes and each needs its own register.**
+
+### WHAT THIS DOES NOT CHANGE
+
+Nothing here touches the forward track, the 2027-02 operational gate or the 2031 verdict, and the
+Index construction is untouched — **not a vintage event**. §8's closing sentence stands: this is a
+fills experiment, not a verdict.
+
+| | |
+|---|---|
+| **Auditor design review** | STILL REQUIRED, and it now covers item 67 as well — the live path changed |
+| **Slot 1 live authorization** | NOT YET |
+| **Slot 2 live authorization** | NOT YET |

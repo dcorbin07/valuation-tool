@@ -205,6 +205,36 @@ manager from Don's own words in chat.
   selling side), a stress gate for put selling judged forward, a census only for O-1's data,
   and the DTE question answered from the record. The alert-driven long-call entry is not
   re-opened: it loses to random days in every score band and at every threshold.
+- **2026-10-17 — ITEM 67: SETTLEMENT, FRACTIONAL SHARES, AND THE AUDITOR'S THIRD BLOCKER.**
+  Don: *"let's account for waiting for cash to settle now and try again to buy next day when it
+  is settled. also the whole point of us switching to alpaca from tradier was because we could
+  use fractional shares so lets check that now."* The auditor's third review is still **NOT
+  YET**: 7 of 8 pass and question 6 fails a third time, for a third reason — a remainder re-send
+  **stacked** on its own resting order. **Reproduced at the auditor's exact ratio: 30 shares
+  against a 6-share target, 5×.** Fixed by subtracting this slot's own resting SAME-SIDE
+  quantity — their preferred option, for their reason, that it keeps a working order working.
+  Only the same side: an opposite-side order is cancelled just before the send, so subtracting
+  it too over-sizes the buy by what was cancelled (my first cut did, and ended at 12 against a
+  target of 6). **A rebalance now sends its sells first and sizes buys only to what the broker
+  reports as spendable WITHOUT BORROWING** — `non_marginable_buying_power`, never a margin
+  figure, pinned by a test driving an account whose buying power is 4× its cash. A buy refused
+  for want of funds is a **settlement wait**: the sells stand, the buys go next trading day, and
+  Don is alerted only once the wait outlasts T+1 by a full trading day. That **amends §8a's own
+  open question 2**, which specified the opposite; `PAPER_TRACK_CONTRACT.md` §8b records it with
+  the superseded text left in place. **The no-progress ceiling now counts TRADING DAYS**, because
+  item 64's five crons made a five-cycle ceiling spendable before lunch. **And nothing in the
+  live path had ever sold a name that left the book** — it reached the planner in neither shape,
+  so it was held for ever; it has never fired because the live path has run one event, and the
+  first book change in its life is the 2026-10-22 rebalance. **Fractional shares: the paper
+  account accepts them (85 on 10-16); which of the book's names Alpaca will trade fractionally is
+  recorded by the cycle and is UNMEASURED until one runs on Render; whether the IRA may is
+  reported by `/v2/account/configurations` and is UNMEASURED until Don's keys are in.** A name
+  that is not fractionable costs that one name per cycle and then stops the whole event after
+  five trading days — **the remedy is Don's choice between leaving it, rounding to whole shares,
+  or skipping it, and the last two are construction changes.** `pending_workflows/live-cycle.yml`
+  now opens with **DO NOT INSTALL YET** stating a condition rather than a date, because that
+  five-cron schedule is what made the stacking routine. **Item 67 changes the live path, so the
+  auditor reviews it too before any percentage above 0.**
 - **2026-10-16 — AUDITOR RE-REVIEW: STILL NOT YET** (`4eb4fa6`). 7 of 8 questions pass. One
   route to a duplicate buy-in survives: state lost, the order list unreadable, the position list
   readable. The fix is to refuse on a failed order read (item 65). Item 64 landed: IEX priced 85

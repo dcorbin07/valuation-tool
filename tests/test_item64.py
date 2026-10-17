@@ -48,6 +48,15 @@ WINDOW_BOTH_REGIMES = (14 + 35 / 60.0, 19 + 45 / 60.0)
 LAG_MIN_H, LAG_MAX_H = 3.45, 7.48
 
 
+#: THE BROKER'S ACCOUNT REPLY, consistent with the equity these fixtures already pass:
+#: `multiplier` 1 and a no-borrow figure equal to the cash, which is what Alpaca documents a
+#: limited-margin account as reporting. **Deliberately NOT generous** -- an account with more
+#: spendable than the book costs would never exercise item 67's deferral at all, and a budget
+#: that is never binding is a budget that is never tested.
+ACCOUNT = {"cash": "1000.00", "buying_power": "1000.00",
+           "non_marginable_buying_power": "1000.00", "multiplier": "1"}
+
+
 # ----------------------------------------------------------------------------------------- #
 # PART 1 — the window
 # ----------------------------------------------------------------------------------------- #
@@ -129,6 +138,31 @@ class TheWindowNeverReachesIntoTheSipDelay(unittest.TestCase):
         span = (dt.date.fromisoformat(got["end"]) - dt.date.fromisoformat(got["start"])).days
         self.assertEqual(span, S.WINDOW_CALENDAR_DAYS)
         self.assertEqual(got["trading_days_wanted"], S.WINDOW_TRADING_DAYS)
+
+
+def _strip_comments(src: str) -> str:
+    """`src` with comments and string literals removed, so a ban sees CODE and not prose.
+
+    Tolerates a fragment that does not tokenize cleanly -- these blocks are cut out of the
+    middle of a function -- by falling back to a line-wise comment strip, which still removes
+    the case that keeps biting: a comment quoting the form the rule forbids.
+    """
+    import io as _io
+    import tokenize as _tk
+
+    try:
+        out = []
+        for tok in _tk.generate_tokens(_io.StringIO(src).readline):
+            if tok.type in (_tk.COMMENT, _tk.STRING):
+                continue
+            out.append(tok.string)
+        return " ".join(out)
+    except (_tk.TokenError, IndentationError, SyntaxError):
+        keep = []
+        for line in src.split("\n"):
+            i = line.find("#")
+            keep.append(line if i < 0 else line[:i])
+        return "\n".join(keep)
 
 
 class _Resp:
@@ -496,7 +530,7 @@ class ARejectionSaysWhyWhicheverClientRefusedIt(unittest.TestCase):
         root = tempfile.mkdtemp()
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
                           client=T63.broker(Refuses()), equity=1000.0, marks=T63.MARKS,
-                          root=root, send=True)
+                          root=root, send=True, account=ACCOUNT)
         alerts = [a["reason"] for a in got["alerts"] if a["kind"] == "broker_error"]
         self.assertTrue(alerts)
         self.assertIn("client_order_id must be unique", alerts[0])
@@ -556,7 +590,7 @@ class TheOrderIdIsUniquePerAttempt(unittest.TestCase):
         for _ in range(2):
             LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
                         client=T63.broker(Watch()), equity=1000.0, marks=T63.MARKS,
-                        root=root, send=True)
+                        root=root, send=True, account=ACCOUNT)
         self.assertGreaterEqual(len(ids), 2, ids)
         self.assertEqual(len(set(ids)), len(ids),
                          "a duplicate client_order_id was sent: %r" % (ids,))
@@ -599,8 +633,12 @@ class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
         self.root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.root, True)
 
-    def _cycle(self, filled_qty):
-        """One cycle where the broker reports `filled_qty` of AAPL already filled."""
+    def _cycle(self, filled_qty, day=None):
+        """One cycle where the broker reports `filled_qty` of AAPL already filled.
+
+        `day` injects the clock, because item 67's ceiling counts DISTINCT TRADING DAYS and a
+        test that cannot move the date cannot state a property about days.
+        """
         from valuation.edge import live_cycle as LC
         import tests.test_item63 as T63
 
@@ -613,18 +651,27 @@ class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
             orders=orders,
             positions=([{"symbol": "AAPL", "qty": str(filled_qty),
                          "avg_entry_price": "100", "side": "long"}] if filled_qty else []))
-        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
-                          client=T63.broker(sess), equity=1000.0, marks=T63.MARKS,
-                          root=self.root, send=True)
+        real = LC._stamp
+        try:
+            if day:
+                LC._stamp = (lambda d=day: "%sT14:40:00Z" % d)
+            got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
+                              client=T63.broker(sess), equity=1000.0, marks=T63.MARKS,
+                              root=self.root, send=True, account=ACCOUNT)
+        finally:
+            LC._stamp = real
         return got
 
+    #: Five real consecutive trading days, Thursday to Wednesday over a weekend.
+    DAYS = ["2026-10-22", "2026-10-23", "2026-10-26", "2026-10-27", "2026-10-28"]
+
     def test_a_cycle_that_ADVANCED_resets_the_count(self):
-        """THE WHOLE POINT. Partial fills arriving cycle after cycle is the mechanism working."""
-        self._cycle(0)
-        self._cycle(0)
-        two = self._cycle(0)
+        """THE WHOLE POINT. Partial fills arriving day after day is the mechanism working."""
+        self._cycle(0, self.DAYS[0])
+        self._cycle(0, self.DAYS[1])
+        two = self._cycle(0, self.DAYS[2])
         self.assertGreaterEqual(two.get("attempts_without_progress") or 0, 2)
-        advanced = self._cycle(1.0)        # a fill arrives
+        advanced = self._cycle(1.0, self.DAYS[3])        # a fill arrives
         self.assertEqual(advanced.get("attempts_without_progress"), 1,
                          "an advancing cycle did not reset the no-progress count")
 
@@ -642,11 +689,14 @@ class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
         """THE POSITIVE CONTROL, and the auditor's actual condition: a permanently-rejecting
         or permanently unfillable state must still stop and escalate."""
         from valuation.edge import live_cycle as LC
+        from valuation.edge import settlement as SETTLE
         last = None
-        for _ in range(LC.MAX_EVENT_ATTEMPTS + 2):
-            last = self._cycle(0)
+        for d in ["2026-10-%d" % n for n in (22, 23, 26, 27, 28, 29, 30)]:
+            last = self._cycle(0, d)
+        self.assertEqual(SETTLE.MAX_EVENT_TRADING_DAYS, 5)
         self.assertTrue(last.get("attempts_exhausted"), last.get("reason"))
-        self.assertIn("NO advance in what it holds", last["reason"])
+        self.assertIn("NO change in what it holds", last["reason"])
+        self.assertIn("TRADING DAYS", last["reason"])
 
     def test_progress_is_measured_on_HOLDINGS_and_not_on_orders_accepted(self):
         """An order accepted and never filled is exactly what a permanent rejection or an
@@ -655,21 +705,49 @@ class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
         FILLS, which is why it cannot be fooled."""
         from valuation.edge import live_cycle as LC
         src = open(LC.__file__, encoding="utf-8").read()
-        block = src[src.index("# ---- THE CEILING COUNTS ATTEMPTS THAT MADE NO PROGRESS"):]
-        block = block[:block.index("# ---- THE INTENT IS WRITTEN BEFORE")]
+        # **THE MARKERS MOVED WITH THE CHANGE [item 67].** The block now ends at the budget
+        # rather than at the intent, because item 67 inserted the no-borrow sizing between
+        # them. A source assertion keyed on surrounding prose is a guard that rots, which is
+        # why this one is bounded by its own opening line and the NEXT dashed header instead.
+        block = src[src.index("# **THE CEILING COUNTS TRADING DAYS, NOT CYCLES"):]
+        block = block[:block.index("# ---- SIZE THE BUYS TO WHAT CAN BE SPENT")]
         self.assertIn('st.get("holdings")', block)
         self.assertNotIn('out["sent"]', block)
         self.assertNotIn('plan["orders"]', block)
+        # **READ AS CODE, NOT AS TEXT [item 67].** The ban below first fired against the
+        # CORRECT tree, on the comment that explains why the banned form was removed -- the
+        # substring-ban family this record names over and over, committed again with the
+        # warning in view. Comments and string literals are stripped first.
+        # **AND THE SPLIT IS NOT ARBITRARY.** Stripping removes string LITERALS as well as
+        # comments, so a dict KEY disappears with them -- which is why the three assertions
+        # above, every one of them about a key, are made on the raw text, and only the operator
+        # ban below is made on stripped code. Caught by `event_fingerprint` vanishing from the
+        # stripped block on the first run. The residual risk the raw ones carry is narrow and
+        # stated: a comment quoting `out["sent"]` verbatim would fire them.
+        code = _strip_comments(block)
+        self.assertIn("event_fingerprint", block)
+        # **PROGRESS IS A CHANGE, NOT AN INCREASE.** The old test could never be satisfied by
+        # a SELL, and item 67 sends the sells first -- so the sell leg of every rebalance
+        # registered as no progress and burned a day off the ceiling.
+        self.assertNotIn("held_now >", code)
+
+    def test_the_comment_stripper_is_not_vacuous(self):
+        """A POSITIVE CONTROL IN BOTH DIRECTIONS. A stripper returning "" would make the
+        assertion above pass by seeing nothing, which is worse than having no guard."""
+        src = "x = 1  # held_now > baseline\ny = 'held_now > z'\nheld_now > w\n"
+        out = _strip_comments(src)
+        self.assertIn("held_now > w", out, "the stripper ate the code")
+        self.assertEqual(out.count("held_now >"), 1, out)
 
     def test_closing_an_event_clears_its_counters(self):
         """Or a slot that needed four cycles once starts the NEXT rebalance with four attempts
         already spent -- the stale-state family."""
         from valuation.edge import live_cycle as LC
         import tests.test_item63 as T63
-        self._cycle(0)
-        self._cycle(0)
+        self._cycle(0, "2026-10-22")
+        self._cycle(0, "2026-10-23")
         st = LC.read_state(LC.PAPER_SLOT, self.root)
-        self.assertTrue(st.get("event_attempts"), "the fixture never counted an attempt")
+        self.assertTrue(st.get("event_attempt_days"), "the fixture never counted a day")
         # Now a cycle whose targets are already met, which closes the event.
         sess = T63.RecordedAlpaca(
             positions=[{"symbol": "AAPL", "qty": "6", "avg_entry_price": "100",
@@ -684,10 +762,11 @@ class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
                      "limit_price": "200", "filled_avg_price": "200"}])
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
                           client=T63.broker(sess), equity=1000.0, marks=T63.MARKS,
-                          root=self.root, send=True)
+                          root=self.root, send=True, account=ACCOUNT)
         self.assertIn("targets are already met", got["reason"])
         st2 = LC.read_state(LC.PAPER_SLOT, self.root)
-        for bag in ("event_attempts", "event_progress"):
+        for bag in ("event_attempts", "event_progress", "event_fingerprint",
+                    "event_attempt_days", "awaiting_settlement"):
             self.assertNotIn("rebalance:2026-10-22", (st2.get(bag) or {}),
                              "%s kept a closed event's counter" % bag)
 
@@ -734,7 +813,7 @@ class TheOrderIdCounterIsNotTheCeilingsCounter(unittest.TestCase):
                                 if filled_qty else []))
         return LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
                            client=T63.broker(sess), equity=1000.0, marks=T63.MARKS,
-                           root=self.root, send=True)
+                           root=self.root, send=True, account=ACCOUNT)
 
     def test_IDS_NEVER_REPEAT_ACROSS_A_CEILING_RESET(self):
         """**THE CASE THE EARLIER TEST COULD NOT REACH.** Cycles with no progress raise the
@@ -770,7 +849,7 @@ class TheOrderIdCounterIsNotTheCeilingsCounter(unittest.TestCase):
         self._cycle(0, ids)
         st = LC.read_state(LC.PAPER_SLOT, self.root)
         self.assertIn("send_seq", st)
-        self.assertIn("event_attempts", st)
+        self.assertIn("event_attempt_days", st)   # the ceiling's own bag, renamed by item 67
 
     def test_the_id_is_built_from_send_seq_and_not_from_the_attempt_count(self):
         """Asserted on the source, because the two were briefly the same VALUE -- so a
@@ -785,7 +864,13 @@ class TheOrderIdCounterIsNotTheCeilingsCounter(unittest.TestCase):
     def test_closing_the_event_clears_the_send_sequence_too(self):
         from valuation.edge import live_cycle as LC
         src = open(LC.__file__, encoding="utf-8").read()
-        self.assertIn('("event_attempts", "event_progress", "send_seq")', src)
+        # Item 67 added three bags to the same list, so the assertion is on each NAME being
+        # cleared rather than on the tuple's exact text -- which is what made this rot.
+        block = src[src.index("for bag in ("):]
+        block = block[:block.index(")")]
+        for bag in ("event_attempts", "event_progress", "send_seq",
+                    "event_fingerprint", "event_attempt_days", "awaiting_settlement"):
+            self.assertIn('"%s"' % bag, block, "a closed event would keep %s" % bag)
 
 
 class TheWashTradeRejectionIsSurfacedInWords(unittest.TestCase):
@@ -818,7 +903,7 @@ class TheWashTradeRejectionIsSurfacedInWords(unittest.TestCase):
                 return super().request(method, url, **k)
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
                           client=T63.broker(Wash()), equity=1000.0, marks=T63.MARKS,
-                          root=tempfile.mkdtemp(), send=True)
+                          root=tempfile.mkdtemp(), send=True, account=ACCOUNT)
         kinds = [a["kind"] for a in got["alerts"]]
         self.assertIn("broker_error", kinds)
         self.assertIn("wash trade", json.dumps(got["alerts"]))

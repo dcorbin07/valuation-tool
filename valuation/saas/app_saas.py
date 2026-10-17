@@ -1388,8 +1388,18 @@ def create_saas_app(cfg=CONFIG):
         needs the admin token, which no lane ever sees. So a lane building this feature reports
         key presence as UNKNOWN rather than assuming it, and Don reads the answer here.
 
-        Read-only. It constructs no client of any kind — not even the paper one — so calling it
-        cannot place, cancel or price anything.
+        Read-only. It constructs no client of any kind — not even the paper one — so calling
+        it cannot place, cancel or price anything.
+
+        **`?check=fractional` ADDS ITEM 67 PART 2's ANSWERS AND STILL BUILDS NOTHING.** Which
+        of the book's names Alpaca will trade fractionally, and what each live slot's account
+        reports about settlement and fractional trading, are both READ FROM THE SLOTS' OWN
+        RECORDS — written by the cycle, which legitimately holds a client. Two invariants
+        pushed it there and both are worth more than the convenience: a live client is
+        constructed in exactly one gated place (item 58), and this door builds nothing at all
+        (`test_item58b_doors.py`, asserted on this source). The cost is that both answers are as
+        fresh as the last cycle rather than as fresh as the page, and each carries the time it
+        was read so staleness is visible. It is a flag because the per-name table is long.
         """
         if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
@@ -1421,6 +1431,59 @@ def create_saas_app(cfg=CONFIG):
                 row["open_event"] = st.get("open_event")
                 row["last_parity"] = st.get("last_parity")
                 row["holdings_recorded"] = len(st.get("holdings") or {})
+            # ---- ?check=fractional: THE IRA QUESTION, READ-ONLY [item 67 part 2] -------
+            if (request.args.get("check") or "").strip().lower() == "fractional":
+                rep = {"constructs_an_order": False,
+                       "what_was_read": ["GET /v2/assets", "GET /v2/account",
+                                         "GET /v2/account/configurations"]}
+                # **THE BOOK'S CENSUS IS READ FROM THE PAPER SLOT'S RECORD.** This door
+                # constructs no client of any kind -- its own promise, and
+                # `test_item58b_doors.py` asserts it on the SOURCE rather than on intention.
+                # The cycle reads Alpaca's asset master (one GET, account-independent, so the
+                # paper keys answer it for every slot) and records the result here.
+                # **ITS OWN NAME, NOT `pst`.** `pst` is used again forty lines below for a
+                # different purpose, and one name holding two meanings in one function is the
+                # shape that produced the double-assigned `EXPECTED_BY_DOMAIN` -- harmless
+                # until somebody moves a block.
+                paper_rec = LC.read_state(LC.PAPER_SLOT) or {}
+                rep["book"] = (paper_rec.get("fractional_report")
+                               or {"ok": False,
+                                   "reason": ("no cycle has read Alpaca's asset master yet, "
+                                              "so which names are fractionable is UNMEASURED "
+                                              "-- not a report that none of them are. The "
+                                              "next cycle records it.")})
+                rep["read_with"] = ("the PAPER keys, by the cycle -- the asset master is "
+                                    "account-independent, so it answers for every slot")
+                # **EACH LIVE SLOT'S ACCOUNT IS READ FROM ITS RECORD, NOT BY BUILDING A
+                # CLIENT HERE.** Item 58 pins that a live client is constructed in exactly ONE
+                # place -- in `live_cycle`, inside an `if` naming both `armed` and `send` --
+                # and a read-only second site still breaks it: the invariant's whole value is
+                # that nobody has to audit each site for what it does. So the cycle does the
+                # read at the site that already holds a client, and this reports what it
+                # recorded. **The cost is stated rather than left blank: the IRA's own
+                # `fractional_trading` flag is UNMEASURED until one live-mode cycle has run
+                # with its keys in.** The fractionable census above needs none of that, because
+                # the asset master is account-independent.
+                rep["slots"] = {}
+                for n in LS.discover_slots():
+                    slot_rec = LC.read_state(n) or {}
+                    got = slot_rec.get("settlement_report") or {}
+                    if got:
+                        rep["slots"][str(n)] = got
+                    else:
+                        rep["slots"][str(n)] = {
+                            "ok": False,
+                            "reason": ("no live-mode cycle has read this slot's account yet, "
+                                       "so what it reports is UNMEASURED -- not a report that "
+                                       "it lacks fractional trading. It is recorded by the "
+                                       "first cycle that runs with this slot's keys in place, "
+                                       "and no door builds a live client to ask early."),
+                        }
+                rep["how_the_slot_rows_are_obtained"] = (
+                    "read from each slot's own record, written by the last live-mode cycle. "
+                    "This door constructs no client of any kind.")
+                out["fractional_check"] = rep
+
             # IN WORDS, not only as an empty list. An empty table reads as "nothing to
             # report"; this says "nothing configured", which is a different fact and the one
             # the Done list asks for by name.

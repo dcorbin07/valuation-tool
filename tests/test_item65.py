@@ -60,6 +60,15 @@ ORDERS_THAT_BOUGHT_IT = [
 ]
 
 
+#: THE BROKER'S ACCOUNT REPLY, consistent with the equity these fixtures already pass:
+#: `multiplier` 1 and a no-borrow figure equal to the cash, which is what Alpaca documents a
+#: limited-margin account as reporting. **Deliberately NOT generous** -- an account with more
+#: spendable than the book costs would never exercise item 67's deferral at all, and a budget
+#: that is never binding is a budget that is never tested.
+ACCOUNT = {"cash": "1000.00", "buying_power": "1000.00",
+           "non_marginable_buying_power": "1000.00", "multiplier": "1"}
+
+
 class Reply:
     def __init__(self, payload, status=200):
         self.status_code, self._p, self.headers, self.text = status, payload, {}, ""
@@ -180,6 +189,15 @@ class TheAuditorsLastBlockerIsClosed(_Cycle):
         """The state the auditor confirmed already worked. It must keep working, or the test
         above would pass because the slot can never trade at all."""
         sess = Alpaca(positions=HOLDS_THE_BOOK, orders=ORDERS_THAT_BOUGHT_IT)
+        # **THE FIRST CYCLE REFUSES ON ITEM 67's FRESH-RECORD AMBIGUITY and the second heals.**
+        # This fixture has no state file and a non-empty account, which is precisely the state
+        # the auditor's recommendation 2 asks to be refused once. Nothing transmits on either,
+        # which is what this test is for -- and the second cycle proving the self-healing route
+        # still works is what stops the refusal becoming an outage.
+        _, first = self.cycle(sess)
+        self.assertEqual(sess.placed, [])
+        self.assertIn("brand new", first["reason"])
+
         _, p = self.cycle(sess)
         self.assertEqual(sess.placed, [])
         self.assertEqual(p["reconcile"]["order_read"], "ok")
@@ -201,7 +219,7 @@ class TheAuditorsLastBlockerIsClosed(_Cycle):
                           book=BOOK, client=None, equity=1000.0,
                           marks={"AAPL": {"mid": 100.0}, "MSFT": {"mid": 200.0}},
                           root=self.root, send=False,
-                          paper_targets={"AAPL": 60.0, "MSFT": 40.0}, paper_value=100.0)
+                          paper_targets={"AAPL": 60.0, "MSFT": 40.0}, paper_value=100.0, account=ACCOUNT)
         self.assertEqual(got["reconcile"]["order_read"], "not_attempted")
         self.assertTrue(got["orders"], got["reason"])
 
@@ -255,11 +273,16 @@ class TheRestingOppositeOrderIsCancelledFirst(_Cycle):
     cannot be confirmed that name does not trade this cycle. **No complex orders.**
     """
 
-    def _resting(self, side, symbol="AAPL"):
+    def _resting(self, side, symbol="AAPL", qty="6"):
+        # **`qty` IS PART OF EVERY REAL ALPACA ORDER AND THIS FIXTURE OMITTED IT [item 67].**
+        # Item 67 subtracts a resting order's OPEN quantity from the plan, so an order of
+        # unknown size now withholds that name -- and two tests below went red on a recording
+        # that was missing a field the API always sends. The same family as the auditor's own
+        # question-7 miss: a double that is not the real thing.
         return {"id": "resting-1", "client_order_id": "valquo-paper-rebalance:2026-10-22-%s-a1"
                                                       % symbol,
                 "symbol": symbol, "side": side, "status": "new", "filled_qty": "0",
-                "limit_price": "100"}
+                "qty": qty, "limit_price": "100"}
 
     def test_a_resting_OPPOSITE_order_is_cancelled_before_the_send(self):
         sess = Alpaca(positions=[], orders=[self._resting("sell")])
@@ -274,6 +297,25 @@ class TheRestingOppositeOrderIsCancelledFirst(_Cycle):
         sess = Alpaca(positions=[], orders=[self._resting("buy")])
         self.cycle(sess)
         self.assertEqual(sess.cancelled, [])
+
+    def test_AND_IT_IS_SUBTRACTED_FROM_THE_PLAN_INSTEAD(self):
+        """**THE CONSEQUENT QUESTION, which the auditor named this test for not asking.**
+
+        *"It documents the decision not to cancel and never asks the consequent question -- if
+        the working order is kept, must it be subtracted from the plan?"* It must: holdings
+        count fills only, so without the subtraction the planner re-plans the whole remainder
+        every cycle and the orders STACK. The auditor reproduced five full orders against a
+        one-order target.
+
+        AAPL's target is 6 shares at 100 and 6 are already resting, so the correct plan for
+        AAPL this cycle is NOTHING.
+        """
+        sess = Alpaca(positions=[], orders=[self._resting("buy", qty="6")])
+        _, p = self.cycle(sess)
+        aapl = [o for o in sess.placed if o["symbol"] == "AAPL"]
+        self.assertEqual(aapl, [], "the whole remainder was re-sent on top of a resting order")
+        self.assertTrue([o for o in sess.placed if o["symbol"] == "MSFT"],
+                        "the other names must still trade")
 
     def test_an_UNCONFIRMED_cancel_means_that_name_does_not_trade(self):
         class CancelFails(Alpaca):
@@ -439,7 +481,14 @@ class TheCycleLogIsReadable(unittest.TestCase):
         step = self.src[self.src.index("Keep the cycle's full body"):]
         self.assertIn("if: always()", step.split("- name:")[0])
         self.assertIn("live-cycle-body.json", step.split("- name:")[0])
-        self.assertEqual(self.src.count("upload-artifact"), 1, "two artifact steps")
+        # **ITEM 67 ADDED A SECOND ARTIFACT STEP** (the fractional census), so the property
+        # is no longer "there is exactly one" -- it is that EVERY upload runs on failure too,
+        # which is what the original count was standing in for. A count was the weaker test.
+        blocks = [b for b in self.src.split("      - name:") if "upload-artifact" in b]
+        self.assertGreaterEqual(len(blocks), 2, "the artifact steps moved")
+        for b in blocks:
+            self.assertIn("if: always()", b,
+                          "an artifact step would be skipped on a failed cycle")
 
     def test_it_runs_on_a_REAL_cycle_body(self):
         """Exercised against the recorded body of item 64's fifth cycle rather than a fixture,

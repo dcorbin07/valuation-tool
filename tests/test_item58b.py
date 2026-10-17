@@ -57,7 +57,15 @@ class Stub:
         self.improve, self.reject = improve, reject
 
     def account(self):
-        return {"equity": self.equity}
+        # **WHAT ALPACA ACTUALLY REPORTS [item 67].** `equity` alone was enough until a buy was
+        # sized from the account; `settlement.spendable` needs a figure it can spend WITHOUT
+        # BORROWING, and refuses when none is reported -- so a stub carrying only `equity`
+        # sends no buys. A fully-settled 1x account reports all three equal to its equity,
+        # which is Alpaca's own documented identity for `multiplier` 1 and is the account these
+        # tests have always been describing.
+        return {"equity": self.equity, "cash": self.equity,
+                "buying_power": self.equity,
+                "non_marginable_buying_power": self.equity, "multiplier": 1}
 
     def quotes(self, tickers):
         return {t: {"mid": 10.0, "bid": 9.99, "ask": 10.01} for t in tickers}
@@ -156,7 +164,12 @@ class LiveShaped(Stub):
     """
 
     def account(self):
-        return {"ok": True, "status": 200, "data": {"equity": self.equity}}
+        # The LIVE client's envelope shape, carrying the same fully-settled 1x account as the
+        # paper stub above -- see its comment. [item 67]
+        return {"ok": True, "status": 200,
+                "data": {"equity": self.equity, "cash": self.equity,
+                         "buying_power": self.equity,
+                         "non_marginable_buying_power": self.equity, "multiplier": 1}}
 
     def positions(self):
         return {"ok": True, "data": [{"symbol": k, "qty": v}
@@ -339,10 +352,37 @@ class ThePaperOnlySendMode(_Tmp):
 
 class TheRemainderIsTheShortfall(_Tmp):
     """THE SECOND BUG, PINNED: holdings are reconciled from FILLS, so a part fill leaves a
-    smaller order and never the whole plan again."""
+    smaller order and never the whole plan again.
 
-    def test_a_part_fill_leaves_a_strictly_smaller_order(self):
+    **AND ITEM 67 PART 0 SPLIT THAT INTO TWO STATES**, because this suite tested only one of
+    them and the other is the auditor's third blocker: while the unfilled remainder is STILL
+    RESTING, nothing more is sent at all -- the working order IS the remainder, and re-sending
+    it stacks. The smaller order arrives once that order is no longer working.
+    """
+
+    def test_WHILE_THE_REMAINDER_RESTS_nothing_more_is_sent(self):
+        """**THE AUDITOR'S THIRD BLOCKER, on the suite that documented it as correct.** This
+        stub fills 40% and keeps the other 60% resting for ever, which is what a `day` limit at
+        the mid does inside a session. Five cycles used to send five full orders."""
         c = Stub(fill=0.4)
+        first = sorted((o["ticker"], o["qty"]) for o in self.cycle(c)["paper"]["orders"])
+        self.assertTrue(first, "the first cycle sent nothing, so this proves nothing")
+        n_after_first = len(c.sent)
+        for _ in range(4):
+            self.cycle(c)
+        self.assertEqual(len(c.sent), n_after_first,
+                         "a remainder was re-sent on top of its own resting order")
+
+    def test_ONCE_IT_IS_NO_LONGER_RESTING_the_remainder_is_strictly_smaller(self):
+        """The other half, and the one this test originally measured. A `day` order dies at
+        the close, so the next session's cycle really is a re-price rather than an addition."""
+        class Expires(Stub):
+            def orders(self, status="all", limit=100):
+                # Yesterday's order filled 40% and then EXPIRED, which is what a `day` order
+                # does. The fill still counts; the order is no longer working.
+                return [dict(o, status="expired") for o in self.sent]
+
+        c = Expires(fill=0.4)
         first = sorted((o["ticker"], o["qty"]) for o in self.cycle(c)["paper"]["orders"])
         second = sorted((o["ticker"], o["qty"]) for o in self.cycle(c)["paper"]["orders"])
         self.assertEqual([t for t, _ in first], [t for t, _ in second])
