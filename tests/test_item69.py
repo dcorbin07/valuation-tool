@@ -479,7 +479,13 @@ class ASpinOffBooksAFakeLossInTheRecord(unittest.TestCase):
         block = src[i:src.index("coverage = (wsum / total_w)", i)]
         self.assertIn("if not cur:", block)
         self.assertIn("_stopped_trading", block)
-        self.assertIn('num += p["weight"] * (cur / base - 1.0)', block)
+        # **THE EXPRESSION MOVED WHEN AMENDMENT 3 WAS DRAFTED**, and the finding did not: the
+        # contribution is still the parent's price over the base, plus a `credit` that is ZERO
+        # unless the contract's signature row says otherwise. The behavioural test above still
+        # books the fake loss, which is the honest state while the amendment is unsigned.
+        self.assertIn('num += p["weight"] * ((cur + credit) / base - 1.0)', block)
+        self.assertIn("credit = 0.0", block)
+        self.assertIn('_a3["signed"]', block)
 
     def test_the_contract_says_acquired_or_stops_trading_and_NOTHING_about_a_spin_off(self):
         txt = io.open(os.path.join(REPO, "PAPER_TRACK_CONTRACT.md"),

@@ -205,6 +205,31 @@ manager from Don's own words in chat.
   selling side), a stress gate for put selling judged forward, a census only for O-1's data,
   and the DTE question answered from the record. The alert-driven long-call entry is not
   re-opened: it loses to random days in every score band and at every threshold.
+- **2026-10-17 — DON APPROVES THE SPIN-OFF RULE; AMENDMENT 3 IS DRAFTED FOR HIS SIGNATURE AND
+  IMPLEMENTED DORMANT.** Item 69 measured that a held name spinning something off would book a
+  **fake loss** in the bound record — the vendor left Aptiv's spin-off as a −10.58% cliff and
+  Unilever's demerger as −7.03% — and that Amendment 2's corporate-action rule cannot reach it,
+  because its trigger is "acquired or stops trading" and a spin-off is the one action where the
+  name keeps trading. **The rule: a distribution is RECEIVED, so the holding is measured against
+  the parent's price PLUS the distributed value per parent share at the distribution date, with
+  that value stored at the time.** `PAPER_TRACK_CONTRACT.md` **§5a-3**, and **the signature row
+  reads NO** — `index_mark._amendment_3()` parses it on every mark through the same parser the
+  operational gate uses, so **unsigned the record is bit-identical**, pinned by test. Anything that
+  is not a clean signature is not one (blank, `pending`, hedged prose, or two rows disagreeing),
+  and **signed with no effective date is NOT in force**, because that would reach recorded rows.
+  **Effective from segment base 2027-01-25** — derived from `next_rebalance("2026-10-22")` rather
+  than typed, and deliberately January rather than the 10-22 boundary five days away: a signature
+  landing after a boundary would switch the rule on part-way through a segment whose earlier marks
+  were recorded under the old one. **No backfill, and it is structural**: the credit window is
+  `base < distribution <= mark`, so a segment that opened before the effective date cannot be
+  touched — and there is nothing to backfill, both measured cases predating the 2026-07-30
+  inception. The value is declared in tracked source (`index_mark.DISTRIBUTIONS`, empty today)
+  following `EXITS`'s idiom, because committed source is "stored at the time". **It claims nothing
+  about what the distributed shares did next**, in Amendment 2's own terms. **A known gap, named
+  in the amendment: nothing watches for a distribution** — the entry is made by a human who
+  noticed, and item 68's `classify_disagreement` on the book since inception is the detector, which
+  is the same measurement already routed to Don. **Not a vintage event; no clock, σ or threshold
+  moved; Amendment 2 untouched.**
 - **2026-10-17 — ITEM 69: AN UNPRICED EXIT WAS DROPPED IN SILENCE (the auditor's fourth blocker,
   and item 67's own fix half done); AND A SPIN-OFF WOULD BOOK A FAKE LOSS IN THE RECORD.** The
   auditor reproduced it through `run_cycle` with the real broker: the slot knows MSFT must go,
