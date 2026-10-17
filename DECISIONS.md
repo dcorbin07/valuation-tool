@@ -181,6 +181,76 @@ manager from Don's own words in chat.
   vendor and the seam recorded; that is a price-vendor change, not a vintage event.
   Fundamentals, descriptions and earnings dates stay on Yahoo plus SEC, because Alpaca does not
   carry them.
+- **2026-10-15 — INSIDER CLUSTERS: THE 1999–2008 RUNG IS UNOBTAINABLE; F-23 MOVES TO SEC
+  INSIDER IDS, CHECKED FIRST.** r1 measured the older-data rung. Free data starts in 2008, giving
+  31 events at 6.3% power. Raw SEC filings would add only 2006–2007, and pre-2003 filings were on
+  paper. The rung is recorded as unobtainable and nothing is purchased. The forward paper book is
+  the remaining test. F-23 cannot fill on the licensed file, which is a frozen snapshot, and the
+  SEC's free feed counts insiders differently because the licensed file has names only, no IDs.
+  So the rule is re-measured on the SEC's insider ID numbers on the 2009–2019 build data only,
+  with stage 1's bar. F-23 moves to that rule only if it clears.
+- **2026-10-16 — F-4 AND F-10 ARE NOT RE-DECLARED YET.** Both avoid scheduled earnings, and the
+  event spine holds no forward dates, so they could not enter. They are revisited once a free
+  forward earnings calendar is measured. Next for options: Don adds the fleet's second Alpaca
+  paper account, which lets F-21, F-22 and F-8 trade; EARNINGS-CSP's free kill; the
+  forward-calendar measurement; and F-21b's rule frozen before F-21's first fill. MB2's single
+  cell and the cap-3 sizing test wait for Don.
+- **2026-10-16 — THE OPTIONS PAPER FLEET HAS NEVER TRADED, AND FIXING THAT COMES FIRST.** Its
+  broker is still the Tradier sandbox, and Tradier closed on 10-08. In the last fleet backup
+  (10-04) no book had recorded a single order, only self-checks. Since a forward paper book is
+  the last rung for every options strategy, the options lane moves the fleet onto Alpaca paper
+  before any new options test. Don asked for an options edge "as long as it isn't super
+  expensive". The scout drafts the remaining candidates and ranks them: earnings-spanning
+  cash-secured puts (O7 found earnings options rich, and that has never been tested from the
+  selling side), a stress gate for put selling judged forward, a census only for O-1's data,
+  and the DTE question answered from the record. The alert-driven long-call entry is not
+  re-opened: it loses to random days in every score band and at every threshold.
+- **2026-10-16 — AUDITOR RE-REVIEW: STILL NOT YET** (`4eb4fa6`). 7 of 8 questions pass. One
+  route to a duplicate buy-in survives: state lost, the order list unreadable, the position list
+  readable. The fix is to refuse on a failed order read (item 65). Item 64 landed: IEX priced 85
+  of 85 names during market hours, so no $99/month plan is needed. The paper slot placed and
+  filled real paper orders (81 of 85 names held after five cycles). Two order-id defects were
+  fixed, and Alpaca's wash-trade refusal surfaced (item 65). The auditor reviews a third time
+  after item 65, and live keys stay out until then.
+- **2026-10-16 — ITEM 63 LANDED; THE FIRST REAL PAPER CYCLE RAN.** On the service, the paper
+  keys authenticate, the Index book is readable, and the paper order path works. The cycle,
+  dispatched after hours, refused because 26 names had no two-sided IEX quote. Whether IEX can
+  quote the book during market hours is item 64's first question. If it can't, Don chooses
+  between the $99/month data plan and a different mark rule; no fallback mark is invented. Also
+  measured: GitHub ran PT-WRITER about five hours late on Oct 15 and 16, and the live-cycle
+  schedule had not fired by 17:19Z on Oct 16, so item 64 adds backup schedules. The auditor
+  re-reviews item 63 before any live key goes in.
+- **2026-10-15 — AUDITOR: NO LIVE KEY YET** (branch `worktree-auditor-live-path-review`, not
+  yet landed). There are two blockers. First, the paper slot cannot place an order, because of a
+  method-name mismatch that every stub-based test missed. Second, a duplicate buy-in is reachable
+  through an empty record and a discarded state write. Parity and the unreadable-positions case
+  also fail. Item 63 fixes all of them; the auditor re-reviews before any live key goes in.
+- **2026-10-15 — F23-JOIN: THE REPAIRED JOIN STILL DOES NOT CLEAR.** The join was broken, and
+  repairing it moved the arm from +0.16 to +0.87 points, but the halves still disagree in sign.
+  F-23 stays declared and unfilled, and no variant is searched for.
+- **2026-10-15 — F23-SECID DID NOT CLEAR, BUT IT RAN ON A BROKEN TICKER JOIN** (`f712be2`).
+  Counting insiders by SEC ID instead of by name changed almost nothing (Jaccard 0.987). The
+  SEC-sourced cell, though, covered 608 tickers against SF2's 1,344, because of a join defect
+  between the SEC trading symbol and the panel. r1 repairs the join and re-runs the same
+  registered check as a correctness repair, with no new trial and no variant search. F-23
+  stays unfilled unless the repaired read clears.
+- **2026-10-14 — THE PROOF PAGE LEADS WITH THE PRODUCT** (item 61). It opens on the Valquo
+  Index's own backtested figures (+2.22 points a year over SPY, net Sharpe 0.97, the after-tax
+  line) and the forward track's honest status. The research decile, the top 10% of all ~9,645
+  companies, follows as the evidence that the ranking works.
+- **2026-10-14 — VALUATION PAGE HEADLINE: A VALUATION VERDICT, NOT BUY/HOLD/SELL** (item 60).
+  The headline reads "Undervalued", "Fairly valued" or "Overvalued vs our model", set by the
+  price against the model's bear/base/bull range. Beside it: the fair-value range, the model's
+  confidence, the two reads, and what the price assumes. Names the model cannot value say so
+  instead. No buy, sell or target-price wording anywhere. Everything else on the page is
+  ordered from most to least relevant, with the deep model detail behind a "Show the full
+  model" control.
+- **2026-10-14 — SELL-PREMIUM-3 RESULT: NOT CONFIRMED AND UNDERPOWERED AT STAGE 1** (`2a970bb`).
+  The early half was +4.59%, the late half −1.21%, and no cell reached its own detection
+  threshold. 37% of entries had no strike in the declared width band. Stage 2 was not run, so the
+  check read is unspent. Separately, Alpaca IRAs cannot hold spreads (level 2 only), whereas
+  Fidelity, Schwab and tastytrade publish that they allow defined-risk spreads in IRAs. Nothing
+  adopted.
 - **2026-10-14 — SELL-PREMIUM-3 IS TESTED AS DRAFTED.** The corrected stage 2 left SELL-PREMIUM-2
   NOT CONFIRMED at −0.43%/trade, the loss being the 2020 COVID crash (2021 slightly negative,
   2022-2026 positive). Don chose to test the capped-loss version anyway. Its construction is frozen at the

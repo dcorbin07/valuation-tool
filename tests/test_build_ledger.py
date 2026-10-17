@@ -161,10 +161,45 @@ def test_known_out_of_band_rows_are_present():
           f"+ {len(extra)} out-of-band {extra}")
 
 
+
+def test_every_ledger_row_is_the_HEADER_WIDTH_or_its_id_vanishes():
+    """A SHORT row is parsed, not rejected, and the id disappears from the ledger entirely.
+
+    **FOUND BY LANDING ONE (2026-10-16).** `SELL-PREMIUM-3` shipped with NINE cells against the
+    ten-column header - the verdict written last and the note omitted - so every cell after
+    `status` shifted one place left, `read_ledger` skipped the row, and the id was simply ABSENT
+    from the 469-row list while this suite stayed green. That is the `M1-PARSE` hazard in its
+    MISSING-CELL form; the extra-pipe form was already known and this one was not.
+
+    **The round-trip tests above cannot see it**, and for a reason worth stating: they compare
+    `read_ledger()` against `render()`, and a row neither of them parses is consistent with
+    itself. **A check that only compares two readings of the same parser is blind to what the
+    parser drops** - so this one reads the FILE.
+    """
+    with open(str(B.LEDGER), encoding="utf-8") as fh:
+        body = fh.read().splitlines()
+    want = len(B.COLS)
+    # The file carries THREE tables and only the last is the ledger proper, so the scan starts
+    # at its own header rather than at the top -- a width check aimed at the wrong table reports
+    # every row of the other two and gets switched off within a week.
+    head = [i for i, l in enumerate(body) if l.startswith("| id | series |")]
+    assert len(head) == 1, head
+    bad = []
+    for n, line in enumerate(body[head[0]:], head[0] + 1):
+        if not line.startswith("| "):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells[0] in ("id", "") or set(cells[0]) <= {"-", ":"}:
+            continue
+        if len(cells) != want:
+            bad.append((n, cells[0], len(cells)))
+    check("every id row is %d cells wide" % want, not bad, "offenders: %r" % (bad[:5],))
+
 if __name__ == "__main__":
     test_render_preserves_non_audit_rows()
     test_only_auto_rows_are_overwritable()
     test_real_ledger_round_trips()
     test_known_out_of_band_rows_are_present()
+    test_every_ledger_row_is_the_HEADER_WIDTH_or_its_id_vanishes()
     print(f"\n{PASS} passed, {FAIL} failed")
     raise SystemExit(1 if FAIL else 0)

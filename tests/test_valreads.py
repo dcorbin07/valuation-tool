@@ -406,13 +406,45 @@ class TestTheSelfCheckGatesTheRecorder(unittest.TestCase):
 
 
 class TestEachSelfCheckCaseCanActuallyFail(unittest.TestCase):
-    """MUTATION. Six passes prove nothing until each is shown to fail against a break."""
+    """MUTATION. Six passes prove nothing until each is shown to fail against a break.
+
+    **THE NEEDLES ARE LINE-ENDING-AGNOSTIC, AND THE REASON IS A REAL FAILURE THE OPTIONS LANE
+    REPORTED (`HANDOFF_optionsbot.md` §87b).** One needle spans a newline, it was written with
+    **LF**, and this repository's `core.autocrlf` is `true` — so on any fresh **Windows** checkout
+    `valuation/edge/valreads.py` is **CRLF on disk**, the needle never matched, `bad == orig`, and
+    the harness's own *"mutation point moved"* assertion fired. **CI stayed GREEN** because the
+    stored blob is LF, so the guard reported a pass it never earned on the platform most of these
+    lanes run on.
+
+    **AND THE SUITE PASSING IN THE LANE THAT WROTE IT WAS NOT EVIDENCE EITHER**: this worktree's
+    copy was *written* by the lane and never round-tripped through a checkout, so it sat at **512
+    bare LF, zero CRLF** and the needle matched by accident of provenance. A guard whose behaviour
+    depends on how a file arrived on disk is not testing the module.
+
+    **THE FIX IS THE NEEDLE'S, NOT THE MODULE'S** — `W-1`'s lesson in mirror image: there a
+    harness forced LF and **rewrote** a CRLF source; here it read CRLF with an LF needle. The
+    needle is translated to **whatever line ending the file on disk actually uses**, measured per
+    call, so the same case bites on an LF tree and a CRLF tree. The restore still writes `orig`
+    back verbatim, so the byte-for-byte guarantee is untouched.
+    """
+
+    @staticmethod
+    def _eol(blob: bytes) -> bytes:
+        """The line ending the file ACTUALLY uses on disk, measured rather than assumed."""
+        return b"\r\n" if b"\r\n" in blob else b"\n"
 
     def _mutate(self, old, new, case_name):
         orig = io.open(MODULE, "rb").read()
+        # The needles are written with LF by convention; a needle already carrying CR would be
+        # double-translated below, so that is refused rather than silently mangled.
+        self.assertNotIn(b"\r", old, "needles are written with LF: %r" % old[:50])
+        self.assertNotIn(b"\r", new, "needles are written with LF: %r" % new[:50])
+        eol = self._eol(orig)
+        old, new = old.replace(b"\n", eol), new.replace(b"\n", eol)
         try:
             bad = orig.replace(old, new, 1)
-            self.assertNotEqual(bad, orig, "mutation point moved: %r" % old[:50])
+            self.assertNotEqual(bad, orig,
+                                "mutation point moved: %r (file eol %r)" % (old[:50], eol))
             io.open(MODULE, "wb").write(bad)
             import importlib
             importlib.reload(VR)
@@ -450,6 +482,28 @@ class TestEachSelfCheckCaseCanActuallyFail(unittest.TestCase):
         self._mutate(b'    if not row.get("market_cap"):',
                      b'    if False:',
                      "canary_and_mid_run_degradation_refuse")
+
+    def test_the_needle_translation_matches_a_crlf_file_and_an_lf_file(self):
+        """POSITIVE CONTROL for the fix above, run against BOTH forms of the real module bytes.
+
+        Without this the repair could silently stop matching anything and the four mutation cases
+        would all fail with *"mutation point moved"* — which is a red suite rather than a vacuous
+        pass, but it would still be the needle's fault and not the module's, and this says which.
+        """
+        orig = io.open(MODULE, "rb").read()
+        lf = orig.replace(b"\r\n", b"\n")
+        crlf = lf.replace(b"\n", b"\r\n")
+        needle = b'        append_only=True,\n        backfill_hint='
+        self.assertEqual(self._eol(lf), b"\n")
+        self.assertEqual(self._eol(crlf), b"\r\n")
+        for blob, eol, label in ((lf, b"\n", "LF"), (crlf, b"\r\n", "CRLF")):
+            self.assertIn(needle.replace(b"\n", eol), blob,
+                          "the translated needle must match the %s form" % label)
+        # NEGATIVE CONTROL: the UNtranslated LF needle must NOT match the CRLF form, or this
+        # whole repair is testing nothing.
+        self.assertNotIn(needle, crlf,
+                         "an LF needle must NOT match a CRLF file -- if it does, the bug being "
+                         "fixed never existed and this test is measuring the wrong thing")
 
     def test_append_only_case_fails_when_the_manifest_stops_being_append_only(self):
         self._mutate(b'        append_only=True,\n        backfill_hint=',

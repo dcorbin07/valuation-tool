@@ -1378,11 +1378,88 @@ def quote_mid(quote: dict):
     return round((bid + ask) / 2.0, 4)
 
 
+
+
+#: The venue every FLEET book trades in. `tradier` is the historical sandbox and `alpaca` is
+#: the paper options account; the default is `alpaca` because **Tradier closed on 2026-10-08**
+#: (`DECISIONS.md`) and a book pointed at a dead sandbox records nothing while reporting
+#: success -- which is exactly what the fleet did for the six weeks before this.
+FLEET_VENUE_ENV = "FLEET_VENUE"
+
+
+def fleet_broker(venue: str = None):
+    """The one place a fleet book's broker is constructed.
+
+    **ONE FACTORY, NOT SIX CONSTRUCTIONS** (`B7`). Every book did
+    `from .paper_broker import PaperBroker; broker = PaperBroker()` for itself, so moving the
+    fleet to another venue meant editing each one and a book that was missed would have gone
+    on quietly trading a dead sandbox. The books now ask for "the fleet's broker" and this
+    decides which one that is.
+
+    **IT FAILS TOWARD RECORDING RATHER THAN TOWARD TRADING.** If the Alpaca paper credentials
+    are absent or crossed, `AlpacaPaperOptions` RAISES at construction and this returns `None`
+    with the reason attached -- it does NOT silently fall back to Tradier, because a silent
+    fallback to a closed sandbox is how six weeks of empty streams came to read as success.
+    A caller that gets `None` must record a refusal naming `broker_unavailable_reason`.
+    """
+    import os
+    want = (venue or os.environ.get(FLEET_VENUE_ENV) or "alpaca").strip().lower()
+    if want == "tradier":
+        from .paper_broker import PaperBroker
+        return PaperBroker()
+    from .alpaca_options import AlpacaPaperOptions
+    return AlpacaPaperOptions()
+
+
+def fleet_broker_or_reason(venue: str = None):
+    """`(broker, reason)` -- `reason` is non-empty exactly when the broker could not be built."""
+    try:
+        return fleet_broker(venue), ""
+    except Exception as e:                                           # noqa: BLE001
+        return None, "%s: %s" % (type(e).__name__, e)
+
+
+def _broker_order_id(broker, res):
+    """`order_id` from the BROKER that produced the response, not from Tradier's parser.
+
+    **THIS IS WHY THE FLEET COULD NOT SIMPLY BE REPOINTED AT ANOTHER BROKER.** Every call site
+    used `PaperBroker.order_id`, which reads `res["order"]["id"]` -- Tradier's shape. Alpaca
+    returns `id` at the TOP LEVEL, so the id would have come back `None` on every order and the
+    harness would have recorded a submission it could never poll afterwards. That is exactly
+    `f3_bear_puts`'s state on the Tradier sandbox -- **72 orders, every one `fate=working`, no
+    fill price, and no order-id column at all** -- so swapping the venue without this would
+    have reproduced the dead end somewhere new.
+
+    **BIT-IDENTICAL FOR THE INCUMBENT BY CONSTRUCTION**: `PaperBroker` provides `order_id` as a
+    staticmethod, so a Tradier broker resolves to the same function this always called. The
+    fallback exists only for a broker object that provides neither.
+    """
+    fn = getattr(broker, "order_id", None)
+    if callable(fn):
+        return fn(res)
+    from .paper_broker import PaperBroker as _P
+    return _P.order_id(res)
+
+
+def _broker_fill_price(broker, order):
+    """`fill_price` from the broker that produced the order. See `_broker_order_id`.
+
+    Tradier reports `avg_fill_price` with `exec_quantity`; Alpaca reports `filled_avg_price`
+    with `filled_qty`. One parser cannot read both, and a parser returning `None` for a FILLED
+    order records the fill as unfilled -- the silent direction.
+    """
+    fn = getattr(broker, "fill_price", None)
+    if callable(fn):
+        return fn(order)
+    from .paper_broker import PaperBroker as _P
+    return _P.fill_price(order)
+
+
 def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
                 quote: dict, order: dict = None, submitted_ts: str, filled_ts: str = None,
                 limit_price=None, arm: str = "", fallback: str = "",
                 venue: str = "", structure_id: str = "", leg_index=None,
-                net_cost=None) -> dict:
+                net_cost=None, fill_price=None) -> dict:
     """One V5-grade fill record from a Tradier quote and order. Records, never decides.
 
     **THE BID, ASK AND MID AT SUBMISSION ARE STORED, and that is the whole point.**
@@ -1423,8 +1500,13 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
     # corruption available: every unfilled order becomes a perfect fill at the price asked for.
     #
     # `PaperBroker.fill_price` already gates on `exec_quantity`, so this delegates (B7).
-    fill = None
-    if order:
+    # `fill_price` is passed in by `submit`, parsed by the BROKER THAT PRODUCED THE ORDER.
+    # This function has no broker in scope, and Tradier's parser reads `avg_fill_price` while
+    # Alpaca reports `filled_avg_price` -- so parsing here would record every Alpaca fill as
+    # unfilled. A plain value travels instead of a parser, because the candidate dict this
+    # comes from is recorded and a callable has no business in a record.
+    fill = fill_price
+    if fill is None and order:
         from .paper_broker import PaperBroker as _PB
         fill = _PB.fill_price(order)
     ttf = ""
@@ -1506,14 +1588,15 @@ def submit(book: str, *, broker, occ: str, underlying: str, side: str, qty: int,
         return {"symbol": symbol, "occ": occ, "side": side, "qty": qty,
                 "order_type": order_type, "quote": quote, "order": order or {},
                 "submitted_ts": submitted_ts, "filled_ts": filled_ts,
-                "limit_price": limit_price, "arm": a, "fallback": fallback, "venue": ""}
+                "limit_price": limit_price, "arm": a, "fallback": fallback, "venue": "",
+                "fill_price": _broker_fill_price(broker, order)}
 
     def _market(fallback):
         ts = now()
         res = broker.place_option(occ, underlying, side, qty)
-        oid = _PB.order_id(res)
+        oid = _broker_order_id(broker, res)
         order = broker.order(oid) if oid else {}
-        fts = now() if _PB.fill_price(order) is not None else None
+        fts = now() if _broker_fill_price(broker, order) is not None else None
         return _kw(order, "market", fallback, submitted_ts=ts, filled_ts=fts)
 
     if a == "A":
@@ -1530,20 +1613,20 @@ def submit(book: str, *, broker, occ: str, underlying: str, side: str, qty: int,
 
     ts = now()
     res = broker.place_option(occ, underlying, side, qty, price=mid)
-    oid = _PB.order_id(res)
+    oid = _broker_order_id(broker, res)
     if not oid:
         return _kw(res.get("order") or {}, "limit", "B-unplaced", limit_price=mid,
                    submitted_ts=ts)
 
     deadline = clock() + float(work_seconds)
     order = broker.order(oid) or {}
-    while _PB.fill_price(order) is None and _status(order) not in _TERMINAL:
+    while _broker_fill_price(broker, order) is None and _status(order) not in _TERMINAL:
         if clock() >= deadline:
             break
         sleep(1)
         order = broker.order(oid) or {}
 
-    if _PB.fill_price(order) is not None:
+    if _broker_fill_price(broker, order) is not None:
         return _kw(order, "limit", "", limit_price=mid, submitted_ts=ts, filled_ts=now())
 
     cancelled = broker.cancel(oid) or {}
@@ -1659,9 +1742,9 @@ def submit_multileg(book: str, *, broker, underlying: str, legs, decl_sha: str,
     otype = "even" if abs(chk["net_cost"]) < 0.005 else "debit"
     res = broker.place_multileg(underlying, legs, order_type=otype, price=chk["net_cost"])
     from .paper_broker import PaperBroker as _PB
-    oid = _PB.order_id(res)
+    oid = _broker_order_id(broker, res)
     order = broker.order(oid) if oid else {}
-    fts = now() if _PB.fill_price(order) is not None else None
+    fts = now() if _broker_fill_price(broker, order) is not None else None
 
     cands = []
     for i, leg in enumerate(legs):

@@ -55,7 +55,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f10_clean_csp.md"
@@ -111,7 +111,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f11_dip_reject_puts.md"
@@ -167,7 +167,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f12_postevent_reversal.md"
@@ -222,7 +222,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f13_second_event.md"
@@ -277,7 +277,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f14_fda_nohump.md"
@@ -333,7 +333,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f15_insider_cluster.md"
@@ -393,7 +393,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f17_vrp_percentile_sells.md"
@@ -453,7 +453,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f18_boring_book.md"
@@ -507,7 +507,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f19_density_gate.md"
@@ -560,7 +560,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f1_fill_ab.md"
@@ -616,7 +616,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f20_married_put_storm.md"
@@ -694,7 +694,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f21_v6opt_dip_csp.md"
@@ -772,10 +772,76 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f22_dip_csp_random_twin.md"
+      ]
+    },
+    "f23_insider_cluster_shares": {
+      "commit": "5ad68c2e236931b0a0d2a95af063166ba598b385",
+      "commit_date": "2026-10-14T21:19:16-04:00",
+      "committed_alone": true,
+      "decl_sha": "e965d6569229d45dc128f699e7f4ce76179a478595fac952b1fce72a46eef4d8",
+      "declaration": {
+        "book": "f23_insider_cluster_shares",
+        "concurrency_cap": 100,
+        "domain": "equity",
+        "entry_rule": "Daily, on the FILING-DATE clock (filingdate, never transactiondate): a CLUSTER fires when 2 or more DISTINCT ownernames file an OPPORTUNISTIC open-market purchase (transactioncode P; a missing code is COUNTED AND SKIPPED, never read as not-a-purchase) on one ticker inside a 30-calendar-day window, with the STRICT condition that each insider of the pair traded in EACH of the two prior calendar years. The event is dated at the LAST filing of the cluster and one event fires per cluster under a FULL-WINDOW cooldown. Enter the session AFTER the cluster is public, at a real quote. Eligible only if the name's most recent PRIOR point-in-time market cap is at least 500 million USD. Frozen from PREREG_insider_cluster_wide.md; no parameter is chosen here.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [
+          "cluster_last_filing_date",
+          "cluster_distinct_owners",
+          "cluster_window_lo",
+          "market_cap_at_entry",
+          "cost_bps_one_way_at_entry",
+          "feed_source",
+          "feed_validation_sha"
+        ],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal dollar per event, 1/100 of book equity per fill, no leverage, no pyramiding into the same name while a position is open",
+        "structure": {
+          "entry": "market-on-open the session after the cluster is public, recorded at the real quote",
+          "exit": "hold 63 sessions, then exit. No stop, no target, no discretion.",
+          "horizon_sessions": 63,
+          "instrument": "common shares, long, no leverage, no options",
+          "strike_selection": "fixed",
+          "strike_selection_note": "THIS BOOK HOLDS SHARES AND HAS NO STRIKE. `strike_selection` is a REQUIRED field of the harness and its vocabulary is option-shaped (moneyness/fixed/delta), so `fixed` is declared as the only value that asserts nothing about an option. THIS IS THE FLEET'S FIRST EQUITY BOOK -- no existing DECL_ declares domain equity -- so the harness has never been asked an equity question before. Reported, not edited: fleet.py is the S3-I1 lane's."
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "equity"
+        },
+        "universe": "Corrected full raw universe (UNIVERSE_BIAS_PANEL_full) names whose most recent PRIOR quarterly market cap is at least 500 million USD. NEVER data/backtest, whose top-3000-by-today's-cap selection is selection on a present-day property.",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "3.58 years from the first fill at 310 fills/year (1,111 fills), AND ONLY IF THE CAP DOES NOT BIND. At the fleet's customary cap of 10 a 63-session hold allows 40 fills/year and the horizon is 27.8 years -- which is why the cap is 100 and why a lower cap would be a different construction. No fill has occurred: the feed is NOT validated (section 2), so the clock has not started.",
+          "expected_fills_per_month": 25.83,
+          "expected_fills_per_month_basis": "310 events/year measured on the check quadrant's governing cell scaled to both ticker halves, divided by 12. It is an ORDER OF MAGNITUDE and not a forecast: the forward universe is the live one rather than a ticker half.",
+          "fills_needed": 1111,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED; no round number appears anywhere in this horizon.",
+          "min_effect": 2.9122,
+          "min_effect_basis": "the register's own NET figure for the governing cell: +3.4888pp gross less the 0.5766pp event-weighted size-tiered round trip. NET, because a gross bar would let the book pass while losing money.",
+          "power_gate_note": "Anytime-valid, so a fixed-n power vocabulary does not apply directly: the boundary IS the threshold at every n. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/min_effect)^2 = 730, reported beside it so both vocabularies are on the face. AND THE REGISTER'S OWN WARNING APPLIES TO THIS BOOK: the realised clustered se ran 1.41x to 1.63x the scaled prediction in all five check cells, so this horizon should be read as optimistic by roughly that factor.",
+          "rho": 3.0,
+          "sigma": 28.0842,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED on this construction's own 1,093 banked check-quadrant rows (per-event market-adjusted return SD). Not borrowed across books or across perturbation sizes (MB8).",
+          "years_to_horizon_at_projected_rate": 3.58
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f23_insider_cluster_shares.md"
       ]
     },
     "f2_menu_gate": {
@@ -825,7 +891,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f2_menu_gate.md"
@@ -880,7 +946,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f3_bear_puts.md"
@@ -941,7 +1007,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f4_eventfree_premium.md"
@@ -996,7 +1062,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f5_ivcheap.md"
@@ -1054,7 +1120,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f6_collar_ledger.md"
@@ -1114,7 +1180,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_f8_csp_entry_financing.md"
@@ -1164,7 +1230,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
+      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
       "refusals_at_export": [],
       "touched": [
         "DECL_testbook.md"
@@ -1172,9 +1238,9 @@
     }
   },
   "evidence_note": "Computed where git exists and consumed where it does not. On a service built from an image with no .git, fleet.may_fill falls back to this manifest and reports evidence='manifest' rather than 'git'. That is a WEAKER chain and the record says so on every gate result.",
-  "generated_utc": "2026-10-14T01:13:08+00:00",
-  "head": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
-  "n_books": 20,
+  "generated_utc": "2026-10-15T02:16:49+00:00",
+  "head": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+  "n_books": 21,
   "schema": "fleet_declarations/1",
   "skipped": {
     "DRAFT_f16_13f_surge": "does not parse: no fenced ```json declaration block",

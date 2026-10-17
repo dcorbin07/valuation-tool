@@ -1,5 +1,81 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **the SEC ticker join WAS broken, repairing it moves the arm fivefold, and the verdict does not move** (2026-10-15, `F23-JOIN`)
+
+**ZERO TRIALS, `FIXED`-class** — equity `N` stays **307**. `F23-SECID` reported its SF2 gap as *"a
+JOIN problem and not a coverage hole … it needs its own work"*; this is that work.
+**`ISSUERTRADINGSYMBOL` IS FREE TEXT** — only 46.0% of its 10,361 build-era values match the panel,
+774 of 5,595 misses are non-alphabetic, and a separator-insensitive key rescues **3 of 5,595**, so
+punctuation was never the fix. **AND 18.1% of filer CIKs file under more than one spelling**,
+covering 52.9% of rows, which is why the repair is keyed on the **CIK** and resolved **as of the
+filing date** — EDGAR's `company_tickers.json` refused as a current snapshot that would be
+look-ahead and would omit every delisted name. Build-era row resolution **61.60% → 72.54%**, cap
+resolution **48.09% → 54.85%** (the before figure reproducing the published 48.1% exactly), tickers
+shared with SF2 **335 → 352**, distinct tickers **608 → 594** because aliases collapse.
+**THE RE-RUN IS THE SAME REGISTERED READ WITH ONE INSTRUMENT FIXED AND CHARGES NO TRIAL** — the
+`F23-SECID` log cell is edited **in place**. ARM B **+0.1551 → +0.8679pp**, *t* **+0.168 → +0.943**,
+net **−0.4919 → +0.2218pp**, so **A1 and A4 now PASS — and the verdict is still DOES NOT CLEAR**,
+A2 and A3 failing and the halves disagreeing in sign (+2.750pp early, −0.718pp late).
+**THE FINDING IS UNCHANGED AND BETTER EVIDENCED: the join is worth 0.72pp and the identity key
+0.0426pp, about seventeen to one.** The SF2 gap is now **part-attributed** — the repair closes
+**76.4%** of the gross-mean gap — and the residual is **sample size** and is **not** attributed.
+**F-23 STAYS DECLARED AND UNFILLED; no amendment, no `F-23b`, no variant searched for.**
+`HANDOFF_f23_join.md`.
+
+---
+
+## r1 lane — **the insider ID key changes almost nothing, so F-23 stays unfilled — and the 1999-2008 rung is closed as unobtainable** (2026-10-15, `F23-SECID` + `INSIDER-STAGE3-RUNG`)
+
+> **§2 and §3 of the write-up below are SUPERSEDED by `F23-JOIN` above** — that read was scored on
+> the broken ticker join. The verdict and the finding are unchanged.
+
+Register `PREREG_f23_secid.md` committed **ALONE at `fba290e`**, markdown only, 178 lines, a strict
+ancestor of both runners; **1 equity trial at `8191309` before any runner existed** (equity
+**306 → 307**). **The CHECK quadrant is untouched** — `INSIDER-WIDE` spent it on 2026-10-13.
+**ADOPTS NOTHING**; no app file, no broker code, no order.
+
+- **`DOES NOT CLEAR`, and the finding is that the identity key was never the obstacle.** Both arms
+  run on the SEC's own data so the ONLY difference is the key — that was the register's design,
+  because sourcing only the ID arm from the SEC would have changed the **feed** and the **key** at
+  once. ARM B (ID) **+0.1551pp** at *t* **+0.168/+0.142**; ARM A (name) on the **identical rows**
+  **+0.1920pp** at **+0.207/+0.175**. **Changing how insiders are counted moved the mean 0.037pp
+  and the *t* 0.04.** A2, A3 and A4 all fail; only A1 passes.
+- **DON'S QUESTION, ANSWERED BOTH WAYS — YES, NAMES COUNT ONE PERSON TWICE, AND IT IS THE DOMINANT
+  ROW-LEVEL DEFECT.** Within a ticker, which is the unit the rule counts in, **273** ticker-CIK
+  pairs appear under several names against **16** ticker-name pairs over several CIKs — **17 to
+  1** — so the name rule **OVER**-counts and can fire a cluster that was one insider under two
+  spellings, **the false-trigger direction**. **And it barely matters: 8 of 2,277 build-cell
+  events, 0.35%, disappear under the ID key.** Both sentences are true and neither alone is honest.
+- **REPORTED AND EXPLICITLY NOT ATTRIBUTED:** the same cell on the licensed SF2 feed reads
+  **+1.1319pp at *t* +2.01/+2.25**, and that gap is **confounded by a ticker-join problem** rather
+  than interpretable as a feed effect — the SEC set covers **608** build-cell tickers against SF2's
+  **1,344** sharing only **335**, and resolves a point-in-time cap for **48.1%** of events against
+  **83.3%**, so 317 score where SF2 scores 1,378. **Blank symbols are ruled out at 0.2%** and the
+  SEC pull is the **wider** source (912,940 rows, 12,464 tickers). **It is a join problem, it is
+  measured, and it is NOT repaired here.**
+- **THE REALISED POWER IS WORSE THAN DECLARED AND I SAY SO:** `se` **1.0957pp** against the
+  declared 0.5641pp, MDE80 **3.1135pp**, power against the arm's own effect **4.8%** rather than
+  50.3% — `INSIDER-WIDE` §5d's family again at ~1.9x. **But it is not only a power failure:**
+  *t* 0.17 against a bar of 2.0 is no near miss, the halves **disagree in sign**, and *p* = 0.8875.
+  **A cell this weak cannot show the ID key is WORSE; it does show it does not RESCUE the cell.**
+- **F-23 STAYS DECLARED AND UNFILLED.** No amendment, no F-23b, and the ID-rule feed validation was
+  **not** run because the register made it conditional on clearing. **No variant is searched for.**
+- **THE 1999-2008 RUNG IS CLOSED AS UNOBTAINABLE**, the `S25` way, **zero trials**, nothing
+  purchased — with the charter-style sentence in both records: **for this signal the stage-3
+  holdout cannot exist, so the forward paper book is the remaining test**, and a successor may not
+  treat a 2006-2008 read as the charter's holdout.
+- **`SELFCHECK_ABSENT`: DON HAS NO STEP.** Item 51 made it automatic and its own comment says
+  `ABSENT` is in the fixable set; `recertify_attempt()` returns **`attempt: true` / `OWED`** for
+  **21 of 21** books, and the weekday `fleet-cycle` cron is **live and succeeding** (43s, 2026-10-15
+  00:31). The optional faster path is **Actions → FLEET SELF-CHECK (re-certify) → Run workflow**,
+  dispatch-only by design because it places a real sandbox fill. **Qualification: `selfcheck_state`
+  reads gitignored LOCAL records, so whether the service has re-certified is visible only there.**
+- **TWO DEFECTS OF MINE.** A placeholder label Series would have made **both arms report ZERO
+  events without raising** (`opportunistic_purchases` keeps only `OPPORTUNISTIC` rows) — the
+  shipped classifier is now called behind a zero-rows refusal. And the **substring-ban family,
+  eleventh instance and third this session**: a test banned `valuation/` and fired on the arm's own
+  prose. 35 tests. `HANDOFF_f23_secid.md`.
+
 ## options lane - **SELL-PREMIUM-3: NOT CONFIRMED on the build quadrant and UNDERPOWERED - and a broker DOES allow this in a Roth** (2026-10-14)
 
 Register committed ALONE at `5f61820`, 4 options trials booked at `b31e2a6` before any runner
@@ -9243,3 +9319,27 @@ Service response, verbatim (truncated at 4000 bytes):
 
     {"ok":false,"reason":"the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
     
+
+
+## FLEET 2026-10-16: the options fleet is on Alpaca paper in code, and has not yet placed one there
+
+Item 66. Paper only; nothing adopted; `O11` binds.
+
+* **The fleet is NOT a book that never traded.** `f3_bear_puts` has **72 order rows over 44
+  distinct contracts** in the 2026-10-04 backup - every one `fate=working`, `fill_price` empty,
+  and **no `broker_order_id` column at all**. Submission works; the outcome path does not.
+* **The cause would have followed it to Alpaca.** `fleet.submit` parsed responses with
+  Tradier's `res["order"]["id"]`; **Alpaca returns `id` at the top level**, so a bare repoint
+  would have recorded `None` on every real order. Fixed by asking the broker that produced the
+  response; bit-identical for Tradier.
+* **Split by whether a book needs cash**: `F-3` and `F-11` buy puts and can trade on the key
+  already configured; **`F-8`, `F-21` and `F-22` refuse with `SHARED_ACCOUNT_WOULD_COLLIDE`**
+  until a second Alpaca paper account exists (the Index slot is deployed at 100%). Four steps
+  for Don in `ALPACA_SETUP.md`.
+* **Not done:** no Alpaca paper option order has been placed on the service yet - that needs
+  the deploy plus the next scheduled cycle, and `/admin/fleet-cycle` needs the admin token.
+  **`F-4` and `F-10` remain RETIRED**; item 66 lists them as recording, but the retirement is
+  of the 0.90-moneyness expression and re-declaring them at 25 delta is Don's.
+* **The free Alpaca options feed is `indicative`, not OPRA, and how paper fills an option is
+  undocumented** - a fill there is evidence the machinery runs, never evidence about execution
+  quality. `O18`'s rho 0.6743 and `O10`'s 74% adverse-selection give-back stay the cost numbers.
