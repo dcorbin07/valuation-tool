@@ -21184,3 +21184,195 @@ prepare.**
 - **No switch, no opt-in, no change to the record, and the declared bar and basis are untouched.**
 - **Whether CTVA is in the bound book is not established here** — the book is on the service.
 
+
+## ITEM 69 — the auditor's fourth blocker (a silent unpriced exit), and spin-offs in the record
+
+The auditor's fourth review is **NOT YET** on one blocker, and it is **the first in four reviews
+that is not about buying something twice**. It is also **item 67's own fix, half done.**
+
+### PART 1 — AN EXIT THE FEED CANNOT PRICE WAS DROPPED IN SILENCE
+
+Reproduced by the auditor end to end through `run_cycle` with the real `AlpacaPaperBroker`: the
+slot holds AAPL and MSFT, the book now holds AAPL only, and IEX returns a **one-sided quote** for
+MSFT so there is no mid — the documented common case, and 26 of 86 names on the first real cycle.
+
+```
+exits_planned : ['MSFT']                 <- it KNOWS MSFT must go
+skipped       : [{'ticker': 'MSFT', 'reason': 'no usable mark'}]
+PLACED        : []
+alerts        : []                       <- NO ALERT
+event closed? : True                     <- recorded COMPLETE
+marks_coverage: {'n_needed': 1, 'n_priced': 1, 'missing': []}
+```
+
+**§8 REQUIRES THREE THINGS AND ONLY THE FIRST HAPPENED** — *"doesn't trade that cycle, alerts
+Don, and tries again next cycle."* And the coverage line is what made it **silent** rather than
+merely wrong: the workflow's own summary prints that number, so the daily log read as a healthy
+quiet day while the slot kept a name the Index had dropped.
+
+**THE MECHANISM IS THREE COPIES OF ONE FACT AND ONLY ONE GOT WIDENED (`B7`).** Item 67 found that
+an exited name was never quoted and widened the quote list. Three places compute "the names this
+cycle cares about" from the book's held positions:
+
+| population | governs | widened by item 67 |
+|---|---|---|
+| `tickers` in `run_cycle` | which names get a quote | **yes** |
+| `need` in `preflight` | whether a missing price **refuses** | **no** |
+| `need` in `marks_coverage` | what the run log **reports** | **no** |
+
+An exit is **by definition not in the book's held positions**, so a population built from the book
+cannot contain the one thing an exit is. There is now one definition — `tradable_names(book,
+slot_holdings)` — and all three read it; a test asserts no second definition exists. It is scoped
+to **this slot's own record**, which `reconcile` builds from `valquo-<slot>-` prefixed orders and
+nothing else, so widening the population can never reach Don's other holdings.
+
+**AND "NOTHING TO DO" AND "I COULD NOT WORK OUT WHAT TO DO" ARE NOW DIFFERENT VALUES.** The close
+branch tested `not plan["orders"]`, which is true of both — so a skipped exit closed the event,
+cleared `open_event`, appended to `processed` and wiped the counters. **That is the third collapse
+of two epistemic states on this path**, after `[]`-means-both-empty-and-failed (item 65) and
+truncated-versus-failed (item 67 part 0), and the auditor named the shape each time. A boolean
+cannot carry three states, so there is a declared set:
+
+```
+orders non-empty              -> PLAN_WORK          send them; the event stays open
+no orders, something skipped  -> PLAN_BLOCKED       no trade, alert, event stays OPEN
+no orders, nothing skipped    -> PLAN_TARGETS_MET   the ONLY outcome that closes
+```
+
+`PLAN_OUTCOMES_THAT_CLOSE_AN_EVENT` is a one-element tuple, and the test the brief asks for
+enumerates it — *"fails if any planner outcome other than 'targets met' closes an event"* is a
+statement about a set, and against a boolean there was nothing to enumerate.
+
+**TWO DEFECTS IN MY OWN FIRST CUT, and the first would have reverted a decision the auditor
+endorsed.** `plan_outcome` returned `BLOCKED` whenever anything was skipped — **including when
+there were orders to send** — which refuses the whole cycle for one withheld name and undoes item
+67's per-name granularity (*"an unreadable resting quantity now costs that name, not nothing"*,
+which the auditor checked and approved). Orders beat a skip now. **And the skip is alerted either
+way**, which closes the same silence one branch over: a cycle that traded four names and withheld
+a fifth said nothing about the fifth either.
+
+**The second: `exits_planned` vanished from the refusing cycle.** With the population widened,
+preflight now refuses *before* the exit targets were built — so the auditor's own diagnostic line,
+the thing that made the blocker legible, was absent on exactly the cycle a reader most wants it.
+The exits are derived before preflight now and reported on every path.
+
+**AND A VACUOUS PASS IN MY OWN FIXTURE, caught by two tests failing beside four that passed.** The
+suite started with no state file, so item 67's fresh-record check refused before a plan was ever
+built — and that refusal happens to name the held positions, so *"MSFT appears in an alert"* was
+satisfied by a refusal with nothing to do with pricing. The fixture now seeds a record, which is
+also the realistic state: a slot facing a rebalance exit has necessarily bought before.
+
+**VERIFIED AGAINST THE OLD CODE: 17 of 20 fail, including 5 of 6 in the blocker's own class.**
+
+### PART 2 — SPIN-OFFS IN THE BOUND RECORD. REPORTED AND PROPOSED; NOTHING CHANGED.
+
+**YES, THE RECORD WOULD BOOK A FAKE LOSS, and it is demonstrated through the record's own
+arithmetic rather than argued.** Each holding contributes `cur / base - 1` on yfinance's adjusted
+close. Item 68 measured that yfinance left Aptiv's spin-off as a **−10.58%** one-day cliff and
+Unilever's demerger as **−7.03%**. A cliff the vendor did not restate is therefore booked as a
+loss the holder never suffered — they received shares in the new entity. Driven through
+`contract_row` with Aptiv's measured cliff on half a two-name book, the row reads about **−5.3%**
+for a book that lost nothing.
+
+**AND AMENDMENT 2's RULE DOES NOT COVER IT — NOT BY OMISSION BUT BY CONSTRUCTION.** Its trigger is
+*"acquired or stops trading"*, and in the code it sits behind `if not cur:` — no current price —
+plus `_stopped_trading`. **A spin-off is the one corporate action where the held name keeps
+trading**: the parent prices normally under the same ticker, so both conditions fail and the
+branch is unreachable. The rule's own prose contains no "spin-off", "demerger" or "spun", which a
+test now asserts so the finding cannot rot.
+
+**THE SIZE IS THE DISTRIBUTED FRACTION, so it is not bounded by the two measured cases.** Aptiv's
+was ~10.6% and Unilever's ~7.0%; at the book's ~1.16% average weight those are **−0.12pp** and
+**−0.08pp** on the Index level, about 3% of one month's declared σ of 3.9847pp. **Corteva's
+separation was ~85% of the combined company** — the only reason that one is harmless to the record
+is that yfinance *did* restate it. So the exposure scales with whatever walked out of the door,
+and nothing bounds it below 100%.
+
+**NEITHER MEASURED CASE HAS TOUCHED THE RECORD.** Aptiv's was 2026-04-01 and Unilever's
+2025-12-08; the record's segments start 2026-07-30. The exposure is **prospective**.
+
+#### THE RULE I WOULD PROPOSE — Don's decision, and it is a contract amendment
+
+> **A held name that distributes shares of another company counts as having received that
+> distribution: its contribution is measured against the parent's price PLUS the value of what was
+> distributed, at the distribution date.**
+
+**WHY THIS ONE.** It is the only rule that keeps the record saying what a holder experienced,
+which is the standard Amendment 2 set for itself — it rejected "a 100% loss" for an acquisition as
+*"false"* on exactly that ground. A holder of Aptiv on 1 April lost nothing; they held one Aptiv
+and a third of a Versigent.
+
+**THE ALTERNATIVES, NAMED SO THE CHOICE IS LEGIBLE** (Amendment 2's own style):
+
+- **Do nothing** — the record books a fake loss of whatever was distributed, permanently, in a
+  five-year series. Costs nothing to build and is wrong by construction.
+- **Treat it as an exit under Amendment 2** — sold at the last close before the distribution,
+  weight redistributed. Keeps the series honest about the parent and **throws away the holding
+  entirely**, which is a different and larger falsehood: the holder still owns it.
+- **Switch the record to a vendor that restates spin-offs** — item 68 measured that no such vendor
+  exists among the two tested: Alpaca restated Aptiv and Unilever and **missed** Corteva and
+  AstraZeneca. There is no vendor to switch to.
+- **The proposal above.** Correct, and it needs the distributed value at the distribution date —
+  one number per event, which must be **STORED ON THE ROW AT THE TIME**, exactly as Amendment 2's
+  own stated limit requires for a delisting close (*"a successor wanting the series reproducible
+  to the digit needs the delisting close STORED on the row at the time, not re-fetched later"*).
+
+**THE TRIGGER ALREADY EXISTS AND NEEDS NO NEW FEED.** Item 68 shipped
+`alpaca_seam.classify_disagreement`, which identifies a corporate action one vendor restated and
+the other did not by the **step in the ratio of the two series**, and names the date. Pointed at
+the book's names since inception it detects exactly this — and that is the same narrow measurement
+item 68 already routed to Don. **One measurement answers both questions.** No announcement feed,
+which would be a third source to keep right.
+
+#### ANY CURRENT INDEX HOLDING WITH AN ANNOUNCED SPIN-OFF BEFORE THE NEXT REBALANCE
+
+**I CANNOT ANSWER THIS FROM A LANE, AND THAT IS STATED RATHER THAN GUESSED:** the bound book lives
+on the service (`data/` is gitignored), so which names are currently held is UNMEASURED here.
+
+What I can give is the list to check it against. Announced US spin-offs with distribution dates
+between now and the January rebalance:
+
+| parent | spun off | distribution | in today's live screen? |
+|---|---|---|---|
+| **MSGS** (Madison Square Garden Sports) | Spinco, 1 per 2 | **2026-10-26** — four days after the rebalance | no |
+| **KBR** | Trinzic (Mission Technology) | **2027-01-04** | no |
+| **FLEX** | Axiom Solutions (AXM) | Q1 2027 | no |
+| **GPC** (Genuine Parts) | Motion | Q1 2027 | no |
+| **CMCSA** (Comcast) | NBCUniversal / Sky | during 2027 | no |
+
+**None of the five is in the live hot list or dip screen** (measured: 218 names). **That is not
+the same as "not in the book"** — the book holds what it held at its scan, and a name can be in
+the book and out of today's screen. Don can read the Index tab; the check is one glance at the
+holdings list against the five names above.
+
+**MSGS is the one with a date inside days**, and it lands **after** the 2026-10-22 rebalance — so
+if it is in the new book, the fake loss would be in the record's current segment.
+
+### REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3)
+
+**`test_index_book_publish`'s consumer census reads TEXT rather than code, and it caught this
+item twice.** It keeps a list of every file referencing the bound book's path, on the sound
+reasoning that *"two mechanisms reading one named object is the PT-SPLIT shape"* — and it fired
+first on a temp fixture that merely shared the basename, then **on a comment explaining why that
+fixture is not a consumer.** The substring-ban family from the other side: prose documenting a
+rule trips a guard that bans the token.
+
+**The property is right and worth keeping, and the fix is not mine to make** — that census is
+another lane's file and it is protecting a real invariant. The cheap repair is the one this
+project has applied five times now: strip comments and string literals with `tokenize` before
+matching, with a positive control proving the stripper still bites. **Not done here**, and this
+file avoids the name instead.
+
+### WHAT IS NOT DONE
+
+- **Nothing in part 2 changes the record or the contract**, and a test pins that: no §8c, and
+  `CORPORATE_ACTION_FROM` untouched at 2026-10-22. **The rule is a proposal and adopting it is a
+  contract amendment, which is Don's.**
+- **Whether any current holding is affected is UNMEASURED** — it needs the book, on the service.
+- **No new pending workflow was added**, and `pending_workflows/live-cycle.yml` is untouched. The
+  auditor cleared it as safe to install; **Don still waits**, because `fleet-cycle-in-hours.yml`
+  must first become a replacement (the options lane's).
+- **The auditor's three non-blocking items are NOT taken:** `orders_window`'s tz-naive test seam,
+  `wait_state` reading the wall clock rather than the cycle's `now`, and deriving `HOLDERS`. All
+  three are test seams or latent, none can place an order, and none is in this brief.
+

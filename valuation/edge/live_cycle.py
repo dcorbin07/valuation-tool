@@ -734,6 +734,43 @@ def account_settlement_report(client) -> dict:
     }
 
 
+#: WHAT THE PLANNER CONCLUDED, AS A VALUE RATHER THAN AS AN EMPTY LIST.  [item 69]
+#:
+#: **ONLY `PLAN_TARGETS_MET` CLOSES AN EVENT.** The close branch used to test `not
+#: plan["orders"]`, which is true of both *"nothing to do"* and *"I could not work out what to
+#: do"* -- so an exit the feed could not price was recorded as a completed rebalance, with no
+#: alert and a coverage line reporting perfect coverage. Third occurrence of that shape on this
+#: path, and a boolean cannot carry three states.
+PLAN_TARGETS_MET = "targets_met"          # nothing to do: no orders AND nothing skipped
+PLAN_BLOCKED = "blocked"                  # something was skipped: the plan is INCOMPLETE
+PLAN_WORK = "work"                        # there are orders to send
+
+#: Every value. An outcome absent from this tuple is a programming error rather than a state,
+#: and the guard that enumerates it would not see a fourth one added elsewhere.
+PLAN_OUTCOMES = (PLAN_TARGETS_MET, PLAN_BLOCKED, PLAN_WORK)
+
+#: The ONLY outcome that may close an event. Declared as a one-element tuple rather than a bare
+#: equality so the test can assert the set and a future addition shows up as a change here.
+PLAN_OUTCOMES_THAT_CLOSE_AN_EVENT = (PLAN_TARGETS_MET,)
+
+
+def plan_outcome(plan: dict) -> str:
+    """Which of `PLAN_OUTCOMES` this plan is.
+
+    **`skipped` BEATS AN EMPTY `orders`.** A plan with nothing to send and something skipped is
+    not a finished event -- it is an event whose work could not be worked out, and the two had
+    the same truth value until this existed.
+    """
+    if (plan or {}).get("orders"):
+        # **ORDERS BEAT A SKIP, and that is not a softening.** A skip alongside work is item
+        # 67's per-name granularity, which the auditor checked and approved: an unreadable
+        # resting quantity costs THAT NAME and the others still trade. Returning BLOCKED here
+        # would refuse the whole cycle for one withheld name and revert it. The skip is alerted
+        # either way; what differs is whether anything is sent.
+        return PLAN_WORK
+    return PLAN_BLOCKED if ((plan or {}).get("skipped")) else PLAN_TARGETS_MET
+
+
 def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
              marks: dict, root: str = None, session_ok: bool = True,
              paper_targets: dict = None, paper_value: float = None,
@@ -958,13 +995,28 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # resting two-sided quote for a mid-cap, and in-session it would be a finding about the
         # vendor's coverage of this book. A refusal a reader cannot attribute is a refusal
         # somebody eventually overrides.
-        need = [str(q.get("ticker") or "").upper() for q in held]
+        # **THE SAME POPULATION AS THE REFUSAL AND THE QUOTE LIST [item 69].** This read
+        # `held` alone, so a cycle that could not price an exit reported "1 of 1 priced,
+        # missing: none" -- a reassuring number measured on a set that excludes the case it
+        # exists to catch, which is the definition of a vacuous check. It is also the line the
+        # workflow's own summary prints, so the daily log read as a healthy quiet day.
+        need = LS.tradable_names(book, st.get("holdings") or {})
         priced = [t for t in need
                   if LS._f((marks.get(t) or {}).get("mid")
                            if isinstance(marks.get(t), dict) else marks.get(t))]
         out["marks_coverage"] = {
             "n_needed": len(need), "n_priced": len(priced),
             "missing": sorted(set(need) - set(priced))[:40],
+            # WHICH of the unpriced ones are EXITS, named separately: an unpriced buy waits
+            # harmlessly, an unpriced exit leaves the slot holding a name the Index dropped.
+            "missing_exits": sorted(
+                set(need) - set(priced)
+                - {str(q.get("ticker") or "").upper()
+                   for q in ((book or {}).get("positions") or [])
+                   if q.get("status") == "held"})[:40],
+            "population": ("the book's held names PLUS this slot's own recorded holdings -- the "
+                           "same set as the quote list and the refusal, because an EXIT is by "
+                           "definition not in the book"),
             "session_open_when_asked": bool(session_ok),
             "note": ("the market was CLOSED when these quotes were requested, so a thin "
                      "two-sided quote feed is EXPECTED here and this is not evidence about "
@@ -973,6 +1025,40 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                      "the market was OPEN when these quotes were requested, so any missing "
                      "name IS a finding about the free IEX feed's coverage of this book"),
         }
+
+        # ---- EXITS: A HELD NAME THE BOOK NO LONGER WANTS GETS A TARGET OF ZERO --------
+        #
+        # **NOTHING SOLD AN EXITED NAME BEFORE THIS [item 67], and it has never fired because
+        # the live path has run exactly ONE event.** `held` above filters the book to
+        # `status == "held"` and `LS.targets` drops a zero weight, so an exited name reached
+        # the planner in neither shape and was held for ever -- the event closing as "targets
+        # met" while the slot still held it. The first book change in the live path's life is
+        # the 2026-10-22 rebalance.
+        #
+        # **TWO SHAPES, because `book_in_force` produces two.** A mid-event exit stays in
+        # `positions` as `status: "exited"` with weight 0; a name dropped at a REBALANCE
+        # belongs to a different event's book and is absent from `positions` entirely. Both are
+        # exits and only the first is visible in the book's own rows.
+        #
+        # The second shape reads this slot's OWN recorded holdings, which `reconcile` builds
+        # from `valquo-<slot>-` prefixed orders and nothing else -- so it can never name a
+        # position the slot did not buy. `order_plan` is deliberately NOT given this power:
+        # item 58 pins that a name absent from its targets is not in its plan at all.
+        exits, book_names = {}, set()
+        for q in ((book or {}).get("positions") or []):
+            nm = str((q or {}).get("ticker") or "").strip().upper()
+            if not nm:
+                continue
+            book_names.add(nm)
+            if q.get("status") != "held" or (LS._f(q.get("weight")) or 0.0) <= 0:
+                exits[nm] = 0.0
+        for nm, qty in (st.get("holdings") or {}).items():
+            nm = str(nm).strip().upper()
+            if nm and nm not in book_names and (LS._f(qty) or 0.0) > 0:
+                exits[nm] = 0.0
+        exits = {nm: 0.0 for nm in exits
+                 if (LS._f((st.get("holdings") or {}).get(nm)) or 0.0) > 0}
+        out["exits_planned"] = sorted(exits)
 
         # **BRAND NEW MEANS ALL FOUR MARKERS ABSENT [item 67, the auditor's recommendation
         # 2]**, and it was measured at the top of this function from the record as READ. Any
@@ -1020,39 +1106,8 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # the planner re-plans the whole remainder every cycle and the orders STACK -- the
         # auditor's third blocker. `rec["resting"]` is already filtered to this slot's own
         # `valquo-<slot>-` prefix by `reconcile`, so nothing here can reach Don's own orders.
-        # ---- EXITS: A HELD NAME THE BOOK NO LONGER WANTS GETS A TARGET OF ZERO --------
-        #
-        # **NOTHING SOLD AN EXITED NAME BEFORE THIS [item 67], and it has never fired because
-        # the live path has run exactly ONE event.** `held` above filters the book to
-        # `status == "held"` and `LS.targets` drops a zero weight, so an exited name reached
-        # the planner in neither shape and was held for ever -- the event closing as "targets
-        # met" while the slot still held it. The first book change in the live path's life is
-        # the 2026-10-22 rebalance.
-        #
-        # **TWO SHAPES, because `book_in_force` produces two.** A mid-event exit stays in
-        # `positions` as `status: "exited"` with weight 0; a name dropped at a REBALANCE
-        # belongs to a different event's book and is absent from `positions` entirely. Both are
-        # exits and only the first is visible in the book's own rows.
-        #
-        # The second shape reads this slot's OWN recorded holdings, which `reconcile` builds
-        # from `valquo-<slot>-` prefixed orders and nothing else -- so it can never name a
-        # position the slot did not buy. `order_plan` is deliberately NOT given this power:
-        # item 58 pins that a name absent from its targets is not in its plan at all.
-        exits, book_names = {}, set()
-        for q in ((book or {}).get("positions") or []):
-            nm = str((q or {}).get("ticker") or "").strip().upper()
-            if not nm:
-                continue
-            book_names.add(nm)
-            if q.get("status") != "held" or (LS._f(q.get("weight")) or 0.0) <= 0:
-                exits[nm] = 0.0
-        for nm, qty in (st.get("holdings") or {}).items():
-            nm = str(nm).strip().upper()
-            if nm and nm not in book_names and (LS._f(qty) or 0.0) > 0:
-                exits[nm] = 0.0
-        exits = {nm: 0.0 for nm in exits
-                 if (LS._f((st.get("holdings") or {}).get(nm)) or 0.0) > 0}
-        out["exits_planned"] = sorted(exits)
+        # The zero targets are attached where `tg` exists; the exits themselves were derived
+        # above, before preflight, so `exits_planned` is reported even on a refusing cycle.
         tg["targets"] = dict(tg["targets"])
         for nm in exits:
             tg["targets"].setdefault(nm, 0.0)
@@ -1068,7 +1123,52 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # THE TARGETS ARE MET: nothing left to do for this event, so it CLOSES. Recorded here
         # rather than after sending, because "met" is a property of the reconciled holdings
         # and not of whether this particular cycle transmitted anything.
-        if not plan["orders"]:
+        #
+        # **AND IT TESTS FOR THAT OUTCOME BY NAME [item 69].** `not plan["orders"]` was true of
+        # "nothing to do" AND of "something was skipped, so I could not work out what to do" --
+        # so an exit the feed could not price closed the event with no alert, and
+        # `marks_coverage` reported perfect coverage while it happened.
+        outcome = plan_outcome(plan)
+        out["plan_outcome"] = outcome
+        # **ANY SKIP IS ALERTED, WHATEVER THE OUTCOME [item 69].** The auditor's blocker is a
+        # skip in the empty-plan branch going unannounced; a skip in the branch that DOES trade
+        # went unannounced too -- `skipped` reached the ~35KB body and nothing else. One alert
+        # here covers both, and the outcome below decides only whether anything is sent.
+        if plan.get("skipped"):
+            why = "; ".join("%s: %s" % (str(x.get("ticker")), str(x.get("reason")))
+                            for x in (plan.get("skipped") or [])[:6])
+            exits = sorted(set(out.get("exits_planned") or [])
+                           & {str(x.get("ticker") or "").upper()
+                              for x in (plan.get("skipped") or [])})
+            out["skipped_alerted"] = True
+            out["alerts"].append({
+                "kind": ("exit_unpriced" if exits else "plan_incomplete"),
+                "slot": str(slot),
+                "reason": ("%d name(s) in %s could not be planned and are NOT traded this "
+                           "cycle: %s.%s The event stays OPEN and the next cycle tries again."
+                           % (len(plan.get("skipped") or []), key, why,
+                              (" %s must be SOLD because the book no longer holds it, so the "
+                               "slot is still holding a name the Index has dropped."
+                               % ", ".join(exits)) if exits else ""))})
+        if outcome == PLAN_BLOCKED:
+            # **NO TRADE, AN ALERT, AND THE EVENT STAYS OPEN** -- §8's three clauses, of
+            # which only the first used to happen. Every other broken input on this path
+            # already behaves exactly this way; this one branch did not. The alert was raised
+            # above, for any skip; this branch adds that nothing is being sent at all.
+            out["reason"] = ("nothing could be planned for %s, so this slot sends NOTHING and "
+                             "the event is NOT recorded as complete -- a plan with something "
+                             "skipped is not a finished rebalance. %s"
+                             % (key, out["alerts"][-1]["reason"]))
+            out["skipped"] = plan["skipped"]
+            # The day is recorded so a persistent block escalates through the ceiling rather
+            # than being deduped into silence -- `live_notify` keys on the reason's first 120
+            # characters, so an unchanging refusal is announced ONCE.
+            st["last_event_date"] = (book or {}).get("formed_on")
+            st["last_pct"] = pct
+            _note_write(out, write_state(slot, st, root), slot,
+                        "recording an incomplete plan")
+            return out
+        if outcome == PLAN_TARGETS_MET:
             if key and key != "none" and key not in st["processed"]:
                 st["processed"].append(key)
             st["open_event"] = None
