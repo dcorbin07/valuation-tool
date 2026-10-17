@@ -55,7 +55,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f10_clean_csp.md"
@@ -111,7 +111,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f11_dip_reject_puts.md"
@@ -167,7 +167,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f12_postevent_reversal.md"
@@ -222,7 +222,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f13_second_event.md"
@@ -277,7 +277,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f14_fda_nohump.md"
@@ -333,7 +333,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f15_insider_cluster.md"
@@ -393,7 +393,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f17_vrp_percentile_sells.md"
@@ -453,7 +453,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f18_boring_book.md"
@@ -507,7 +507,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f19_density_gate.md"
@@ -560,7 +560,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f1_fill_ab.md"
@@ -616,7 +616,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f20_married_put_storm.md"
@@ -694,7 +694,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f21_v6opt_dip_csp.md"
@@ -772,7 +772,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f22_dip_csp_random_twin.md"
@@ -838,7 +838,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f23_insider_cluster_shares.md"
@@ -891,7 +891,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f2_menu_gate.md"
@@ -946,7 +946,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f3_bear_puts.md"
@@ -1007,10 +1007,72 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f4_eventfree_premium.md"
+      ]
+    },
+    "f4b_eventfree_25d": {
+      "commit": "d45877fe47a20e6359e5017b7662764aada5cc03",
+      "commit_date": "2026-10-16T23:52:38-04:00",
+      "committed_alone": true,
+      "decl_sha": "07b385e4d8be54a7fa6eadefc2e9dcb310860353e3c67a441c6661f21e84eec4",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
+        "book": "f4b_eventfree_25d",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "Every Monday: universe = optionable names that are (a) MA28 0-of-3 flags at the latest quarterly compute, (b) EVT-clean (E-4's tail flag, bottom 4 quintiles), (c) EVENT-FREE on the FREE FORWARD CALENDAR -- the next earnings date must be KNOWN from the Yahoo forward calendar AND fall outside [session, expiry + 9 calendar days]; a name whose next date is UNKNOWN is REFUSED, SKIPPED AND COUNTED, never treated as event-free -- and (d) no S3-I2 catalyst inside the same window. Take the 3 largest by market cap not already held; alphabetical tie-break. The date compared against is the CYCLE SESSION (fleet_books.cycle_session), never the runner's own UTC date: the cron lands 3.5-7.5 hours late and an exact match on date.today() is what made four books read RULE_ARMED_NEVER_FIRES while never seeing their data.",
+        "hypothesis_class": "edge",
+        "margin_method": "cash_secured_put",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal secured cash per position",
+        "spot_basis": "as_traded",
+        "structure": {
+          "delta": 0.25,
+          "dte": 30,
+          "dte_rule": "nearest 30 and strictly < 40, ties -> shorter",
+          "exit": "hold to expiry; assignment per S3-I3",
+          "right": "put",
+          "strike_selection": "delta",
+          "v6opt_argument": "V6-OPT measured that a delta-targeted strike sets moneyness from the name's OWN implied vol and so NEUTRALISES the very risk difference the trade was built to exploit -- assignment came back 25.30% healthy against 25.73% unhealthy, a 0.43pp gap, because the richer name simply got a further strike. THE ARGUMENT PAST IT IS THAT THIS BOOK'S EDGE IS NOT A CROSS-SECTIONAL RISK DIFFERENCE BETWEEN NAMES, SO THERE IS NOTHING FOR THE DELTA RULE TO NEUTRALISE. V6-OPT's signal WAS a per-name risk ranking, which is exactly the thing a per-name vol normalisation cancels. This book's condition is the ABSENCE OF A SCHEDULED JUMP inside the option's life -- a property of the calendar, not of the name -- and implied vol is what CARRIES the earnings jump premium. Removing the event and then striking off the remaining vol prices the diffusion the book intends to be short of, so the normalisation is aligned with the hypothesis rather than orthogonal to it. IT IS ALSO MEASURED RATHER THAN ARGUED: on this book's own tenor the strike rule moves the crash stress from 11.57 years to 4.7539, a 2.43x improvement, which is V6-OPT's mechanism operating in the direction this book wants. AND THE RESIDUAL EXPOSURE IS STATED: if the calendar misses a date, the delta strike is set off a vol that INCLUDES the unremoved event and therefore sits FURTHER out of the money than a fixed moneyness would -- so a filter failure is partly self-protecting, which is the opposite of the fixed-0.90 expression's behaviour and is the second reason to prefer delta here."
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable, MA28-clean, EVT-clean, event-free on the free forward calendar",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "About 3.84 years at the projected 11.00 fills/month (507 fills). A premium book's verdict needs its LOSS TAIL, so no read before 2 quarters regardless of fill count, and the F-4b-versus-anything contrast may not be quoted before both books reach their horizons.",
+          "expected_fills_per_month": 11.0,
+          "fills_needed": 507,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma=5.047, rho=3.0, alpha=0.05)/n <= 0.75. DERIVED at the measured sigma; the retired expression's 306 was derived at the 4.0 prior and does not transfer.",
+          "min_effect": 0.75,
+          "power_gate_note": "Anytime-valid, so the 50%/80% vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*5.047/0.75)^2 = 355, reported beside it so both vocabularies are on the face.",
+          "rho": 3.0,
+          "sigma": 5.047,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED, not a prior: SELL-PREMIUM-2's realised per-trade SD of a 25-delta cash-secured put on secured cash, over 4,617 stage-2 trades. The retired expression carried 4.0 as an explicit PRIOR for a 0.90-moneyness strike; this is a different strike and the measured figure for it is larger, so the horizon is longer rather than shorter.",
+          "years_to_horizon_at_projected_rate": 3.84
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f4b_eventfree_25d.md"
       ]
     },
     "f5_ivcheap": {
@@ -1062,7 +1124,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f5_ivcheap.md"
@@ -1120,7 +1182,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f6_collar_ledger.md"
@@ -1180,7 +1242,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_f8_csp_entry_financing.md"
@@ -1230,7 +1292,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
+      "is_ancestor_of": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
       "refusals_at_export": [],
       "touched": [
         "DECL_testbook.md"
@@ -1238,9 +1300,9 @@
     }
   },
   "evidence_note": "Computed where git exists and consumed where it does not. On a service built from an image with no .git, fleet.may_fill falls back to this manifest and reports evidence='manifest' rather than 'git'. That is a WEAKER chain and the record says so on every gate result.",
-  "generated_utc": "2026-10-15T02:16:49+00:00",
-  "head": "d3b9dd670e7cc3707e3a30a0ca6e1673e545f0e3",
-  "n_books": 21,
+  "generated_utc": "2026-10-17T04:50:26+00:00",
+  "head": "9153815c0a5951bb4b9090adab097ca8f98a99f9",
+  "n_books": 22,
   "schema": "fleet_declarations/1",
   "skipped": {
     "DRAFT_f16_13f_surge": "does not parse: no fenced ```json declaration block",
