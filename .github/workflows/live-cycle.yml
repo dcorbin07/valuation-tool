@@ -40,20 +40,53 @@ name: LIVE PATH CYCLE (paper slot + live slots)
 # track-row and fleet-cycle use the same two. DISCORD_WEBHOOK_URL optional, and the service
 # holds it, not this job.
 
+# PENDING INSTALL 2026-10-16 (item 64): the schedule below differs from the copy currently
+# installed at .github/workflows/live-cycle.yml, which carries the single 14:40Z cron that has
+# never fired. Don installs this by double-clicking `install_workflows.bat`; until he does, the
+# two copies differ ON PURPOSE and `tests/test_item63.py` requires this marker to say so.
+# WHAT CHANGED: the schedule only -- four crons added, and nothing else in the file is touched.
+# The send token is still `?run=paper` and no live order is reachable from this workflow.
+
 on:
   workflow_dispatch: {}
   schedule:
-    # 14:40 UTC is 10:40am ET in summer and 9:40am ET in winter -- INSIDE the session in both,
-    # which is what matters: a fractional order must be a `day` limit order (Alpaca permits no
-    # other time_in_force for a fractional quantity), and a `day` order placed outside market
-    # hours is not worked until the next session. This repo has already been bitten twice a
-    # year by a fixed UTC cron drifting against the Eastern session, so no DST pair is needed
-    # here -- both regimes land in the session.
+    # FIVE SCHEDULES, AND THE EARLY ONES ARE THE ONES THAT WORK.  [item 64]
     #
-    # Also: after the open's ten widest minutes have settled (every order is a limit at the
-    # mid), well before the close so an unfilled order has most of a session to work, and not
-    # on the hour, where every other scheduled job in this repo clusters.
+    # A fractional order must be a `day` limit order (Alpaca permits no other time_in_force for
+    # a fractional quantity), and a `day` order placed outside market hours is not worked until
+    # the next session -- so the cycle must land inside the orders window, 09:35-15:45 ET. That
+    # is 13:35-19:45Z under EDT and 14:35-20:45Z under EST, and the intersection 14:35-19:45Z is
+    # the target that needs no DST pair.
+    #
+    # **THE TIME A CRON IS SCHEDULED IS NOT THE TIME IT FIRES ON THIS REPO.** Measured from
+    # GitHub's API across 24 scheduled PT-WRITER runs over two weeks, the scheduler fires
+    # **3.45 to 7.48 hours LATE, median 5.52** -- consistently, with the spacing between its two
+    # crons preserved, so it is a queue delay and not jitter. The single 14:40Z schedule this
+    # file shipped with has NEVER fired: zero scheduled runs exist, and at 17:43Z on 2026-10-16
+    # it was 3.06 hours overdue. Delayed by the median it would fire at 20:12Z, after the window
+    # shuts.
+    #
+    # So the times below are chosen by asking which SCHEDULED time lands inside the window once
+    # delayed:
+    #
+    #     cron     fires when delayed 3.45-7.48h    always inside 14:35-19:45Z?
+    #     11:30Z   14:57 - 18:59Z                   YES
+    #     12:00Z   15:27 - 19:29Z                   YES
+    #     12:30Z   15:57 - 19:59Z                   all but the slowest ~1 of 24
+    #     14:40Z   18:07 - 22:09Z                   no, but YES if it fires ON TIME
+    #     16:10Z   19:37 - 23:39Z                   no, but YES if it fires ON TIME
+    #
+    # BOTH REGIMES ARE COVERED ON PURPOSE. The early three are for the scheduler as it behaves
+    # today; 14:40 and 16:10 are kept because they are the ones that work if GitHub ever catches
+    # up. **AND AN EXTRA RUN COSTS NOTHING**, which is what makes this the right instrument: the
+    # door is idempotent per event -- an event whose targets are already met closes and sends
+    # nothing -- and a cycle outside the window refuses on `orders_window` and returns 200. The
+    # only price of a miss is a no-op in the run log.
+    - cron: "30 11 * * 1-5"
+    - cron: "0 12 * * 1-5"
+    - cron: "30 12 * * 1-5"
     - cron: "40 14 * * 1-5"
+    - cron: "10 16 * * 1-5"
 
 concurrency:
   group: live-cycle
@@ -84,25 +117,114 @@ jobs:
                    -H "X-Admin-Token: ${ADMIN_TOKEN}" \
                    "${SITE_BASE_URL%/}/admin/live-cycle?run=paper") || CODE="000"
           echo "HTTP ${CODE}"
-          cat "$BODY"
+          cp "$BODY" "$GITHUB_WORKSPACE/live-cycle-body.json" 2>/dev/null || true
+
+          # ---- ONE SHORT LINE PER FIELD  [item 65 part 3] ------------------------------
+          #
+          # **CYCLE 6's BODY WAS LOST BECAUSE IT WAS ONE ~35KB LINE AND GITHUB DROPPED IT**,
+          # and the three summary lines that existed so nobody would have to parse it were in
+          # the same step and went with it. So: `cat "$BODY"` is GONE -- it is what produced
+          # that line -- the body is uploaded as an artifact instead, and every figure below
+          # is printed on its OWN short line. No single line can now be the one that is lost.
+          #
+          # AND THIS RUNS BEFORE THE HTTP CHECK. The first cut checked the status first, so a
+          # failed cycle -- the one outcome most worth reading -- printed nothing at all.
+          python - "$BODY" <<'PYEOF' || echo "(the body could not be summarised)"
+          import json, sys
+          try:
+              d = json.load(open(sys.argv[1])) or {}
+          except Exception as e:
+              print("summary-unavailable: %s" % e); raise SystemExit(0)
+          p = d.get("paper") or {}
+          r = p.get("reconcile") or {}
+          cov = p.get("marks_coverage") or {}
+          sent = p.get("sent") or []
+          ok = [x for x in sent if x.get("ok")]
+          bad = [x for x in sent if not x.get("ok")]
+          print("mode          : %s" % d.get("mode"))
+          print("session       : ok=%s %s" % ((d.get("session") or {}).get("ok"),
+                                              (d.get("session") or {}).get("local_time")))
+          print("event         : %s %s" % (p.get("event"), p.get("event_key")))
+          print("priced        : %s of %s" % (cov.get("n_priced"), cov.get("n_needed")))
+          print("sent          : %d" % len(sent))
+          print("accepted      : %d" % len(ok))
+          print("rejected      : %d" % len(bad))
+          print("filled        : %s of %s orders at the broker" % (r.get("n_filled"),
+                                                                   r.get("n_orders")))
+          print("held          : %d names" % len(r.get("holdings") or {}))
+          print("order_read    : %s" % r.get("order_read"))
+          print("cancelled     : %d" % len(p.get("cancelled") or []))
+          print("blocked       : %d name(s) by an unconfirmed cancel"
+                % len(p.get("blocked_by_cancel") or []))
+          print("send_seq      : %s" % p.get("send_seq"))
+          print("no_progress   : %s" % p.get("attempts_without_progress"))
+          print("account_pinned: %s" % p.get("account_id_recorded"))
+          print("refusal       : %s" % ((p.get("reason") or "")[:200]))
+          # ONE LINE PER DISTINCT REJECTION REASON, counted -- 60 identical lines is the same
+          # unreadable-log failure in a different shape.
+          from collections import Counter
+          c = Counter((x.get("detail") or "no reason given")[:120] for x in bad)
+          for why, n in c.most_common(12):
+              print("reject x%-3d   : %s" % (n, why))
+          if len(c) > 12:
+              print("reject ...    : %d further DISTINCT reason(s) not shown"
+                    % (len(c) - 12))
+          # DEDUPED AND COUNTED, like the rejections above. On a real cycle this printed 22
+          # copies of the same sentence, which is the unreadable-log failure the comment above
+          # names -- applied to one field out of two on the first cut. One line per DISTINCT
+          # (kind, reason), with the names it affected, so nothing is hidden and nothing is
+          # repeated. `live_notify` dedupes what Don is SENT; this is the run log.
+          ac = {}
+          for a in (d.get("alerts") or []):
+              reason = a.get("reason") or ""
+              # **THE KEY IS THE CAUSE WITH THE SUBJECT REMOVED.** Keying on the reason itself
+              # -- even its tail -- made 22 unique keys out of one cause, because
+              # "order for DOCN was rejected: X" and "order for EG was rejected: X" differ in
+              # the TICKER. So the cause is the text after the first colon, and the ticker
+              # becomes one of the names listed against it.
+              parts = reason.split(": ", 1)
+              cause = (parts[1] if len(parts) > 1 else reason)[:140]
+              words = parts[0].split()
+              subject = words[2] if len(words) > 2 and words[0] == "order" else ""
+              k = (a.get("slot"), a.get("kind"), cause)
+              ac.setdefault(k, {"n": 0, "names": []})
+              ac[k]["n"] += 1
+              if subject and subject not in ac[k]["names"] and len(ac[k]["names"]) < 10:
+                  ac[k]["names"].append(subject)
+          ranked = sorted(ac.items(), key=lambda kv: -kv[1]["n"])
+          for (slot, kind, why), v in ranked[:20]:
+              more = ", ..." if v["n"] > len(v["names"]) and v["names"] else ""
+              suffix = (" [%s%s]" % (", ".join(v["names"]), more)) if v["names"] else ""
+              print("::warning::slot %s %s x%d: %s%s" % (slot, kind, v["n"], why, suffix))
+          # **NO SILENT CAP.** The project's own rule: a report that bounds its coverage says
+          # what it dropped, or it reads as having covered everything. On a real cycle this cap
+          # hid 23 of 43 `live_order_sent` lines with nothing saying so.
+          if len(ranked) > 20:
+              hidden = sum(v["n"] for _, v in ranked[20:])
+              print("alerts ...    : %d further group(s) covering %d alert(s) not shown; the "
+                    "full body is attached to this run as an artifact"
+                    % (len(ranked) - 20, hidden))
+          for x in (d.get("slots") or []):
+              print("live slot %s  : pct=%s armed=%s orders=%d parity_ok=%s"
+                    % (x.get("slot"), x.get("pct"), x.get("armed"),
+                       len(x.get("orders") or []), (x.get("parity") or {}).get("ok")))
+          if not (d.get("slots") or []):
+              print("live slots    : none configured -- %s" % ((d.get("reason") or "")[:160]))
+          PYEOF
+
           # 200 IS THE ONLY SUCCESS, AND A QUIET CYCLE IS A SUCCESS. Most days carry no event
           # at all -- no rebalance, no percentage change, no open remainder -- and alerting on
-          # that would teach everyone to ignore this job.
+          # that would teach everyone to ignore this job. Checked AFTER the summary above, so a
+          # failure is readable rather than silent.
           [ "$CODE" = "200" ] || { echo "::error::live-cycle returned ${CODE}"; exit 1; }
-          # THE CAUSE IS READ FROM THE BODY RATHER THAN GUESSED -- item 46's lesson, and item
-          # 50's: no substring match on a code, no second copy of a reason that lives in the
-          # service. Alerts are deduped by the service (`live_notify`), so this job prints for
-          # the run log and does not double-post.
-          # THE CAUSE IS READ FROM THE BODY RATHER THAN GUESSED -- item 46's lesson, and
-          # item 50's: no substring match on a code, no second copy of a reason that lives in
-          # the service. Alerts are deduped by the service (`live_notify`), so this job prints
-          # for the run log and does not double-post.
-          #
-          # ONE-LINERS, NOT A HEREDOC. The first cut of this file indented a heredoc body and
-          # its terminator; a terminator must sit at column 0 and indented Python is an
-          # IndentationError, so it would have gone red on every run AFTER the cycle had
-          # already succeeded. `|| true` on each: a summary that cannot be printed must not
-          # fail a job whose real work is already done and reported by HTTP status.
-          python -c 'import json,sys;d=json.load(open(sys.argv[1])) or {};p=d.get("paper") or {};print("paper slot: event=%s acted=%s orders=%d reason=%s" % (p.get("event"),p.get("acted"),len(p.get("orders") or []),(p.get("reason") or "")[:160]))' "$BODY" || echo "(the paper slot could not be summarised)"
-          python -c 'import json,sys;d=json.load(open(sys.argv[1])) or {};s=d.get("slots") or [];print("\n".join("slot %s: pct=%s armed=%s orders=%d parity_ok=%s" % (x.get("slot"),x.get("pct"),x.get("armed"),len(x.get("orders") or []),(x.get("parity") or {}).get("ok")) for x in s) or ("no live slot configured: " + (d.get("reason") or "")[:200]))' "$BODY" || true
-          python -c 'import json,sys;d=json.load(open(sys.argv[1])) or {};print("\n".join("::warning::slot %s %s: %s" % (a.get("slot"),a.get("kind"),(a.get("reason") or "")[:200]) for a in (d.get("alerts") or [])))' "$BODY" || true
+
+      # **THE FULL BODY, AS AN ARTIFACT.** `if: always()` because a FAILED cycle's body is the
+      # one most worth having, and that is exactly the run where the step above exits non-zero.
+      - name: Keep the cycle's full body
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-cycle-body
+          path: live-cycle-body.json
+          if-no-files-found: ignore
+          retention-days: 30
