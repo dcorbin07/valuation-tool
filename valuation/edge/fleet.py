@@ -100,7 +100,19 @@ RECORD_COLUMNS = (
 #: append-only check verifies"), so a new base column would make every one of the 18 live
 #: streams refuse every future write. The (C) columns got in only because they predate the
 #: streams by one day.
-EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close", "skip", "reconcile")
+#: **THE ONLY BOOKS A CYCLE MAY RE-ANCHOR, AND IT IS A LIST OF TWO BY DON'S RULING OF
+#: 2026-10-17** ("apply it to F-21 and F-22 only"). It is a committed literal rather than a
+#: capability, so a third book cannot be re-anchored by accident, by configuration or by an
+#: operator in a hurry -- it takes a diff. **It is also SELF-EXTINGUISHING:** `reanchor_stream`
+#: refuses unless row 0's anchor actually differs from the current declaration hash, so once
+#: these two are repaired the step can never fire again for them either.
+REANCHOR_ALLOWLIST = ("f21_v6opt_dip_csp", "f22_dip_csp_random_twin")
+
+EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close", "skip", "reconcile",
+               # The dated, in-band, CHAINED record that a stream was re-anchored. It
+               # is the first row of the new stream, so a reader of the records alone
+               # -- with no access to the mark file -- still sees that it happened.
+               "reanchor")
 
 # Every clause a declaration must state. Absent -> REFUSED, and the refusal names the field.
 #: The retirement record. A RETIREMENT CLOSES A DECLARATION, NEVER A HYPOTHESIS -- a successor
@@ -617,8 +629,17 @@ def verify_chain(book: str, root: str = None, decl_sha: str = None) -> dict:
             "bound": CHAIN_BOUND}
 
 
-def _next_seq(rows) -> str:
-    n = 0
+def _next_seq(rows, floor: int = 0) -> str:
+    """The next sequence number, never below `floor`.
+
+    **`floor` IS THE HIGH-WATER MARK, AND PASSING IT IS A STRENGTHENING RATHER THAN A
+    LOOSENING.** Without it the next seq comes only from the rows in front of us, so a stream
+    that lost its file restarts at 1 and REUSES numbers that were already written. With it, a
+    sequence number used once can never be used again whatever happened to the file it was
+    written in -- and it is what lets a deliberately re-anchored stream resume ABOVE the mark
+    instead of colliding with it.
+    """
+    n = int(floor or 0)
     for r in rows:
         try:
             n = max(n, int((r.get("seq") or "0").strip()))
@@ -672,7 +693,7 @@ def record(book: str, kind: str, fields: dict, *, decl_sha: str, root: str = Non
     # in silence" -- and filtering HERE meant the key never reached `append`, so that
     # disclosure came back empty and the promise was defeated one layer up.
     _ignored_here = sorted(k for k in (fields or {}) if k not in cols)
-    payload["seq"] = _next_seq(rows)
+    payload["seq"] = _next_seq(rows, floor=HW.mark_for(book, fleet_dir(root)))
     payload["ts"] = ts or _dt.datetime.now().isoformat(timespec="seconds")
     payload["kind"] = kind
     payload["book"] = book
@@ -1120,6 +1141,157 @@ def decl_sha_for(book: str, root: str = None) -> Optional[str]:
         return (entry or {}).get("decl_sha") or None
 
 
+
+def reanchor_stream(book: str, root: str = None, *, ts: str = None) -> dict:
+    """Re-anchor a stream whose ONLY fault is that its declaration hash moved. Don's remedy (b).
+
+    **THE DEFECT, AND IT BRICKED TWO BOOKS FOR FOUR DAYS.** The chain anchors at the
+    DECLARATION's content hash and `may_fill` checks row 0 against the CURRENT one, so
+    **amending a declaration after the stream's first row has been written breaks row 0
+    permanently.** `F-21`'s declaration landed 2026-10-13 01:25 ET, the 03:15 ET cycle wrote its
+    self-check rows, and an amendment at 21:17 ET moved the anchor. The amendment's own commit
+    says *"before the arming"* and that was TRUE — **the chain anchors on the FIRST RECORD, not
+    on the arming, and a cycle writes self-check rows whether or not a book is armed.**
+
+    **MY FIRST ATTEMPT AT THIS ARCHIVED THE STREAM AND LET IT RESTART AT SEQ 1, AND IT FAILED ON
+    THE VERY NEXT WRITE** — `fleet_highwater` refused with *"holds rows only up to seq 0 but 2
+    was already recorded"*, which is exactly what that module exists to say and is **correct**: a
+    stream that restarts is indistinguishable from the whole-file loss audit #5 measured. It was
+    removed rather than shipped. **This version continues the sequence instead:**
+
+    * the archived rows stay, byte-for-byte, in `<book>.<n>.superseded.csv`;
+    * `fleet_highwater.note_reanchor` records the archive, both anchors and the archived
+      high-water seq, so `state()` can clear the live stream **on evidence** — it opens the
+      archive and counts, and the book goes straight back to `REGRESSED` if the archive is ever
+      deleted;
+    * the fresh stream's first row is a **`reanchor` event at `mark + 1`**, written through the
+      ordinary `record` door, so it is chained, dated and visible to a reader of the records
+      alone. **Nothing is lowered and no guard is weakened.**
+
+    **FOUR REFUSALS, each because archiving a chained record is what someone hiding a tamper
+    would want:** the break must be at **row 0 and nowhere else** (the rest must verify against
+    the stream's OWN stored anchor, which is what separates a moved anchor from a tampered row);
+    the stream must carry **no fill and no close**, because a stream with real trades is history
+    and orphaning it to unblock a book would be the worst trade this harness could make; the
+    anchor must actually have **moved**; and the declaration must still exist to re-anchor TO.
+    """
+    path = records_path(book, root)
+    if not os.path.exists(path):
+        return {"ok": True, "reanchored": False, "reason": "no stream yet; nothing to re-anchor"}
+    want = decl_sha_for(book, root)
+    if not want:
+        return {"ok": False, "reanchored": False,
+                "reason": "no declaration hash for %r, so there is nothing to re-anchor TO" % book}
+    rd = read_records(book, root)
+    if not rd["ok"]:
+        return {"ok": False, "reanchored": False, "reason": rd["reason"]}
+    rows = rd["rows"] or []
+    if not rows:
+        return {"ok": True, "reanchored": False, "reason": "empty stream; nothing to re-anchor"}
+
+    on_disk = (rows[0].get("prev_hash") or "")
+    if on_disk == want:
+        return {"ok": False, "reanchored": False,
+                "reason": ("row 0 already anchors at the current declaration hash, so a moved "
+                           "anchor is NOT the fault here. Refusing: this repair is for one "
+                           "cause and must not be used to clear a break it did not diagnose.")}
+
+    traded = [k for k in (str(r.get("kind") or "") for r in rows) if k in ("fill", "close")]
+    if traded:
+        return {"ok": False, "reanchored": False,
+                "reason": ("the stream carries %d fill/close row(s) and is HISTORY. Archiving it "
+                           "to unblock a book would orphan real trades; fix the declaration or "
+                           "accept the break." % len(traded))}
+
+    v = verify_chain(book, root, decl_sha=on_disk)
+    if not v.get("ok"):
+        return {"ok": False, "reanchored": False,
+                "reason": ("the stream does not verify even against its OWN stored anchor (%s), "
+                           "so this is a tampered or corrupt chain rather than a moved anchor."
+                           % v.get("reason"))}
+
+    fd = fleet_dir(root)
+    archived_max = HW.observed_max(rows)
+    n = 1
+    while os.path.exists(path[:-4] + ".%d.superseded.csv" % n):
+        n += 1
+    dest = path[:-4] + ".%d.superseded.csv" % n
+    os.replace(path, dest)
+
+    note = HW.note_reanchor(book, fd, archive=os.path.basename(dest), old_anchor=on_disk,
+                            new_anchor=want, archive_max_seq=archived_max, ts=ts)
+    if not note.get("ok"):
+        # PUT IT BACK. A stream archived with no note is the one state that reads as a loss,
+        # so a failed note must not leave the tree in it.
+        os.replace(dest, path)
+        return {"ok": False, "reanchored": False,
+                "reason": "could not record the re-anchor (%s); the stream was restored"
+                          % note.get("reason")}
+
+    first = record(book, "reanchor",
+                   {"detail": ("re-anchored: declaration hash moved from %s to %s; rows up to "
+                               "seq %d are in %s" % (on_disk[:16], want[:16], archived_max,
+                                                     os.path.basename(dest))),
+                    "refusal_code": "", "fate": "reanchored"},
+                   decl_sha=want, root=root, ts=ts)
+    if not first.get("wrote"):
+        return {"ok": False, "reanchored": True, "archived_to": os.path.basename(dest),
+                "reason": ("the stream was archived and noted, but the first row of the new "
+                           "stream did not write (%s). The book is recoverable -- the archive "
+                           "and the note are both on disk -- but it cannot fill until a write "
+                           "succeeds." % first.get("reason"))}
+
+    return {"ok": True, "reanchored": True, "archived_to": os.path.basename(dest),
+            "rows_archived": len(rows), "archive_max_seq": archived_max,
+            "resumed_at_seq": first.get("row", {}).get("seq") if isinstance(
+                first.get("row"), dict) else None,
+            "old_anchor": on_disk, "new_anchor": want,
+            "reason": ("chain SPLIT: the archive verifies on its own against the OLD declaration "
+                       "hash, the new stream anchors at the current one, and the sequence "
+                       "CONTINUES so the high-water guard still holds")}
+
+
+def moved_anchor(book: str, root: str = None, decl_sha: str = None) -> dict:
+    """Did this stream break because the DECLARATION was amended after its first row?
+
+    **THE GUARD DON ASKED FOR, IN THE ONLY FORM THAT CAN EXIST.** A lane cannot refuse an edit
+    to a markdown file -- the edit is a commit, not an API call -- so the amendment is made
+    LOUD instead of impossible: the moment a declaration moves out from under a started
+    stream, every gate read says so by name and names the remedy, rather than reporting a bare
+    `prev_hash mismatch at row 0` that reads like corruption and sends the reader hunting.
+    """
+    out = {"moved": False, "reason": "", "row0_anchor": "", "current": decl_sha or ""}
+    want = decl_sha or decl_sha_for(book, root) or ""
+    out["current"] = want
+    if not want:
+        return out
+    rd = read_records(book, root)
+    rows = (rd.get("rows") or []) if rd.get("ok") else []
+    if not rows:
+        return out
+    a = rows[0].get("prev_hash") or ""
+    out["row0_anchor"] = a
+    if a and a != want:
+        out["moved"] = True
+        out["reason"] = ("row 0 anchors at %s but the declaration now hashes to %s"
+                         % (a[:16], want[:16]))
+    return out
+
+
+def _chain_broken_reason(book: str, root, sha: str, ch: dict) -> str:
+    """`verify_chain`'s reason, plus the diagnosis when the cause is an amended declaration."""
+    base = ch.get("reason") or ""
+    m = moved_anchor(book, root, sha)
+    if not m["moved"]:
+        return base
+    return (base + " -- DIAGNOSIS: THE DECLARATION WAS AMENDED AFTER THIS STREAM'S FIRST ROW "
+            "(%s). The chain anchors on the FIRST RECORD, not on the arming, and a cycle "
+            "writes self-check rows whether or not a book is armed, so an amendment made "
+            "'before the arming' can still break row 0. REMEDY: fleet.reanchor_stream, which "
+            "archives the rows byte-for-byte, records the move, and resumes the sequence above "
+            "the high-water mark. It is applied automatically only to REANCHOR_ALLOWLIST."
+            % m["reason"])
+
 def may_fill(book: str, root: str = None) -> dict:
     """Every precondition on recording a fill, checked together. Refusals are RECORDS.
 
@@ -1164,7 +1336,9 @@ def may_fill(book: str, root: str = None) -> dict:
                     "decl_sha": sha, "evidence": "manifest"}
         ch = verify_chain(book, root, decl_sha=sha)
         if not ch["ok"]:
-            return {"ok": False, "code": "CHAIN_BROKEN", "reason": ch["reason"],
+            return {"ok": False, "code": "CHAIN_BROKEN",
+                    "reason": _chain_broken_reason(book, root, sha, ch),
+                    "moved_anchor": moved_anchor(book, root, sha)["moved"],
                     "decl_sha": sha, "evidence": "manifest"}
         return {"ok": True, "code": "", "reason": "", "decl_sha": sha,
                 "declaration": entry.get("declaration") or {},
@@ -1191,7 +1365,9 @@ def may_fill(book: str, root: str = None) -> dict:
 
     ch = verify_chain(book, root, decl_sha=sha)
     if not ch["ok"]:
-        return {"ok": False, "code": "CHAIN_BROKEN", "reason": ch["reason"], "decl_sha": sha}
+        return {"ok": False, "code": "CHAIN_BROKEN",
+                "reason": _chain_broken_reason(book, root, sha, ch),
+                "moved_anchor": moved_anchor(book, root, sha)["moved"], "decl_sha": sha}
 
     return {"ok": True, "code": "", "reason": "", "decl_sha": sha,
             "declaration": p["declaration"], "commit": c["commit"],
@@ -2316,6 +2492,53 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
     """
     root = root or repo_root()
     today = _dt.date.today().isoformat()
+
+    # ---------------------------------------------------------------- the one-shot re-anchor
+    # DON'S RULING OF 2026-10-17, remedy (b), applied to two named books and no others. It runs
+    # BEFORE the gate loop because a book re-anchored here should be gated on its repaired
+    # state in the same cycle rather than waiting a day. **IT IS SELF-EXTINGUISHING**:
+    # `reanchor_stream` refuses unless row 0's anchor still differs from the current
+    # declaration hash, so each book is repaired at most once and a later run is a no-op. It
+    # only acts under `write`, so a dry run reports what it WOULD do and touches nothing.
+    # WHICH BROKER THE FLEET WOULD USE, AND WHETHER ITS CREDENTIALS EXIST. Construction only --
+    # no network call, no order, no quote -- so it costs nothing per cycle. It is here because
+    # the question "are the fleet's paper keys on the service?" was UNANSWERABLE from the
+    # 2026-10-17 body: no book produced a candidate, so no book reached the broker, so nothing
+    # in the response said either way. A fact that is only visible when something goes right is
+    # not visible.
+    _b, _why = fleet_broker_or_reason()
+    broker_state = {
+        "venue": os.environ.get(FLEET_VENUE_ENV) or "alpaca",
+        "credentials_present": _b is not None,
+        "dedicated_fleet_account": bool(getattr(_b, "dedicated", False)) if _b else False,
+        "reason": _why,
+    }
+
+    reanchored = {}
+    for b in REANCHOR_ALLOWLIST:
+        if books is not None and b not in books:
+            continue
+        m = moved_anchor(b, root)
+        if not m["moved"]:
+            continue
+        if not write:
+            reanchored[b] = {"ok": True, "reanchored": False, "would": True,
+                             "reason": "dry run: " + m["reason"]}
+            continue
+        reanchored[b] = reanchor_stream(b, root)
+        if reanchored[b].get("reanchored"):
+            # ONE CYCLE OF LAG, STATED RATHER THAN DISCOVERED. The door runs `recertify`
+            # BEFORE `cycle`, so a book re-anchored here has just had its fresh self-check row
+            # archived along with the rest of the old stream and will read SELFCHECK_ABSENT
+            # for the remainder of THIS cycle. The next cycle's scan sees ABSENT, re-certifies
+            # into the NEW stream, and the re-anchor is then a no-op -- so it self-heals by the
+            # door's existing order rather than by luck. It is NOT re-certified from here:
+            # running the door's self-check orchestration out of the library would be a second
+            # implementation of it, which is the defect this project names B7.
+            reanchored[b]["next_step"] = (
+                "expect SELFCHECK_ABSENT until the next cycle, which re-certifies into the "
+                "new stream before the gate is read")
+
     rows, armed, filled, blocked = [], 0, 0, 0
     for d in declared_books(root):
         if books is not None and d["book"] not in books:
@@ -2433,6 +2656,10 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
         "ok": True, "date": today, "wrote": bool(write),
         "reconciled": reconciled,
         "books_declared": len(books_only), "armed": armed, "blocked": blocked,
+        # Empty on every ordinary cycle. Non-empty exactly once per allowlisted book,
+        # and the row it wrote is in that book's own stream as a `reanchor` event.
+        "reanchored": reanchored,
+        "broker": broker_state,
         "fills_written": filled,
         "entry_rules_implemented": implemented,
         "books_with_no_entry_rule": unscheduled,

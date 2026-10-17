@@ -12405,3 +12405,512 @@ asserts the total is unchanged.
   asserting my own fixture.** Replaced with a shape built to exhibit the mechanism, and the
   general fixture now only pins that the two figures are both reported and differ.
 * **14 tests.** `valuation/web/scream_track.py`.
+
+
+---
+
+## 93. EARNINGS-CSP's FREE KILL IS UNRESOLVED, AND THE PERMISSION IT EXISTS TO GRANT IS THEREFORE NOT GRANTED (2026-10-16, `K1`)
+
+The Frontier Scout's `PREREG_DRAFT_earnings_csp.md` (`d5c50e4`) froze one pre-outcome kill:
+*"the arm runs only if the measured earnings payoff ratio is <= 0.65. Above it, the register STOPS
+and reports the ratio."* **Run exactly as frozen. ZERO TRIALS, zero new data, no option quoted,
+no chain read** (`DC-1`'s precedent) - every input is a banked column of `O6O7O17_EVENTS.pkl`.
+**NO REGISTER IS COMMITTED AND NO ARM RUNS.**
+
+* **THE REGISTERED STATISTIC PASSES BY 0.0014 AND CANNOT BE SEPARATED FROM ITS OWN BAR.** On
+  `O7`'s 6,013 banked events (5,991 scored, 22 dropped), the payoff ratio is **0.6486** against a
+  bar of 0.65 - clearing by **0.2% of the bar** - with a **name-clustered CI95 of [0.5852,
+  0.7105] THAT SPANS IT**. Clustered by NAME because the event is never the unit (`SC-3`): one
+  ticker contributes up to ~40 earnings events whose vols move together, and an event-level
+  interval would be far too narrow on a reading this close.
+* **AND THE READING MATCHED TO THE DESIGN'S OWN DECLARED TENOR FIRES, DECISIVELY.** The draft
+  sells a **15-calendar-DTE** put; restricted to events whose expiry is inside that tenor
+  (n 5,091) the ratio is **0.7358, CI95 [0.6643, 0.8023] - the ENTIRE interval above the bar**,
+  and above the draft's own second line that *"at a ratio of 0.70 or worse the arm is
+  underpowered by construction and must not run"*.
+* **BOTH BIAS DIRECTIONS WERE DECLARED IN THE INSTRUMENT BEFORE THE NUMBER WAS READ, AND BOTH ARE
+  PINNED BY TEST - WHICH IS THE ONLY REASON THE TWO READINGS CAN BE TOLD APART.** **(a) No skew:**
+  `O7` banks only the ATM straddle, so a 25-delta put is priced off the ATM vol; a real one trades
+  dearer, so the modelled price is too LOW and the ratio too HIGH - **the direction that makes the
+  kill FIRE, i.e. safe**. **(b) Settlement at `post` rather than at expiry:** `O7` holds the price
+  the day after the announcement and never at expiry, so remaining time value is dropped, the
+  payoff is too LOW and the ratio too LOW - **the direction that makes the kill PASS, i.e.
+  unsafe.** **THAT SECOND BIAS IS EXACTLY WHAT SEPARATES THE TWO READINGS**: the full sample
+  carries events dated out to 45 days whose price covers a window the settle never reaches, and
+  removing them lifts the ratio over the bar.
+* **THE THIRD QUANTITY DECIDES IT AND THIS DATA CANNOT SEE IT.** The skew sensitivity re-prices
+  the same strike and the same realised payoff at a richer vol: **x1.05 -> 0.6671, x1.10 ->
+  0.6092** on the tenor-matched reading. **A 10% relative skew premium on the 25-delta put takes
+  even the firing reading back under the bar.** So the answer turns on a number no banked column
+  holds.
+* **VERDICT `UNRESOLVED`, AND THE REGISTER STOPS.** The rule is a **PERMISSION** - *"the arm runs
+  ONLY IF"* - and a permission that cannot be established is not granted. `RUN_RULES` A6:
+  ambiguous against a pre-committed threshold is a NULL, never a judgement call. **Reporting
+  "passes" would be reporting a point estimate as though it were the quantity**, on a margin of
+  0.2% inside an interval six percentage points wide.
+* **WHAT IT IS NOT: this is NOT a finding that selling earnings premium loses money.** `O7`'s
+  own result that earnings options are RICH on this universe is untouched. It is a finding that
+  **the free kill cannot establish the permission it exists to grant**, which is a statement
+  about the instrument and not about the trade.
+* **WHAT WOULD SETTLE IT, AND WHY IT IS NOT DONE HERE.** Price a **real** 25-delta put from the
+  **owned raw chain layer** at the pre date and settle it at **expiry**. That removes the no-skew
+  and the settle-early approximations **at once**, uses data this project already holds, and
+  needs no purchase. **It needs its own pre-commitment**, because choosing a better instrument
+  *after* seeing 0.6486 is choosing an instrument on an outcome - the draft deliberately defined
+  `K1` as *"no new data, no option quote"*, and substituting now would be exactly the "keep
+  measuring until something clears" this record warns about hardest.
+* **22 ROWS DROPPED AND COUNTED, NEVER SETTLED.** `realised_move` is an absolute move off the
+  ADJUSTED series and the sign comes from the AS-TRADED pair, so a corporate action inside the
+  four-day window is caught by the two magnitudes disagreeing - `O-1`'s MNST 3-for-1, which
+  booked a fake +1453% from precisely this shape.
+* **A DEFECT IN MY OWN TEST, AND A SECOND ONE WORTH NAMING.** The ratio-of-means test asserted
+  that the ratio of means differs from the mean of ratios **on a fixture where every event had
+  the same price**, on which the two coincide identically - it failed against correct code.
+  And its sibling asserted `assertIn("<=", "<=")`, **a tautology that cannot fail**; it now
+  asserts the direction appears in the rule string, because a kill that silently became `>=`
+  would invert the verdict while every other test still passed. **16 tests.**
+  `scripts/earnings_csp_k1.py`, `tests/test_earnings_csp_k1.py`;
+  `data/free_analysis/EARNINGS_CSP_K1.json`.
+
+---
+
+## 94. A FREE FORWARD EARNINGS CALENDAR EXISTS AND IS GOOD ENOUGH FOR AN EVENT-AVOIDING BOOK WITH A BUFFER - AND THE CONFIRMED/ESTIMATED FLAG IS THE WHOLE DESIGN (2026-10-16)
+
+**ZERO TRIALS, `FIXED`-class** - facts about what data exists, no hypothesis, no bar, no verdict
+against one. **NOTHING IS WIRED INTO A BOOK.**
+
+**WHY IT IS A PREREQUISITE RATHER THAN A DETAIL.** The licensed event spine holds **385,426
+code-22 rows and not one forward date**, which is why `F-4` earned `RULE_ARMED_NEVER_FIRES` and
+*"as declared enters nothing, ever"*. `F-4`, `F-10`, `EARNINGS-CSP`'s stage 3 and every
+event-avoiding book need a calendar that says when the NEXT announcement is.
+
+* **THE TWO LEGS ARE BOTH FREE AND BOTH ALREADY IN REACH.** Forward: Yahoo's
+  `earningsTimestampStart`, which `valuation/data/yahoo.py` **already reads for the live app**, so
+  this is the route the project is on rather than a new vendor. Realised:
+  **`data.sec.gov/submissions/CIK*.json`, 8-K Item 2.02** - *Results of Operations and Financial
+  Condition*, i.e. the earnings release itself - no key, no licence.
+* **COVERAGE, on the fleet's own 487-name optionable gate.** Yahoo returns a **future** date for
+  **444 (91.2%)**; the SEC leg resolves **477 of 487 to a CIK** and finds Item 2.02 history for
+  **414 (85.0%)**, at a median of **12 releases over three years** - four a year, as it should be.
+  **43 names (8.8%) have no forward date at all, and a book must REFUSE those rather than read
+  them as event-free** - `O7`'s 29 foreign private issuers are the precedent for what a
+  fail-open costs.
+* **THE FIELD THAT MAKES THIS USABLE IS `isEarningsDateEstimate`, AND IT IS EXPLICIT.** Of the 444
+  forward dates, **377 (84.9%) are CONFIRMED and 67 are projected**. **And the split is
+  informative about horizon rather than merely descriptive: confirmed dates sit a median of 13
+  days ahead and estimated ones 34.** So a name's date firms up as the announcement approaches -
+  which is exactly the window a 15-DTE put or a 30-DTE event-avoidance rule cares about.
+  **207 confirmed dates fall inside 15 days and 339 inside 30.** Not one date came back as a
+  RANGE, so the `Start`/`End` pair adds nothing here and the flag carries the whole signal.
+* **"HOW OFTEN IT MOVES" IS MEASURED RETROSPECTIVELY, WITH NO YAHOO DATA AT ALL, AND IT IS THE
+  CEILING ON ANY PROJECTED CALENDAR.** Yahoo's *estimated* dates are a projection from the prior
+  year's calendar position, and that rule is testable on SEC history alone. Over **3,391
+  year-on-year pairs**: **median absolute drift 1 day, p75 5, p90 6, p95 9, max 45** -
+  **exact only 9.6% of the time, within 3 days 69.4%, within 7 days 92.1%.**
+* **SO THE ANSWER IS CONDITIONAL AND THE CONDITION IS THE TOLERANCE THE BOOK NEEDS.** **For an
+  event-AVOIDING book: good enough, on CONFIRMED dates, with a buffer** - a confirmed date is one
+  the company has published, and the 8% of names without any forward date are refused rather than
+  assumed clear. **For an event-OWNING book such as `EARNINGS-CSP`'s stage 3: good enough only
+  with about a week of buffer**, because a projected date is exact less than a tenth of the time
+  and the p95 miss is 9 days. **A rule that needs the date to the day does not exist on free
+  data.**
+* **THE WEAKER CROSS-CHECK, LABELLED AS WEAKER.** Yahoo's published date against the date the SEC
+  history implies by the same projection: **n 389, median absolute gap 1 day, 87.9% within a
+  week.** Two independent free sources agreeing is **not** a realised check, and it is said so in
+  the artifact - **Yahoo publishes only the next date, so its own forecasts cannot be scored
+  without snapshots this project has never taken. This run writes the first one.**
+* **NOT DONE, named so it is not mistaken for done: nothing is wired into any book**, no
+  declaration is amended, `F-4` and `F-10` are not re-declared (Don's ruling of 2026-10-16 is
+  explicitly *"not now"*), and the retrospective accuracy of **Yahoo's own forecasts** remains
+  unmeasured until a second snapshot exists. `scripts/earnings_calendar_census.py`;
+  `data/free_analysis/EARNINGS_CALENDAR_CENSUS.json`.
+
+
+---
+
+## 95. F-21b's RULE IS FROZEN BEFORE THE FIRST FILL, AND THE FLEET'S OWN SCHEDULE SITS FOUR HOURS AFTER THE CLOSE (2026-10-16)
+
+**`PREREG_f21b_stress_gate.md` committed ALONE at `753b96c`**, markdown only, zero `.py`, a
+strict ancestor of anything that reads it, with **1 options trial booked at `3953d10` BEFORE any
+runner exists** (options `N` 323 -> 324). Accepted from the Frontier Scout's draft `da616fc`.
+**NOTHING IS ADOPTED, NO RULE IS APPLIED, NO PARTITION IS COMPUTED.**
+
+* **THE REGISTER PROMISES NO VERDICT, AND THAT IS WHY IT IS WORTH COMMITTING.** The partition
+  needs about **84 gate-on fills** against `F-21`'s declared **2.0 fills/month** - roughly
+  **17.5 years** - so a register claiming the gate will be confirmed would claim what the
+  arithmetic forbids. What it delivers is a **rule frozen before the fills exist** plus a
+  four-part reporting obligation whose fourth item is **the gate's COST**, because `R1-VAR` makes
+  that the number Don decides on.
+* **THE RULE, with zero free parameters: SPY below its 200-session simple moving average of the
+  adjusted close means stand aside.** Faber (2007), published nine years before the first options
+  row. No buffer, no confirmation window, no second condition, no alternative lookback - each
+  would be a free parameter. **The VIX/VIX3M alternative is preferred on MECHANISM and blocked on
+  a measured data absence** (no VIX or VIX3M series exists in this repository), and if that feed
+  is ever built **the two must be frozen together**, because choosing it after seeing the SMA's
+  partition is choosing a rule on its outcome.
+* **THE CONTAMINATION IS DECLARED RATHER THAN MANAGED: I KNOW 2020 HAPPENED.** The only window
+  containing a crash has been read twice and **options data begins in 2016**, so a gate fitted
+  and confirmed there is circular. **Computing the gate's effect on 2016-2026 in any form is a
+  void condition.** The two defences - zero parameters, and a publication predating the data -
+  are weaker than blindness and are what exists.
+* **THE DRAFT'S OWN FIRST ACT, VERIFIED HERE AND NEGATIVE SO FAR.** *"The register's first act is
+  to confirm F-21 is actually recording fills on its declared population"*, because a partition
+  of an empty book is `RULE_ARMED_NEVER_FIRES` wearing a finding's clothes. **Measured: `F-21`
+  and `F-22` have NO record stream at all in the 2026-10-04 backup - not an empty one, none** -
+  and the only book with fills is `f3_bear_puts` at 72. **That backup predates their arming, so
+  it is evidence the partition is not yet readable and NOT evidence the rule never fires**, and
+  the first deliverable at the read is `n`, so an empty partition reports itself.
+* **THE TRIAL IS BOOKED NOW THOUGH THE DRAFT PRICES IT AT THE VERDICT READ.** `MA6`: overstating
+  `N` is the safe direction, and nothing is measured here, so the charge is purely conservative.
+  A reader who thinks it should be zero has the row to amend.
+
+### The fleet's schedule, its balance, and the one thing Alpaca does not document
+
+* **THE CYCLE RUNS FOUR HOURS AFTER THE CLOSE, MEASURED RATHER THAN ASSUMED.** `fleet-cycle.yml`
+  crons at **22:19Z** and the last six runs landed at **00:24Z, 00:31Z, 01:13Z, 07:15Z, 03:03Z
+  and 01:45Z** - GitHub firing this repository's crons 3.5 to 7.5 hours late, exactly item 64's
+  measurement. **00:24Z is 8:24pm ET.**
+* **AND WHAT ALPACA DOES WITH AN OPTIONS ORDER AT THAT HOUR IS NOT DOCUMENTED.** What IS
+  documented: options support **market and limit only**, **time in force DAY only**, *"Extended
+  hours is not supported for options trading"*, and market orders *"only during market hours"*.
+  What is documented for **EQUITIES** is that an after-hours order not eligible for extended
+  hours *"will be queued up for release the next trading day"*. **Whether an OPTIONS limit order
+  queues the same way or is rejected is stated nowhere - searched, and Alpaca does not say.**
+  **That is a measurement, not an inference**, and the live cycle makes it for free: whatever the
+  broker answers lands in the record as a fill or a named refusal. **It is deliberately NOT
+  probed from here** - the only credentials this machine could reach are the Index paper slot's,
+  and spending them on a probe would put an option position in the book that records the Index.
+* **SO THE IN-HOURS SCHEDULE IS HANDED OVER NOW RATHER THAN AFTER A FAILURE**, in
+  `pending_workflows/fleet-cycle-in-hours.yml`. **The cron is DERIVED from the measured delay
+  rather than chosen: 12:00Z + 3.5h = 15:30Z and 12:00Z + 7.5h = 19:30Z, so both ends of the
+  range land inside regular hours in BOTH halves of the year** (13:30-20:00Z under EDT,
+  14:30-21:00Z under EST) and no DST pair is needed. It is a **REPLACEMENT**, and the file says
+  so twice: **two schedules would run two cycles a day and each can enter**, so the books would
+  fill at twice their declared rate and their verdict horizons would stop meaning what the
+  declarations say. Body otherwise verbatim from `fleet-cycle.yml` so the two cannot drift in
+  anything but the schedule.
+* **THE STARTING BALANCE THE FLEET ACCOUNT NEEDS, derived from the declarations and the measured
+  book rather than guessed.** The three short books declare **concurrency caps of 10 (`F-21`),
+  10 (`F-22`) and 5 (`F-8`) - 25 concurrent cash-secured puts**. Secured cash per contract,
+  measured on `SELL-PREMIUM-2`'s own 4,617-trade stage-2 book (the exact construction `F-21` and
+  `F-22` run): **median $7,000, mean $11,220, p75 $13,400, p95 $33,500, max $304,500** at a
+  median strike of $70.
+
+  | balance | covers 25 positions at |
+  |---|---|
+  | $175,000 | the **median** contract |
+  | $250,000 | the median with 43% headroom - **the recommendation** |
+  | $335,000 | the **p75** contract |
+  | $837,500 | the **p95** contract |
+
+  **$250,000 is the recommendation**, and the reason it is not larger is that the cap, not the
+  cash, should be what binds. **An undersized account does not corrupt the record** - the
+  declarations require the skip reason to be stored, so **an affordability skip is never read as
+  a concurrency skip** (`MB3`, whose own finding was that a small account's failures were
+  affordability rather than ruin) - **but it does silently shrink the book**, and a few very
+  high-priced names can consume a disproportionate share of it.
+* **NOT DONE: no Alpaca paper option order has been placed on the service yet.** Tonight's cycle
+  is the first since the client landed, `F-4` and `F-10` stay retired on Don's 2026-10-16 ruling,
+  and the three short books still refuse with `SHARED_ACCOUNT_WOULD_COLLIDE` until
+  `ALPACA_FLEET_PAPER_KEY_ID` / `_SECRET_KEY` exist.
+
+
+---
+
+## 96. F-21 AND F-22 ARE BLOCKED BY A BROKEN HASH CHAIN, NOT BY A BROKER - AND "BEFORE THE ARMING" IS NOT "BEFORE THE FIRST RECORD" (2026-10-17)
+
+**ZERO TRIALS, no code shipped, nothing repaired.** Read from the **2026-10-17 00:29Z fleet
+cycle's own response body**, which the workflow prints - so this is the service's state rather
+than a derivation, and it is the first cycle since the Alpaca client landed.
+
+* **THE CYCLE IS BREATHING AND WROTE NO FILLS.** `breathing: true`, **19 armed, 2 blocked,
+  `fills_written: 0`**. `f3_bear_puts`, `f8_csp_entry_financing` and `f11_dip_reject_puts` all
+  **RAN** and each found **`candidates: 0`** - so no order was attempted and **no Alpaca paper
+  option order has been placed yet**. `f8` and `f11` additionally carry
+  **`RULE_ARMED_NEVER_FIRES`** at 32 observations each, the harness's own phrase for *"a rule
+  that cannot qualify anybody is indistinguishable in the records from a quiet market"*.
+* **AND THE TWO BOOKS THE BRIEF CARES ABOUT ARE NOT BLOCKED BY A BROKER AT ALL.**
+  **`f21_v6opt_dip_csp` and `f22_dip_csp_random_twin` both read `CHAIN_BROKEN:
+  "prev_hash mismatch at row 0"` on 5 records each.** They never reach `fleet_broker`, so the
+  `SHARED_ACCOUNT_WOULD_COLLIDE` refusal built for them has never fired and **the second Alpaca
+  paper account will not, by itself, make them trade.**
+* **THE CAUSE, DIAGNOSED FROM THE CODE AND CONFIRMED BY THE CLOCK.** `verify_chain` anchors the
+  chain at the **declaration's content hash** (`prev = decl_sha or rows[0]["decl_sha"]`), and
+  `may_fill` passes the **CURRENT** hash. So **amending a declaration after the stream's first
+  row has been written breaks row 0 permanently.** The timeline fits exactly: `DECL_f21` landed
+  **2026-10-13 01:25 ET**, the fleet cycle at **03:15 ET that morning** wrote its self-check
+  rows, and commit `75a7708` amended both declarations at **21:17 ET the same day**.
+  > **THE PORTABLE PART, AND IT IS A TRAP ANY FUTURE DECLARATION CAN WALK INTO:
+  > `75a7708`'s own message says the amendment is "before the arming", AND IT WAS TRUE. The
+  > chain does not anchor on the arming - it anchors on the FIRST RECORD, and a cycle writes
+  > self-check rows whether or not a book is armed.** Amend a declaration before it is armed and
+  after its first cycle, and the book is bricked.
+* **I BUILT THE REPAIR, RAN IT, AND IT DOES NOT WORK - SO IT WAS REMOVED RATHER THAN SHIPPED.**
+  A bounded `reanchor_stream` (archive the stream byte-for-byte, start fresh at the current
+  hash; refuse if the break is anywhere but row 0, refuse if the stream carries any fill or
+  close, refuse if the anchor has not actually moved) passed its own suite and then **failed on
+  the very next write**: `record` returned *"REFUSED: holds rows only up to seq 0 but 2 was
+  already recorded."*
+* **AND THAT REFUSAL IS CORRECT, WHICH IS WHY NOTHING WAS FORCED.** `fleet_highwater` keeps the
+  highest `seq` ever seen for a book **outside the file it describes**, precisely because audit
+  #5's `H3` measured that **whole-file loss is not a chain break** - delete a stream and the book
+  silently resumes at seq 1 and every later row verifies. **A stream that restarts is exactly
+  the shape that module exists to catch, and archiving one to unblock a book is
+  indistinguishable from the data loss it guards against.** Its own docstring settles it:
+  *"THERE IS NO RESET FUNCTION, ON PURPOSE. Recovering from a real loss is a human decision."*
+  **So my repair would have archived the stream and left the book just as stuck, having moved
+  the live file for nothing** - worse than no repair, and only running it showed that.
+* **THE THREE REMEDIES, NONE OF THEM THIS LANE'S TO TAKE.** **(a) RESTORE THE DECLARATION'S
+  PRE-AMENDMENT BYTES.** Needs no code at all: the anchor returns and the chain verifies. The
+  cost is that `75a7708`'s amendments are undone and would have to be re-made before any stream
+  exists - which for these two books means a new book id. **(b) MAKE A RE-ANCHORED STREAM
+  CONTINUE THE SEQUENCE** rather than restart it, so the fresh stream's first row carries
+  `high_water + 1` and `prev_hash` = the new declaration hash. **This is the clean one and it
+  weakens nothing** - monotonic sequence and the new anchor both hold - but it changes the write
+  door, which is where the tamper evidence lives. **(c) ACCEPT THE BREAK** and leave both books
+  blocked. **Routed to Don and to whoever owns the harness; (b) is the recommendation.**
+* **A SEPARATE GAP IN THE SAME RESPONSE, REPORTED BECAUSE IT WOULD BLOCK F-21 EVEN UNBROKEN.**
+  `history_recorded.ok` is **false**: `dip_healthy` and `dip_rejects` were **NOT CONSULTED**, so
+  no row was written for either - *"a row saying zero when no screen ran is evidence AGAINST a
+  first appearance that may have happened. Refusing leaves a GAP, which is recoverable; a
+  fabricated zero is not."* **`dip_healthy` is F-21's own entry population and carries just two
+  valid days (2026-10-14 and 2026-10-15).** So even with the chain repaired and the account
+  funded, F-21 has almost no population to enter on.
+* **ONE THING THAT DID GO RIGHT AND IS WORTH RECORDING: THE OUTCOME PATH IS MOVING AGAIN.** The
+  cycle's `reconciled` block reports **`f3_bear_puts` candidates 90, wrote 37, no_position 8**
+  and `testbook` 5 - **42 rows written** - against a book whose 72 orders had all sat at
+  `fate=working` with an empty `fill_price` since the parser read Tradier's response shape.
+  **Stated as what it is: the reconciler ran and wrote, which is the behaviour the order-id fix
+  was for; attributing those 42 rows to that fix specifically is not established here**, and the
+  cycle's own `sandbox_caveat` still names Tradier, so which venue they reconciled against is
+  not settled by this response.
+
+
+---
+
+## 97. THE TWO BROKEN STREAMS ARE RE-ANCHORED, AND THE REASON FOUR BOOKS NEVER FILLED IS A CLOCK (2026-10-17)
+
+Don's ruling of 2026-10-17, remedy **(b)**. **ZERO TRIALS** - correctness repairs, no
+hypothesis, no bar, no verdict. 32 new tests; all 18 fleet suites green.
+
+### The re-anchor, built in the write door
+
+* **WHAT MADE THE SECOND ATTEMPT WORK WHERE THE FIRST DIED.** §96's version archived the stream
+  and let it restart at seq 1; `record` then refused with *"holds rows only up to seq 0 but 2
+  was already recorded"* - **correct**, because a restarted stream is indistinguishable from the
+  whole-file loss `fleet_highwater` exists to catch. **This one CONTINUES THE SEQUENCE at
+  `high_water + 1`**, so nothing is lowered and no guard is weakened. **The load-bearing test is
+  therefore not that the re-anchor returns `ok` - it is that AN ORDINARY WRITE SUCCEEDS
+  AFTERWARDS**, through the real door, which is the step the first attempt never reached.
+* **THE GUARD CLEARS A RE-ANCHORED STREAM ON EVIDENCE, NEVER BY EXEMPTION.** `state()` opens the
+  named archive and counts it, and the book goes **straight back to `REGRESSED` the moment the
+  archive is deleted** - pinned by test. A new `REANCHORED` state keeps it distinguishable from
+  `OK`, because a re-anchored book and an untouched one must not read the same.
+* **THE RECORD IS IN-BAND, DATED AND CHAINED.** The first row of the new stream is a `reanchor`
+  event naming both anchors and the archive, so **a reader of the records alone - with no access
+  to the sibling mark file - still sees that it happened.**
+* **FOUR REFUSALS**, each because archiving a chained record is what someone hiding a tamper
+  would want: a stream carrying **any fill or close** (real trades are history and orphaning
+  them to unblock a book would be the worst trade this harness could make), a chain that fails
+  against its **own** stored anchor (tampered, not moved), an anchor that **has not moved**, and
+  a book with **no declaration** to re-anchor to.
+* **APPLIED TO TWO BOOKS AND NO OTHERS.** `REANCHOR_ALLOWLIST` is a **committed literal** rather
+  than a capability - pinned by an AST test - so a third book takes a diff, and it is
+  **self-extinguishing**: the repair refuses once the anchor matches, so each book is repaired
+  at most once and a later cycle is a no-op.
+* **A DEFECT I INTRODUCED AND THE SUITE CAUGHT.** `advance` rewrote the whole book entry from
+  the fields it knew about, so **the next ordinary append would have silently dropped the
+  re-anchor note** and the book would have gone `REGRESSED` with nothing left to explain why.
+  **A writer that rebuilds a record from the fields it happens to know about deletes the ones it
+  does not.**
+* **THE GUARD DON ASKED FOR, IN THE ONLY FORM THAT CAN EXIST.** A lane cannot refuse an edit to
+  a markdown file - the edit is a commit, not an API call - so the amendment is made **LOUD**
+  instead: every gate read now diagnoses a moved anchor **by name** and names the remedy,
+  instead of the bare `prev_hash mismatch at row 0` that reads like corruption and sends the
+  reader hunting. With a positive control, so the diagnosis does not fire on every break.
+
+### Why `dip_healthy` and `dip_rejects` were NOT CONSULTED - one defect, four symptoms
+
+* **IT IS A CLOCK, AND BOTH HALVES WERE ALREADY MEASURED AND WRITTEN DOWN SEPARATELY.**
+  `fleet-cycle.yml` crons at **22:19Z** and item 64 measured GitHub firing this repository's
+  crons **3.5 to 7.5 hours late**, so the last six cycles landed at 00:24Z, 00:31Z, 01:13Z,
+  07:15Z, 03:03Z and 01:45Z - **every one on the FOLLOWING UTC day**. Meanwhile
+  `/admin/record-dip-rejects` stamps its rows with **`last_closed_session()`**, deliberately,
+  *"so a slipped run still records the day whose data it read"*. **Every entry rule then
+  compared the recorded date against `date.today()`.**
+* **WRITER AND READER ON DIFFERENT CLOCKS, EXACT MATCH BETWEEN THEM, SO IT COULD NEVER SUCCEED.**
+  `f11_recorded_rejects` returns `None` - *"no row for today"* - on every run, and the harness
+  then reports **`RULE_ARMED_NEVER_FIRES`**, a phrase that reads as *the rule cannot qualify
+  anybody* when the truth is **the rule never saw the data**. On a Saturday it is worse: no
+  session exists for that date at all.
+* **SO DON'S QUESTION - "is the rule unable to qualify anyone, or is the market quiet?" - HAS A
+  THIRD ANSWER, AND IT IS NEITHER.** `F-8` and `F-11`'s 32 observations are 32 days of a rule
+  looking at the wrong date. `F-21` and `F-22` would have inherited it the moment their chains
+  were repaired.
+* **ONE DEFINITION NOW (`B7`): `fleet_books.cycle_session()`**, six call sites repointed, with a
+  test that **reconstructs the old behaviour on the six real landing times and shows it failing
+  on every one** - so this cannot be read as a speculative fix. The calendar fallback is
+  reported rather than silent, and an AST test bans `date.today()` from every rule while
+  exempting the one function allowed to name the fallback.
+* **AND THE CLOCK FIX IS NECESSARY BUT NOT SUFFICIENT, MEASURED RATHER THAN ASSUMED.** The cycle
+  lands **about seventeen minutes BEFORE** the door that records the dip screen - 17m48s,
+  18m28s and 16m16s on 2026-10-15, -16 and -17 against an 18-minute cron gap. **The scheduler's
+  delay is SHARED between the two workflows rather than drawn independently**, so the cycle will
+  keep arriving first for as long as its cron is earlier, and the rules will read a session
+  whose row lands a quarter of an hour later. **`pending_workflows/fleet-cycle-in-hours.yml`
+  fixes it as a side effect** - at 12:00Z the previous session's row is ~15 hours old - and that
+  note is now in the file.
+* **F-21's TWO VALID DAYS ARE A YOUNG SERIES, NOT A DEFECT.** `dip_healthy` was added on
+  2026-10-13; `daily-doors.yml` succeeded on 10-15 and 10-16 (recording sessions 10-14 and
+  10-15) and **FAILED on 10-14**. The 10-17 cycle read it 16 minutes before the third row landed.
+  **It grows one row per trading day and needs no repair** - the thing that needed repair is
+  that nothing could read it.
+
+---
+
+## 98. F-4 IS RE-DECLARED AT 25 DELTA AS A NEW BOOK, BECAUSE AMENDING ITS OWN DECLARATION WOULD HAVE BRICKED IT (2026-10-17)
+
+`DECL_f4b_eventfree_25d.md` committed **ALONE at `d45877f`**, markdown only. Don's ruling:
+*"F-4 is re-declared at 25 delta on the free forward calendar. F-10 stays retired."*
+
+* **THE BOOK ID IS NEW AND THAT FOLLOWS DIRECTLY FROM §97's DEFECT.**
+  `f4_eventfree_premium` already carries a **13-row stream**, and the chain anchors at the
+  declaration's content hash - so editing that file would have broken its row 0 permanently,
+  which is exactly what bricked `F-21` and `F-22`, and the re-anchor is deliberately scoped to
+  an allowlist of those two. **The 0.90-moneyness declaration is left untouched and stays
+  RETIRED as the record of what was retired.**
+* **THE BUFFER IS 9 CALENDAR DAYS AND IT IS DERIVED RATHER THAN CHOSEN.** Don asked for *"at
+  least the 7-day buffer your drift measurement implies"*; 7 is the **92.1%** point of the
+  year-on-year drift and **9 is the p95** over 3,391 SEC Item 2.02 pairs, so 9 satisfies the
+  instruction and is what the measurement actually hands over.
+* **A NAME WITH NO FORWARD DATE IS REFUSED, COUNTED, NEVER TREATED AS EVENT-FREE** - 8.8% of the
+  gate, and `O7`'s 29 foreign private issuers are what a fail-open on that costs.
+* **SIGMA IS MEASURED RATHER THAN A PRIOR, AND IT MAKES THE HORIZON LONGER.** The retired
+  expression carried **4.0 as an explicit PRIOR** for a 0.90-moneyness strike; this book carries
+  **5.047**, `SELL-PREMIUM-2`'s realised per-trade SD for a 25-delta CSP over 4,617 trades. So
+  `fills_needed` is **DERIVED at 507** against the retired 306, and the horizon is **3.84 years
+  rather than 2.32**. A re-declaration that shortened its own horizon would be the thing to
+  distrust.
+* **IT CARRIES BOTH HALVES OF THE EVIDENCE, IN THE DECLARATION.** The crash gate improves
+  **11.57 -> 4.7539 years** build and **3.5185** check, a **2.43x improvement from the strike
+  rule alone** - **and** §87b's 2020 result, **-2.7788% a trade at 33.52% assigned**, with the
+  sentence that a cleared crash gate *"establishes nothing about whether either book makes
+  money"*. §87 is this project's own counter-example, where `K3` passed on a window whose real
+  crash cost **82% of the account**.
+* **THE HARNESS REFUSED IT TWICE BEFORE IT HELD, WHICH IS THE ROUTE WORKING.**
+  `DELTA_STRIKE_WITHOUT_V6OPT_ARGUMENT` until the declaration argued past `V6-OPT`'s autopsy,
+  and `SHORT_BOOK_WITHOUT_ASSIGNMENT` until `S3-I3` registers. **The argument is that V6-OPT's
+  neutralisation is this book's INTENT rather than its defect:** V6-OPT's signal was a per-name
+  risk ranking, which is precisely what a per-name vol normalisation cancels, whereas this
+  book's condition is **the absence of a scheduled jump inside the option's life - a property of
+  the calendar, not of the name** - and implied vol is what carries the earnings jump premium.
+  **The residual exposure is stated too:** if the calendar misses a date, the delta strike is set
+  off a vol that INCLUDES the unremoved event and therefore sits FURTHER out of the money than a
+  fixed moneyness would, so a filter failure is partly self-protecting.
+* **NOT DONE, AND IT IS THE THING THAT STOPS THIS BOOK ENTERING: ITS ENTRY RULE IS NOT
+  IMPLEMENTED**, so it will read `ARMED_NO_ENTRY_RULE` - the harness's honest distinction between
+  a build gap and a quiet market. **And the implementation has a measured architectural
+  constraint:** the Yahoo calendar costs about a second per name and the cycle's budget is 120
+  seconds, so the forward calendar must be **RECORDED by its own door and READ by the rule**,
+  exactly as `dip_rejects` already is. Building that recorder is the next step and it is named
+  rather than attempted here. **`F-10` stays retired.**
+
+
+---
+
+## 99. THE RE-ANCHOR RAN ON THE SERVICE, THE KEYS ARE IN, AND THE NEXT BLOCKER WAS A CHAIN PROVIDER WITH NO OCC SYMBOL (2026-10-17)
+
+**ZERO TRIALS**, correctness repairs and one handover. Read from a **dispatched cycle's own
+response body** (run `39032851473`, 2026-10-17), so every figure below is the service's rather
+than a derivation.
+
+### The handover is now a REPLACEMENT, and the file that had the defect was the file warning about it
+
+* `install_workflows.bat` copies each pending `.yml` into `.github/workflows/` **by name**, so
+  `fleet-cycle-in-hours.yml` would have been **ADDED BESIDE** `fleet-cycle.yml`: two schedules,
+  each able to enter, the books filling at twice their declared rate — **the double-fill that
+  handover's own header warned about, created by the header warning about it.** Renaming it to
+  `fleet-cycle.yml` is the whole fix.
+* **The body is now VERBATIM from the installed file with the cron as the only change**, pinned
+  by a test that compares `name`, `jobs`, `concurrency`, `permissions` and `workflow_dispatch`
+  key by key and the `run` step byte for byte. A second test models the installer's copy-by-name
+  as a set union and asserts **exactly one `fleet-cycle` schedule survives an install**, and a
+  third sweeps every workflow for another scheduled caller of the same door.
+
+### What the live cycle says
+
+* **THE FLEET PAPER KEYS ARE PRESENT AND THE DEDICATED ACCOUNT IS IN USE.**
+  `"broker": {"venue": "alpaca", "credentials_present": true, "dedicated_fleet_account": true,
+  "reason": ""}`. Don created the second Alpaca paper account and set
+  `ALPACA_FLEET_PAPER_KEY_ID` / `_SECRET_KEY`, so `SHARED_ACCOUNT_WOULD_COLLIDE` is behind us
+  and the short books are no longer refused for sharing. **That question was unanswerable from
+  the previous body and is answerable now only because the broker block was added** — a fact
+  visible only when something goes right is not visible.
+* **BOTH BROKEN STREAMS RE-ANCHORED, FOR REAL.** `f21_v6opt_dip_csp` and
+  `f22_dip_csp_random_twin`: **6 rows archived each**, old and new anchors recorded, *"chain
+  SPLIT ... the sequence CONTINUES so the high-water guard still holds"*. They no longer read
+  `CHAIN_BROKEN`.
+* **AND THEY NOW READ `SELFCHECK_ABSENT`, WHICH IS AN ORDERING DEFECT OF MINE AND IT
+  SELF-HEALS.** The door runs `recertify` at step 4 and `cycle` at step 6, so this cycle
+  certified them and **my re-anchor then archived those fresh self-check rows along with the
+  rest of the old stream.** The next cycle's scan sees `ABSENT`, re-certifies into the NEW
+  stream, and the re-anchor is a no-op — **so it heals by the door's existing order rather than
+  by luck.** It is deliberately NOT re-certified from inside `cycle()`: running the door's
+  self-check orchestration out of the library would be a second implementation of it. The
+  re-anchor result now carries a `next_step` saying so, so the state is not rediscovered.
+* **`armed` 19 -> 20.**
+
+### F-3 raised, and that is PROGRESS — the clock fix made it select names for the first time
+
+* **`f3_bear_puts  ENTRY_RULE_RAISED  "not an OCC symbol: 'None'"`.** It had reported
+  `candidates: 0` on every previous cycle. It now reaches a contract and tries to submit,
+  because `cycle_session()` put it on the session its data is dated by.
+* **THE CAUSE: `FreeProvider.get_option_chain` NEVER CARRIED THE OCC SYMBOL, AND ITS DOCSTRING
+  SAID IT DID.** That docstring reads *"Same shape from yfinance"*; Tradier's chain rows carry
+  **`symbol`**, the OCC id every order path needs, and these rows carried `option_type`,
+  `expiration_date`, `strike`, `bid`, `ask`, `volume`, `open_interest` and `greeks` — **every
+  field except that one.** yfinance has had it all along as **`contractSymbol`**.
+* **IT WAS INVISIBLE UNTIL THE VENUE MOVED, AND THAT IS THE PORTABLE PART.** Nothing noticed
+  while Tradier served the chain. When the account closed on 2026-10-08 `get_provider`
+  correctly fell through to `FreeProvider` — item 45's repair, working as designed — and the
+  first book to actually reach a broker afterwards hit it. **A fallback that is never exercised
+  is a fallback nobody has checked the shape of.**
+* **`str(None)` IS THE FOUR-CHARACTER STRING `"None"`, WHICH IS HOW A MISSING KEY BECAME A
+  PLAUSIBLE SYMBOL.** All five order sites built `occ=str(c.get("symbol"))`, so an absent field
+  was handed to the venue as a symbol and the refusal named the **string** rather than the
+  **field**. They now go through `_occ_or_refuse`, which returns `""`, and the submit path
+  already refuses an empty symbol — so the refusal names the real fault one layer earlier.
+* **MEASURED AFTER THE FIX, ON THE LIVE FREE FEED: 487 of 487 AAPL rows carry a symbol, and
+  `parse_occ` round-trips each one against the row's own strike, expiry and right** — a symbol
+  that parsed to a *different* contract would be worse than none.
+* **TWO DEFECTS IN MY OWN WORK IN THE SAME CHANGE.** (a) The guard banning the old construction
+  **failed against the fixed tree**, because `_occ_or_refuse`'s docstring quotes the thing it
+  replaces — `MA49`'s substring-ban family, committed inside the fix for a `str(None)`; it reads
+  the **AST** now, with a positive control proving it still bites. (b) My helper **uppercased**
+  the symbol, which `test_fleet_f3` caught on a lowercase fixture: case-folding would silently
+  rewrite what the chain returned into the record, so the helper **strips only** and
+  normalisation stays where the field is constructed. **The test's expectation was not edited to
+  accommodate my change.**
+
+### Do F-21, F-22 and F-11 now see the dip series?
+
+**NOT YET DEMONSTRABLE, AND THE REASON IS NOT THE CLOCK.** `F-11` still reports
+`candidates: 0`, and `F-21`/`F-22` could not run at all this cycle because of the
+re-certification lag above. The clock fix is in and F-3's behaviour is the evidence it bites —
+F-3 went from `candidates: 0` to selecting a name on the same change. **Whether F-11's zero is
+now a genuine market observation rather than a blind read cannot be separated until a cycle runs
+with the books certified and the chain symbol present**, which is the next scheduled run.
+**Stated as unresolved rather than claimed.**
+
+### Which books can enter, and when
+
+| book | state after this cycle | what it still needs |
+|---|---|---|
+| `f3_bear_puts` | selecting names; raised on the missing symbol | nothing — the fix is in |
+| `f11_dip_reject_puts` | ran, 0 candidates | a cycle with the symbol fix deployed |
+| `f21`, `f22` | re-anchored, `SELFCHECK_ABSENT` | one cycle, to re-certify |
+| `f8_csp_entry_financing` | ran, 0 candidates | its own rule's population |
+| `f4b_eventfree_25d` | declared | an entry rule, and an earnings-calendar recorder first |
+
+**No Alpaca paper option order has been placed yet, so Alpaca has still answered nothing** — the
+only cycle that reached a broker raised before submitting.
