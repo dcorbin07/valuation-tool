@@ -12814,3 +12814,103 @@ hypothesis, no bar, no verdict. 32 new tests; all 18 fleet suites green.
   seconds, so the forward calendar must be **RECORDED by its own door and READ by the rule**,
   exactly as `dip_rejects` already is. Building that recorder is the next step and it is named
   rather than attempted here. **`F-10` stays retired.**
+
+
+---
+
+## 99. THE RE-ANCHOR RAN ON THE SERVICE, THE KEYS ARE IN, AND THE NEXT BLOCKER WAS A CHAIN PROVIDER WITH NO OCC SYMBOL (2026-10-17)
+
+**ZERO TRIALS**, correctness repairs and one handover. Read from a **dispatched cycle's own
+response body** (run `39032851473`, 2026-10-17), so every figure below is the service's rather
+than a derivation.
+
+### The handover is now a REPLACEMENT, and the file that had the defect was the file warning about it
+
+* `install_workflows.bat` copies each pending `.yml` into `.github/workflows/` **by name**, so
+  `fleet-cycle-in-hours.yml` would have been **ADDED BESIDE** `fleet-cycle.yml`: two schedules,
+  each able to enter, the books filling at twice their declared rate — **the double-fill that
+  handover's own header warned about, created by the header warning about it.** Renaming it to
+  `fleet-cycle.yml` is the whole fix.
+* **The body is now VERBATIM from the installed file with the cron as the only change**, pinned
+  by a test that compares `name`, `jobs`, `concurrency`, `permissions` and `workflow_dispatch`
+  key by key and the `run` step byte for byte. A second test models the installer's copy-by-name
+  as a set union and asserts **exactly one `fleet-cycle` schedule survives an install**, and a
+  third sweeps every workflow for another scheduled caller of the same door.
+
+### What the live cycle says
+
+* **THE FLEET PAPER KEYS ARE PRESENT AND THE DEDICATED ACCOUNT IS IN USE.**
+  `"broker": {"venue": "alpaca", "credentials_present": true, "dedicated_fleet_account": true,
+  "reason": ""}`. Don created the second Alpaca paper account and set
+  `ALPACA_FLEET_PAPER_KEY_ID` / `_SECRET_KEY`, so `SHARED_ACCOUNT_WOULD_COLLIDE` is behind us
+  and the short books are no longer refused for sharing. **That question was unanswerable from
+  the previous body and is answerable now only because the broker block was added** — a fact
+  visible only when something goes right is not visible.
+* **BOTH BROKEN STREAMS RE-ANCHORED, FOR REAL.** `f21_v6opt_dip_csp` and
+  `f22_dip_csp_random_twin`: **6 rows archived each**, old and new anchors recorded, *"chain
+  SPLIT ... the sequence CONTINUES so the high-water guard still holds"*. They no longer read
+  `CHAIN_BROKEN`.
+* **AND THEY NOW READ `SELFCHECK_ABSENT`, WHICH IS AN ORDERING DEFECT OF MINE AND IT
+  SELF-HEALS.** The door runs `recertify` at step 4 and `cycle` at step 6, so this cycle
+  certified them and **my re-anchor then archived those fresh self-check rows along with the
+  rest of the old stream.** The next cycle's scan sees `ABSENT`, re-certifies into the NEW
+  stream, and the re-anchor is a no-op — **so it heals by the door's existing order rather than
+  by luck.** It is deliberately NOT re-certified from inside `cycle()`: running the door's
+  self-check orchestration out of the library would be a second implementation of it. The
+  re-anchor result now carries a `next_step` saying so, so the state is not rediscovered.
+* **`armed` 19 -> 20.**
+
+### F-3 raised, and that is PROGRESS — the clock fix made it select names for the first time
+
+* **`f3_bear_puts  ENTRY_RULE_RAISED  "not an OCC symbol: 'None'"`.** It had reported
+  `candidates: 0` on every previous cycle. It now reaches a contract and tries to submit,
+  because `cycle_session()` put it on the session its data is dated by.
+* **THE CAUSE: `FreeProvider.get_option_chain` NEVER CARRIED THE OCC SYMBOL, AND ITS DOCSTRING
+  SAID IT DID.** That docstring reads *"Same shape from yfinance"*; Tradier's chain rows carry
+  **`symbol`**, the OCC id every order path needs, and these rows carried `option_type`,
+  `expiration_date`, `strike`, `bid`, `ask`, `volume`, `open_interest` and `greeks` — **every
+  field except that one.** yfinance has had it all along as **`contractSymbol`**.
+* **IT WAS INVISIBLE UNTIL THE VENUE MOVED, AND THAT IS THE PORTABLE PART.** Nothing noticed
+  while Tradier served the chain. When the account closed on 2026-10-08 `get_provider`
+  correctly fell through to `FreeProvider` — item 45's repair, working as designed — and the
+  first book to actually reach a broker afterwards hit it. **A fallback that is never exercised
+  is a fallback nobody has checked the shape of.**
+* **`str(None)` IS THE FOUR-CHARACTER STRING `"None"`, WHICH IS HOW A MISSING KEY BECAME A
+  PLAUSIBLE SYMBOL.** All five order sites built `occ=str(c.get("symbol"))`, so an absent field
+  was handed to the venue as a symbol and the refusal named the **string** rather than the
+  **field**. They now go through `_occ_or_refuse`, which returns `""`, and the submit path
+  already refuses an empty symbol — so the refusal names the real fault one layer earlier.
+* **MEASURED AFTER THE FIX, ON THE LIVE FREE FEED: 487 of 487 AAPL rows carry a symbol, and
+  `parse_occ` round-trips each one against the row's own strike, expiry and right** — a symbol
+  that parsed to a *different* contract would be worse than none.
+* **TWO DEFECTS IN MY OWN WORK IN THE SAME CHANGE.** (a) The guard banning the old construction
+  **failed against the fixed tree**, because `_occ_or_refuse`'s docstring quotes the thing it
+  replaces — `MA49`'s substring-ban family, committed inside the fix for a `str(None)`; it reads
+  the **AST** now, with a positive control proving it still bites. (b) My helper **uppercased**
+  the symbol, which `test_fleet_f3` caught on a lowercase fixture: case-folding would silently
+  rewrite what the chain returned into the record, so the helper **strips only** and
+  normalisation stays where the field is constructed. **The test's expectation was not edited to
+  accommodate my change.**
+
+### Do F-21, F-22 and F-11 now see the dip series?
+
+**NOT YET DEMONSTRABLE, AND THE REASON IS NOT THE CLOCK.** `F-11` still reports
+`candidates: 0`, and `F-21`/`F-22` could not run at all this cycle because of the
+re-certification lag above. The clock fix is in and F-3's behaviour is the evidence it bites —
+F-3 went from `candidates: 0` to selecting a name on the same change. **Whether F-11's zero is
+now a genuine market observation rather than a blind read cannot be separated until a cycle runs
+with the books certified and the chain symbol present**, which is the next scheduled run.
+**Stated as unresolved rather than claimed.**
+
+### Which books can enter, and when
+
+| book | state after this cycle | what it still needs |
+|---|---|---|
+| `f3_bear_puts` | selecting names; raised on the missing symbol | nothing — the fix is in |
+| `f11_dip_reject_puts` | ran, 0 candidates | a cycle with the symbol fix deployed |
+| `f21`, `f22` | re-anchored, `SELFCHECK_ABSENT` | one cycle, to re-certify |
+| `f8_csp_entry_financing` | ran, 0 candidates | its own rule's population |
+| `f4b_eventfree_25d` | declared | an entry rule, and an earnings-calendar recorder first |
+
+**No Alpaca paper option order has been placed yet, so Alpaca has still answered nothing** — the
+only cycle that reached a broker raised before submitting.
