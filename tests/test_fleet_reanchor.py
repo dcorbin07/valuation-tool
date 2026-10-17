@@ -331,6 +331,36 @@ class TestTheAllowlistAndTheDiagnosis(Base):
                       "the step must be gated on `write`")
 
 
+
+class TestTheBrokerStateIsOnTheFace(unittest.TestCase):
+    """A fact only visible when something goes right is not visible.
+
+    "Are the fleet's paper keys on the service?" was UNANSWERABLE from the 2026-10-17 cycle
+    body: no book produced a candidate, so no book reached the broker, so nothing in the
+    response said either way. The cycle now reports it unconditionally.
+    """
+
+    def test_the_cycle_reports_the_broker_without_placing_anything(self):
+        from valuation.edge import fleet_books as FB
+        from valuation.edge import assignment as A
+        A.register()
+        FB.register_all()
+        r = F.cycle(write=False)
+        b = r.get("broker")
+        self.assertIsInstance(b, dict, "the broker state must be on the face of every cycle")
+        for k in ("venue", "credentials_present", "dedicated_fleet_account", "reason"):
+            self.assertIn(k, b)
+        self.assertIsInstance(b["credentials_present"], bool)
+        self.assertEqual(r.get("fills_written", 0), 0, "a dry run must place nothing")
+
+    def test_an_absent_credential_SAYS_WHICH_VARIABLES_TO_SET(self):
+        """A refusal that does not name its remedy costs a round trip to find out."""
+        b, why = F.fleet_broker_or_reason()
+        if b is not None:
+            self.skipTest("credentials are configured on this machine")
+        self.assertIn("ALPACA_FLEET_PAPER_KEY_ID", why)
+        self.assertIn("ALPACA_PAPER_KEY_ID", why)
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=2).result
     raise SystemExit(0 if r.wasSuccessful() else 1)
