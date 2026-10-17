@@ -1,30 +1,70 @@
 name: FLEET CYCLE (S3-I1 declared paper books)
 
-# The same architecture as PT-WRITER and for the same reason. A fleet cycle needs the
-# Tradier sandbox token, network access AND the fleet records store at once, and only the
-# Render service holds all three: Cowork has the book and no network, a GitHub runner has
-# network and no book (`.gitignore` excludes /data/ with no negation). So this job is a
-# scheduler plus a messenger -- no checkout of data, no pip install, no push permission.
+# HANDOVER, 2026-10-17. **THIS FILE REPLACES `.github/workflows/fleet-cycle.yml`** -- it carries
+# the SAME FILENAME, so `install_workflows.bat` overwrites the installed one and **ONE INSTALL
+# LEAVES EXACTLY ONE FLEET SCHEDULE.** Nothing has to be disabled by hand on GitHub.
 #
-# The door is POST /admin/fleet-cycle?run=1. Its rules live in valuation/edge/fleet.py,
-# not here:
-#   * append-only, hash-chained records -- a broken chain refuses the fill
-#   * a book with no valid declaration committed ALONE before its first fill is REFUSED
-#   * a stale, absent or failing day-1 self-check REFUSES every fill (three states)
-#   * short books are REFUSED unless S3-I3's assignment provider is registered
-#   * refusals are RECORDS, not crashes
-#   * GET computes and returns; only POST?run=1 may write (a GET with run=1 is a 405)
+# An earlier cut of this handover was called `fleet-cycle-in-hours.yml` and would have been
+# ADDED BESIDE the existing file, so two schedules would have run and each could enter -- the
+# double-fill this very file warned about, created by the file warning about it. Renaming it is
+# the whole fix: the installer copies by name.
 #
-# Secrets: SITE_BASE_URL and ADMIN_TOKEN -- both already exist; auto-scan, track-backup
-# and track-row use the same two. DISCORD_WEBHOOK_URL optional.
+# THE ONLY CHANGE FROM THE INSTALLED FILE IS THE CRON: 22:19Z becomes 12:00Z. Everything from
+# `on:` down is otherwise verbatim -- the door, its rules, the secrets and the cause-reporting
+# are untouched, deliberately, so the two cannot drift in anything but their schedule.
+#
+# ---------------------------------------------------------------------------------------
+# REASON 1 -- THE ORDERING, AND IT IS REASON ENOUGH ON ITS OWN.
+#
+# The cycle lands about SEVENTEEN MINUTES BEFORE the door that records the day's dip screen,
+# every single day:
+#     2026-10-15  cycle 00:31:58  doors 00:49:46   gap 17m48s
+#     2026-10-16  cycle 00:24:36  doors 00:43:04   gap 18m28s
+#     2026-10-17  cycle 00:29:13  doors 00:45:29   gap 16m16s
+# The cron gap is 18 minutes (22:19Z against 22:37Z) and the LANDING gap tracks it to within two
+# minutes on all three days -- so GitHub's 3.5-7.5h delay is SHARED between the two workflows
+# rather than drawn independently, and the cycle will keep arriving first for as long as its
+# cron is earlier. F-11, F-21 and F-22 all read that recorded series, so they are reading a
+# session whose row arrives a quarter of an hour after they look.
+#
+# At 12:00Z the previous session's row is ~15 hours old and firmly on disk. **This fixes the
+# ordering without moving the dip recorder**, which is the schedule three other doors share.
+#
+# ---------------------------------------------------------------------------------------
+# REASON 2 -- MARKET HOURS, stated as what is known and what is not.
+#   * Alpaca documents, for OPTIONS: market and limit order types only, time in force DAY only,
+#     and "Extended hours is not supported for options trading". Market orders are explicitly
+#     allowed "only during market hours".
+#   * Alpaca documents, for EQUITIES: an order submitted after 4:00pm ET that is not eligible
+#     for extended hours "will be queued up for release the next trading day".
+#   * WHAT IS *NOT* DOCUMENTED ANYWHERE: whether an OPTIONS limit order submitted after the
+#     close is queued the same way or rejected. Searched; Alpaca does not say. **That is a
+#     measurement, not an inference.** The 22:19Z schedule has been landing at about 00:24Z --
+#     8:24pm ET, hours after the close -- so it has never been in a position to find out.
+#
+# THE CRON IS DERIVED FROM THE MEASURED DELAY RATHER THAN CHOSEN.
+#   12:00Z + 3.5h = 15:30Z  = 11:30am EDT / 10:30am EST  -- inside regular hours
+#   12:00Z + 7.5h = 19:30Z  =  3:30pm EDT /  2:30pm EST  -- inside regular hours
+# Regular hours are 13:30-20:00Z under EDT and 14:30-21:00Z under EST, so **both ends of the
+# measured delay range land inside the session in BOTH halves of the year** and no DST cron pair
+# is needed. A later cron would risk the 7.5h tail landing after the close; an earlier one would
+# risk the 3.5h head landing before the open.
+#
+# ---------------------------------------------------------------------------------------
+# WHAT IT DOES NOT CHANGE: the books, their declarations, their caps, or what any of them may
+# enter. A schedule decides WHEN the cycle asks; the declarations decide what it may do.
 
 on:
   workflow_dispatch: {}
   schedule:
-    # 22:19 UTC is 6:19pm EDT / 5:19pm EST -- after the US close in BOTH halves of the
-    # year, so no DST cron pair is needed. Deliberately 7 minutes after PT-WRITER's 22:12
-    # so the two never contend for the same dyno wake-up. Odd minutes on purpose.
-    - cron: "19 22 * * 1-5"
+    # CHANGED 2026-10-17, and it is the ONLY line that differs from the file this replaces.
+    # 22:19Z was chosen to sit after the US close; the measured problem is that GitHub fires
+    # this repo's crons 3.5-7.5h late, so it landed at ~00:24Z -- 8:24pm ET, and about 17
+    # minutes BEFORE the door that records the dip screen the rules read. 12:00Z lands inside
+    # regular hours across the whole measured delay range, in both halves of the year, and
+    # puts the cycle AFTER the previous session's dip row rather than before it. The header
+    # above carries the arithmetic.
+    - cron: "0 12 * * 1-5"
 
 concurrency:
   group: fleet-cycle
