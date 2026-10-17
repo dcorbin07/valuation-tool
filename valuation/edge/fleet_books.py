@@ -74,6 +74,26 @@ def cycle_session(now=None):
     return (now.date() if hasattr(now, "date") else None) or _dt2.date.today()
 
 
+
+def _occ_or_refuse(contract) -> str:
+    """The contract's OCC symbol, or `""` -- never the STRING "None".
+
+    **`str(None)` IS `"None"`, AND THAT IS HOW A MISSING FIELD REACHED A BROKER.** Every book
+    here built its order with `occ=str(c.get("symbol"))`, so a chain row without a symbol
+    produced the four-character string `None` and handed it to the venue, which refused it
+    with `not an OCC symbol: 'None'` -- a message about the string rather than about the
+    missing field. Returning `""` makes the refusal name the real fault one layer earlier, and
+    the submit path already refuses an empty symbol.
+    """
+    # STRIP ONLY -- deliberately NOT upper(). The helper's job is "never send the string
+    # None", not "normalise case", and case-folding here would silently rewrite what the chain
+    # returned into the record. `test_fleet_f3` caught exactly that: its fixture symbol is
+    # lowercase and an incidental `.upper()` here changed a recorded `occ`. Normalisation
+    # belongs where the field is CONSTRUCTED (the provider), not where it is read.
+    v = (contract or {}).get("symbol")
+    return str(v).strip() if v else ""
+
+
 def _needs_cash(book: str, root=None) -> bool:
     """Does this book's DECLARATION say it is short / sells premium? Read, never inferred.
 
@@ -363,7 +383,7 @@ def f3_bear_puts(decl: dict, root: str = None, *, store=None, provider=None,
         if got is None:
             continue
         c = got["contract"]
-        out.append(F.submit("f3_bear_puts", broker=broker, occ=str(c.get("symbol")),
+        out.append(F.submit("f3_bear_puts", broker=broker, occ=_occ_or_refuse(c),
                             underlying=p["ticker"], side="buy_to_open", qty=F3_QTY,
                             decl_sha=sha, symbol=p["ticker"], quote=c))
     return out
@@ -475,7 +495,7 @@ def f8_csp_entry_financing(decl: dict, root: str = None, *, provider=None, broke
         if got is None:
             continue
         c = got["contract"]
-        out.append(F.submit("f8_csp_entry_financing", broker=broker, occ=str(c.get("symbol")),
+        out.append(F.submit("f8_csp_entry_financing", broker=broker, occ=_occ_or_refuse(c),
                             underlying=p["ticker"], side="sell_to_open", qty=F8_QTY,
                             decl_sha=sha, symbol=p["ticker"], quote=c))
     return out
@@ -631,7 +651,7 @@ def f11_dip_reject_puts(decl: dict, root: str = None, *, provider=None, broker=N
         if got is None:
             continue
         c = got["contract"]
-        out.append(F.submit("f11_dip_reject_puts", broker=broker, occ=str(c.get("symbol")),
+        out.append(F.submit("f11_dip_reject_puts", broker=broker, occ=_occ_or_refuse(c),
                             underlying=p["ticker"], side="buy_to_open", qty=F11_QTY,
                             decl_sha=sha, symbol=p["ticker"], quote=c))
     return out
@@ -1025,7 +1045,7 @@ def f21_v6opt_dip_csp(decl: dict, root: str = None, *, provider=None, broker=Non
         if got is None:
             continue
         c = got["contract"]
-        out.append(F.submit("f21_v6opt_dip_csp", broker=broker, occ=str(c.get("symbol")),
+        out.append(F.submit("f21_v6opt_dip_csp", broker=broker, occ=_occ_or_refuse(c),
                             underlying=p["ticker"], side="sell_to_open", qty=F21_QTY,
                             decl_sha=sha, symbol=p["ticker"], quote=c))
     return out
@@ -1122,7 +1142,7 @@ def f22_dip_csp_random_twin(decl: dict, root: str = None, *, provider=None, brok
             continue
         c = got["contract"]
         out.append(F.submit("f22_dip_csp_random_twin", broker=broker,
-                            occ=str(c.get("symbol")), underlying=t, side="sell_to_open",
+                            occ=_occ_or_refuse(c), underlying=t, side="sell_to_open",
                             qty=F21_QTY, decl_sha=sha, symbol=t, quote=c))
     return out
 

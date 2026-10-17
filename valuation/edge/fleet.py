@@ -2526,6 +2526,18 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
                              "reason": "dry run: " + m["reason"]}
             continue
         reanchored[b] = reanchor_stream(b, root)
+        if reanchored[b].get("reanchored"):
+            # ONE CYCLE OF LAG, STATED RATHER THAN DISCOVERED. The door runs `recertify`
+            # BEFORE `cycle`, so a book re-anchored here has just had its fresh self-check row
+            # archived along with the rest of the old stream and will read SELFCHECK_ABSENT
+            # for the remainder of THIS cycle. The next cycle's scan sees ABSENT, re-certifies
+            # into the NEW stream, and the re-anchor is then a no-op -- so it self-heals by the
+            # door's existing order rather than by luck. It is NOT re-certified from here:
+            # running the door's self-check orchestration out of the library would be a second
+            # implementation of it, which is the defect this project names B7.
+            reanchored[b]["next_step"] = (
+                "expect SELFCHECK_ABSENT until the next cycle, which re-certifies into the "
+                "new stream before the gate is read")
 
     rows, armed, filled, blocked = [], 0, 0, 0
     for d in declared_books(root):

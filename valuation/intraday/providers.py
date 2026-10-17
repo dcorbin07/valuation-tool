@@ -349,7 +349,15 @@ class FreeProvider(IntradayProvider):
             return None
 
     def get_option_chain(self, ticker: str, dte_range=(45, 75)) -> Optional[list]:
-        """Same shape from yfinance. DELAYED quotes - fine for a paper book, not for a fill."""
+        """The same shape as `TradierProvider.get_option_chain`, from yfinance. DELAYED quotes
+        - fine for a paper book, not for a fill.
+
+        **"THE SAME SHAPE" IS AN OBLIGATION AND IT WAS BROKEN ONCE.** These rows omitted
+        `symbol`, the OCC id, which every order path needs and which Tradier's rows carry. It
+        went unnoticed for as long as Tradier served the chain. It is carried now, and
+        `tests/test_free_chain_symbol.py` compares the key sets so the two cannot diverge
+        silently again.
+        """
         try:
             import datetime as _dt
 
@@ -379,6 +387,18 @@ class FreeProvider(IntradayProvider):
                         continue
                     for _, r in df.iterrows():
                         rows.append({
+                            # THE OCC SYMBOL, AND ITS ABSENCE BROKE THE FLEET'S ORDER PATH.
+                            # This docstring says "same shape from yfinance" and it was not the
+                            # same shape: Tradier's chain rows carry `symbol` (the OCC id) and
+                            # these carried every field EXCEPT that one. Nothing noticed while
+                            # Tradier served the chain; when the account closed on 2026-10-08
+                            # `get_provider` correctly fell through to this class, and the
+                            # first book to reach a broker afterwards raised `not an OCC
+                            # symbol: 'None'` -- because `str(c.get("symbol"))` on a missing
+                            # key is the STRING "None". yfinance has had it all along as
+                            # `contractSymbol`.
+                            "symbol": (str(r.get("contractSymbol")).strip().upper()
+                                       if r.get("contractSymbol") else None),
                             "option_type": kind, "expiration_date": e,
                             "strike": float(r.get("strike")),
                             "bid": r.get("bid"), "ask": r.get("ask"),
