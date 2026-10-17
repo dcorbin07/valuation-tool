@@ -2500,6 +2500,20 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
     # `reanchor_stream` refuses unless row 0's anchor still differs from the current
     # declaration hash, so each book is repaired at most once and a later run is a no-op. It
     # only acts under `write`, so a dry run reports what it WOULD do and touches nothing.
+    # WHICH BROKER THE FLEET WOULD USE, AND WHETHER ITS CREDENTIALS EXIST. Construction only --
+    # no network call, no order, no quote -- so it costs nothing per cycle. It is here because
+    # the question "are the fleet's paper keys on the service?" was UNANSWERABLE from the
+    # 2026-10-17 body: no book produced a candidate, so no book reached the broker, so nothing
+    # in the response said either way. A fact that is only visible when something goes right is
+    # not visible.
+    _b, _why = fleet_broker_or_reason()
+    broker_state = {
+        "venue": os.environ.get(FLEET_VENUE_ENV) or "alpaca",
+        "credentials_present": _b is not None,
+        "dedicated_fleet_account": bool(getattr(_b, "dedicated", False)) if _b else False,
+        "reason": _why,
+    }
+
     reanchored = {}
     for b in REANCHOR_ALLOWLIST:
         if books is not None and b not in books:
@@ -2633,6 +2647,7 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
         # Empty on every ordinary cycle. Non-empty exactly once per allowlisted book,
         # and the row it wrote is in that book's own stream as a `reanchor` event.
         "reanchored": reanchored,
+        "broker": broker_state,
         "fills_written": filled,
         "entry_rules_implemented": implemented,
         "books_with_no_entry_rule": unscheduled,
