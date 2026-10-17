@@ -39,6 +39,41 @@ from . import fleet as F
 # ---------------------------------------------------------------------------------------
 
 
+
+def cycle_session(now=None):
+    """The TRADING SESSION a fleet cycle is about. **Not `date.today()`.**
+
+    **THE DEFECT THIS FIXES, AND IT IS WHY FOUR BOOKS HAVE NEVER FILLED.** Every entry rule
+    here compared a recorded date against `_dt.date.today()`, which is correct only if the
+    cycle runs on the same UTC day as the session it is reading. **It does not, and the project
+    had already measured why:** `fleet-cycle.yml` crons at 22:19Z and item 64 measured GitHub
+    firing this repository's crons **3.5 to 7.5 hours late**, so the last six cycles landed at
+    00:24Z, 00:31Z, 01:13Z, 07:15Z, 03:03Z and 01:45Z -- **every one of them on the following
+    UTC day.** Meanwhile `/admin/record-dip-rejects` stamps its rows with
+    `last_closed_session()`, precisely so a slipped run cannot invent a session.
+
+    > **So the writer and the readers were on different clocks, and an exact-date match between
+    > them could never succeed.** `f11_recorded_rejects` returns `None` -- "no row for today" --
+    > on every run, which the harness then reports as `RULE_ARMED_NEVER_FIRES`: a phrase that
+    > reads as *the rule cannot qualify anybody* when the truth is *the rule never saw the
+    > data*. On a Saturday it is worse still, because no session exists for that date at all.
+
+    One definition, used by every rule (`B7`), so the question "which session is this cycle
+    about" has a single answer. Falls back to `date.today()` only if the market calendar
+    cannot be consulted -- **reported in the return, never silently** -- because a rule that
+    silently changed which day it reads would be the same defect wearing the repair's clothes.
+    """
+    import datetime as _dt2
+    try:
+        from ..screener.market_session import last_closed_session
+        d = last_closed_session(now)
+        if d:
+            return d
+    except Exception:                                                # noqa: BLE001
+        pass
+    return (now.date() if hasattr(now, "date") else None) or _dt2.date.today()
+
+
 def _needs_cash(book: str, root=None) -> bool:
     """Does this book's DECLARATION say it is short / sells premium? Read, never inferred.
 
@@ -284,7 +319,7 @@ def f3_bear_puts(decl: dict, root: str = None, *, store=None, provider=None,
     from ..intraday.providers import get_provider
 
     st = decl.get("structure") or {}
-    today = today or _dt.date.today()
+    today = today or cycle_session()
     store = store if store is not None else Store()
     provider = provider if provider is not None else get_provider()
 
@@ -405,7 +440,7 @@ def f8_csp_entry_financing(decl: dict, root: str = None, *, provider=None, broke
         return []
 
     st = decl.get("structure") or {}
-    today = today or _dt.date.today()
+    today = today or cycle_session()
     rows = holdings if holdings is not None else read_published_holdings(root)
     picks = f8_select(rows, today, held_symbols("f8_csp_entry_financing", root),
                       cap=int(decl.get("concurrency_cap") or 0))
@@ -544,7 +579,7 @@ def f11_dip_reject_puts(decl: dict, root: str = None, *, provider=None, broker=N
     from ..intraday.providers import get_provider
 
     st = decl.get("structure") or {}
-    today = today or _dt.date.today()
+    today = today or cycle_session()
 
     if rejects is None:
         rejects = f11_recorded_rejects(root)
@@ -618,7 +653,7 @@ def f11_recorded_rejects(root: str = None, today=None):
     """
     import datetime as _dt
     from . import fleet_history as FH
-    d = (today or _dt.date.today()).isoformat()
+    d = (today or cycle_session()).isoformat()
     for r in reversed((FH.read("dip_rejects", root) or {}).get("rows") or []):
         if r.get("date") != d:
             continue
@@ -953,7 +988,7 @@ def f21_v6opt_dip_csp(decl: dict, root: str = None, *, provider=None, broker=Non
         return []
 
     st = decl.get("structure") or {}
-    today = today or _dt.date.today()
+    today = today or cycle_session()
     if history is None:
         history, _why = _f21_source_gate("f21_v6opt_dip_csp", decl, root, today)
         if history is None:
@@ -1016,7 +1051,7 @@ def f22_dip_csp_random_twin(decl: dict, root: str = None, *, provider=None, brok
         return []
 
     st = decl.get("structure") or {}
-    today = today or _dt.date.today()
+    today = today or cycle_session()
     if history is None:
         history, _why = _f21_source_gate("f22_dip_csp_random_twin", decl, root, today)
         if history is None:
