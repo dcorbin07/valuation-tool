@@ -12613,3 +12613,74 @@ runner exists** (options `N` 323 -> 324). Accepted from the Frontier Scout's dra
   is the first since the client landed, `F-4` and `F-10` stay retired on Don's 2026-10-16 ruling,
   and the three short books still refuse with `SHARED_ACCOUNT_WOULD_COLLIDE` until
   `ALPACA_FLEET_PAPER_KEY_ID` / `_SECRET_KEY` exist.
+
+
+---
+
+## 96. F-21 AND F-22 ARE BLOCKED BY A BROKEN HASH CHAIN, NOT BY A BROKER - AND "BEFORE THE ARMING" IS NOT "BEFORE THE FIRST RECORD" (2026-10-17)
+
+**ZERO TRIALS, no code shipped, nothing repaired.** Read from the **2026-10-17 00:29Z fleet
+cycle's own response body**, which the workflow prints - so this is the service's state rather
+than a derivation, and it is the first cycle since the Alpaca client landed.
+
+* **THE CYCLE IS BREATHING AND WROTE NO FILLS.** `breathing: true`, **19 armed, 2 blocked,
+  `fills_written: 0`**. `f3_bear_puts`, `f8_csp_entry_financing` and `f11_dip_reject_puts` all
+  **RAN** and each found **`candidates: 0`** - so no order was attempted and **no Alpaca paper
+  option order has been placed yet**. `f8` and `f11` additionally carry
+  **`RULE_ARMED_NEVER_FIRES`** at 32 observations each, the harness's own phrase for *"a rule
+  that cannot qualify anybody is indistinguishable in the records from a quiet market"*.
+* **AND THE TWO BOOKS THE BRIEF CARES ABOUT ARE NOT BLOCKED BY A BROKER AT ALL.**
+  **`f21_v6opt_dip_csp` and `f22_dip_csp_random_twin` both read `CHAIN_BROKEN:
+  "prev_hash mismatch at row 0"` on 5 records each.** They never reach `fleet_broker`, so the
+  `SHARED_ACCOUNT_WOULD_COLLIDE` refusal built for them has never fired and **the second Alpaca
+  paper account will not, by itself, make them trade.**
+* **THE CAUSE, DIAGNOSED FROM THE CODE AND CONFIRMED BY THE CLOCK.** `verify_chain` anchors the
+  chain at the **declaration's content hash** (`prev = decl_sha or rows[0]["decl_sha"]`), and
+  `may_fill` passes the **CURRENT** hash. So **amending a declaration after the stream's first
+  row has been written breaks row 0 permanently.** The timeline fits exactly: `DECL_f21` landed
+  **2026-10-13 01:25 ET**, the fleet cycle at **03:15 ET that morning** wrote its self-check
+  rows, and commit `75a7708` amended both declarations at **21:17 ET the same day**.
+  > **THE PORTABLE PART, AND IT IS A TRAP ANY FUTURE DECLARATION CAN WALK INTO:
+  > `75a7708`'s own message says the amendment is "before the arming", AND IT WAS TRUE. The
+  > chain does not anchor on the arming - it anchors on the FIRST RECORD, and a cycle writes
+  > self-check rows whether or not a book is armed.** Amend a declaration before it is armed and
+  after its first cycle, and the book is bricked.
+* **I BUILT THE REPAIR, RAN IT, AND IT DOES NOT WORK - SO IT WAS REMOVED RATHER THAN SHIPPED.**
+  A bounded `reanchor_stream` (archive the stream byte-for-byte, start fresh at the current
+  hash; refuse if the break is anywhere but row 0, refuse if the stream carries any fill or
+  close, refuse if the anchor has not actually moved) passed its own suite and then **failed on
+  the very next write**: `record` returned *"REFUSED: holds rows only up to seq 0 but 2 was
+  already recorded."*
+* **AND THAT REFUSAL IS CORRECT, WHICH IS WHY NOTHING WAS FORCED.** `fleet_highwater` keeps the
+  highest `seq` ever seen for a book **outside the file it describes**, precisely because audit
+  #5's `H3` measured that **whole-file loss is not a chain break** - delete a stream and the book
+  silently resumes at seq 1 and every later row verifies. **A stream that restarts is exactly
+  the shape that module exists to catch, and archiving one to unblock a book is
+  indistinguishable from the data loss it guards against.** Its own docstring settles it:
+  *"THERE IS NO RESET FUNCTION, ON PURPOSE. Recovering from a real loss is a human decision."*
+  **So my repair would have archived the stream and left the book just as stuck, having moved
+  the live file for nothing** - worse than no repair, and only running it showed that.
+* **THE THREE REMEDIES, NONE OF THEM THIS LANE'S TO TAKE.** **(a) RESTORE THE DECLARATION'S
+  PRE-AMENDMENT BYTES.** Needs no code at all: the anchor returns and the chain verifies. The
+  cost is that `75a7708`'s amendments are undone and would have to be re-made before any stream
+  exists - which for these two books means a new book id. **(b) MAKE A RE-ANCHORED STREAM
+  CONTINUE THE SEQUENCE** rather than restart it, so the fresh stream's first row carries
+  `high_water + 1` and `prev_hash` = the new declaration hash. **This is the clean one and it
+  weakens nothing** - monotonic sequence and the new anchor both hold - but it changes the write
+  door, which is where the tamper evidence lives. **(c) ACCEPT THE BREAK** and leave both books
+  blocked. **Routed to Don and to whoever owns the harness; (b) is the recommendation.**
+* **A SEPARATE GAP IN THE SAME RESPONSE, REPORTED BECAUSE IT WOULD BLOCK F-21 EVEN UNBROKEN.**
+  `history_recorded.ok` is **false**: `dip_healthy` and `dip_rejects` were **NOT CONSULTED**, so
+  no row was written for either - *"a row saying zero when no screen ran is evidence AGAINST a
+  first appearance that may have happened. Refusing leaves a GAP, which is recoverable; a
+  fabricated zero is not."* **`dip_healthy` is F-21's own entry population and carries just two
+  valid days (2026-10-14 and 2026-10-15).** So even with the chain repaired and the account
+  funded, F-21 has almost no population to enter on.
+* **ONE THING THAT DID GO RIGHT AND IS WORTH RECORDING: THE OUTCOME PATH IS MOVING AGAIN.** The
+  cycle's `reconciled` block reports **`f3_bear_puts` candidates 90, wrote 37, no_position 8**
+  and `testbook` 5 - **42 rows written** - against a book whose 72 orders had all sat at
+  `fate=working` with an empty `fill_price` since the parser read Tradier's response shape.
+  **Stated as what it is: the reconciler ran and wrote, which is the behaviour the order-id fix
+  was for; attributing those 42 rows to that fix specifically is not established here**, and the
+  cycle's own `sandbox_caveat` still names Tradier, so which venue they reconciled against is
+  not settled by this response.
