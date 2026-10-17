@@ -231,7 +231,13 @@ class OnlyTargetsMetClosesAnEvent(unittest.TestCase):
         testing it."""
         seen = {LC.plan_outcome({"orders": [], "skipped": []}),
                 LC.plan_outcome({"orders": [], "skipped": [{"ticker": "X"}]}),
-                LC.plan_outcome({"orders": [{"ticker": "A"}], "skipped": []})}
+                LC.plan_outcome({"orders": [{"ticker": "A"}], "skipped": []}),
+                # **THE FOURTH, ADDED BY ITEM 70, and this test went RED the moment the outcome
+                # was declared and nothing produced it.** That is the enumeration doing the one
+                # job it was written for: a boolean has nothing to enumerate, so the same
+                # collapse happened three times before this set existed and four times after.
+                LC.plan_outcome({"orders": [], "skipped": []},
+                                resting=[{"ticker": "A", "side": "sell", "qty_open": 5.0}])}
         self.assertEqual(seen, set(LC.PLAN_OUTCOMES))
 
     def test_EXACTLY_ONE_outcome_closes_an_event(self):
@@ -250,7 +256,11 @@ class OnlyTargetsMetClosesAnEvent(unittest.TestCase):
         fn = next(n for n in ast.walk(tree)
                   if isinstance(n, ast.FunctionDef) and n.name == "run_slot")
         body = ast.unparse(fn)
-        self.assertIn("plan_outcome(plan)", body)
+        # **THE CALL GAINED AN ARGUMENT [item 70]**, so the assertion names the function and
+        # the argument that carries the new fact rather than one exact call string -- the fact
+        # being tested is that the branch asks `plan_outcome` and not `not plan["orders"]`.
+        self.assertIn("plan_outcome(plan", body)
+        self.assertIn("resting=rest_mine", body)
         self.assertIn("PLAN_TARGETS_MET", body)
         self.assertNotIn("if not plan['orders']", body.replace('"', "'"))
 

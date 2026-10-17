@@ -21484,3 +21484,203 @@ because that function decides the public posture.
 - **No clock, σ, threshold or vintage moved**, and Amendment 2 is untouched and still in force for
   acquisitions and delistings.
 
+
+## ITEM 70 — the auditor's FIFTH blocker: an event closed while this slot's orders were resting
+
+**Fixed.** `PLAN_RESTING`, a fourth planner outcome, plus two things the auditor asked for and
+one defect this work found that is **reported and not fixed**.
+
+### THE BLOCKER, AND IT IS A CONSEQUENCE OF ITEM 67 RATHER THAN A REGRESSION FROM ITEM 69
+
+Item 67 taught the planner to subtract this slot's own resting same-side quantity so a remainder
+could not stack. That was right, and it **changed what an empty plan means**. Before item 67 an
+empty plan meant *"the reconciled holdings match the targets"*; afterwards it can also mean
+*"the gap is already covered by an order that has not filled."* The close branch kept reading the
+first and getting the second — and its own comment still asserted the property it had lost:
+
+> *"Recorded here rather than after sending, because 'met' is a property of the reconciled
+> holdings and not of whether this particular cycle transmitted anything."*
+
+**True when written, false as of item 67**, and the auditor records nearly trusting it. **Sixth
+time on this path that a docstring claimed a property the code no longer had**, so it is deleted
+rather than softened, and the replacement says why it was false.
+
+**THE WORST CASE IS THE SELL-OUT.** At 0% the sells go out, the next cycle reads the empty plan
+as "targets met", closes the event and writes `last_pct = 0.0`, the `day` orders expire unfilled,
+and `event_for` never sees a percentage change again — **the slot stays fully invested at a
+declared 0%, with no alert, for good.**
+
+### THE FIX: A FOURTH DECLARED OUTCOME, NOT A FOURTH BOOLEAN
+
+`PLAN_RESTING = "orders_working"`, in `PLAN_OUTCOMES` and **not** in
+`PLAN_OUTCOMES_THAT_CLOSE_AN_EVENT`. Precedence: **orders beat a skip** (item 67's per-name
+granularity, which the auditor approved), **a skip beats a rest** (both keep the event open, so
+the precedence decides only which one a reader is told about — and *"I could not work out what to
+do"* needs a human while *"my order has not filled yet"* does not), and a rest beats an empty
+plan.
+
+**THE EVENT IS READ FROM THE ORDER ID, AND THE PREFIX IS DERIVED FROM THE WRITER.**
+`resting_for_event` calls `client_order_id(slot, key, "")` — the generator's own output with an
+empty ticker — so *"does this order belong to this event"* is a `startswith` against the thing
+that wrote it. **Splitting on `-` would be wrong on both sides**: an event key carries dates
+(`rebalance:2026-10-22`) and a ticker can carry a dash (`BRK-B`). Both are pinned, and so is the
+case a naive prefix match gets wrong: `pct:100.0->0.0` is a string prefix of `pct:100.0->0.05`,
+and the separator the writer emits is what prevents the false match.
+
+**AND THE FILTER IS LOAD-BEARING RATHER THAN TIDINESS.** `reconcile`'s resting list is scoped to
+the slot and **not** to the event, which is correct for item 67's subtraction — a leftover from
+the previous event must still be subtracted. But holding *this* event open on a leftover nobody is
+waiting for would stall every later rebalance behind it.
+
+### LEAVING IT OPEN IS ONLY SAFE BECAUSE IT CAN END, so the ceiling is now ONE definition
+
+The auditor's own note: *"Today the closing cycle returns before reaching that code (the close is
+at `live_cycle.py:1171`, the ceiling at `:1268`)."* A branch that keeps an event open and cannot
+reach the ceiling has swapped a silent close for a **silent hold**, which is not an improvement.
+
+So the no-progress ceiling is extracted to `note_no_progress` and called from **three** places:
+the send path, the new resting branch, and the blocked branch. A second copy would have been a
+second set of reset rules, and those took items 64 and 67 to get right (`B7`).
+
+**`counts_a_day` IS A PRECONDITION, NOT AN OPTION.** `note_trading_day`'s own docstring reads
+*"Every date reaching this function is a date on which the orders window was open."* The resting
+and blocked branches can both run outside it, so they pass `session_ok` — or a Saturday manual
+cycle would spend a trading day off a ceiling whose alert says TRADING DAYS. **That is item 64's
+false-alarm family, which item 64 itself reintroduced by adding four more schedules.**
+
+**No alert while the orders are fresh.** A `day` limit at the mid routinely takes several cycles
+to work through 85 names — the real book filled 81 of 85 after five cycles — so alerting on a
+resting order would alert on the designed behaviour, and an alert that fires on healthy cycles is
+one nobody reads on the unhealthy one (`MA21`).
+
+### THE SECOND, LATENT INSTANCE — `PLAN_BLOCKED` now keeps its own promise
+
+Its alert says *"The event stays OPEN and the next cycle tries again."* It then wrote
+`last_event_date` — **the one field `event_for` keys on** — and left `open_event` unset, which is
+**the one field the remainder path reads**. So the next cycle found no event and no remainder and
+returned early: one alert, then silence, with the rebalance abandoned at half the target.
+
+It now sets `open_event`. And its old comment claimed the write existed *"so a persistent block
+escalates through the ceiling"* — it could not: the ceiling is 100 lines further down, the branch
+returns first, and what the ceiling counts is `event_attempt_days`, not `last_event_date`. **The
+escalation is now called rather than asserted**, and an exhausted event closes, because "stays
+open" must not become "stalls for ever".
+
+### A NEW DEFECT, FOUND BY THIS SUITE'S OWN FIXTURE — REPORTED, NOT FIXED
+
+**A LIVE SLOT AT 0% CANNOT PASS PARITY, SO THE SELL-OUT IS UNREACHABLE ON A LIVE SLOT.**
+`targets(0.0, ...)` gives a slot value of **0**, and `parity` refuses any comparison where either
+side is non-positive — *"parity needs a positive value on both sides"* — which for a live slot
+**returns before anything is sent**. Supplying no paper targets does not help: the `parity_absent`
+branch returns too. **Both doors are shut.**
+
+Measured: the slot **plans** both sells and transmits neither. It is pinned as a test of current
+behaviour (`ALiveSlotAtZeroCannotPassParity`) so it cannot be lost, and **deliberately not
+repaired** — parity is a §8 precondition on the live path, the auditor reviews that gate, and
+changing what licenses a live order as a side effect of another fix is not a thing to do.
+**The shape of a fix, for whoever takes it:** when every target is zero there are no weights to
+diff, so parity is **VACUOUS rather than FAILED** — `C5`'s distinction, running in the opposite
+direction from usual. The end-to-end sell-out is demonstrated on the **paper** slot, where a
+parity mismatch alerts and does not return.
+
+### FOUR DEFECTS OF MY OWN, EVERY ONE CAUGHT BY RUNNING IT
+
+- **Case A's fixture held 40 AAPL against a 100-share target**, so the plan had a genuine 60-share
+  buy and the outcome was correctly `work`. A fixture that could not reach the state it was
+  written to test.
+- **The partial-fill fixture left the partially filled name out of the broker's position list**,
+  so `preflight` refused — *"this slot's record holds BBB and the broker reports no such
+  position"*. That check working on a fixture that was lying.
+- **The escalation assertion read ONE CYCLE PAST the escalation.** The ceiling fires on the sixth
+  trading day, closes the event, and the seventh cycle correctly does nothing — so reading the
+  last cycle's alerts found an empty list and reported *"a permanent block never escalates"* about
+  a path that had escalated the cycle before. **An off-by-one in a test of a ceiling reads exactly
+  like the ceiling being broken.**
+- **My loop could not advance the day the ceiling reads**, because it records `_stamp()` — the
+  wall clock — and not the cycle's `now`. That is the auditor's own non-blocking item 7 and it
+  applies to the ceiling too; item 67's suite overrides `_stamp` for the same reason, so this
+  follows that pattern instead of inventing a second one. **Reported, not repaired:** threading
+  `now` through changes what every dated record on this path means.
+
+### WHAT WAS REPOINTED, AND WHY IT IS REPOINTING AND NOT WEAKENING
+
+Three guards were keyed on the *location* of the ceiling (a slice of `run_slot` between two
+comments) rather than on the property. They are repointed at `inspect.getsource(note_no_progress)`
+in the same commit as the move (`MA59`) — a tighter boundary, since it cannot drift when a
+neighbouring comment changes. And **item 69's enumeration guard went red the moment the fourth
+outcome was declared and nothing produced it**, which is the one job that set exists for.
+
+### THE NUMBERS
+
+- **`tests/test_item70.py`: 46 tests.** Against the pre-item-70 tree restored from git
+  (`6b84008`), **33 of the 46 fail or error**; the 13 that pass are the old-code control class
+  (which asserts the old behaviour), the parity finding (unchanged), and the pre-existing-behaviour
+  pins. Sources restored byte-for-byte and the restore verified.
+- The nine live-path suites the auditor counts: **all green**.
+- No new pending workflow. Nothing in `.github/` changed.
+
+### NOT DONE
+
+- **The parity defect above.** Reported, pinned, routed to the auditor.
+- `orders_window(now)`'s timezone seam, `wait_state`'s wall clock, and deriving `HOLDERS` — still
+  the auditor's non-blocking item 7, still not taken.
+- **A latent hazard reported in passing:** inside `run_slot`'s send loop the name `rec` is
+  reassigned from the reconcile report to a per-order record. Harmless today — every read of the
+  reconcile `rec` happens before the loop — but a future read after it would silently get an
+  order dict. Not touched, because renaming a variable inside the send loop on the eve of a real
+  rebalance is not worth the diff.
+
+
+## AMENDMENT 3 IS SIGNED — Don, 2026-10-17, effective from segment base 2027-01-25
+
+Don signed in chat. **Three edits to `PAPER_TRACK_CONTRACT.md` and nothing else:**
+
+1. `| **Amendment 3 signed** | **YES — 2026-10-17 (Don, in chat)** |`
+2. the `DRAFT — AWAITING DON'S SIGNATURE. NOT IN FORCE.` headline → `SIGNED — Don, 2026-10-17.
+   IN FORCE FOR SEGMENTS BASED ON OR AFTER 2027-01-25.`
+3. the sentence saying the row *"is still NO"*, now past tense.
+
+**(2) and (3) are statements ABOUT the signature row rather than independent clauses**, so
+leaving them would have put a headline reading NOT IN FORCE above a signature row reading YES —
+two states sharing one document, with a reader trusting the headline. Everything else is
+untouched: the rule, the effective date, the declared-distributions count, the alternatives, the
+limitation and the known gap.
+
+### THE RECORD IS BIT-IDENTICAL, FOR TWO INDEPENDENT REASONS
+
+Both have to be stated or the signature reads as a restatement of what was already true.
+
+- **NO BACKFILL, structurally.** The credit window is `segment base < distribution <= mark` and
+  the gate is `segment base >= 2027-01-25`. The record's own bases are **inception 2026-07-30**
+  and the **2026-10-22** rebalance — both earlier, so neither can be reached. Measured, not
+  asserted.
+- **NOTHING IS DECLARED.** `index_mark.DISTRIBUTIONS` is empty — the contract carries the count
+  as its own row — so the credit is zero in every segment whether the amendment is in force or
+  not. This is the reason a row produced today is bit-identical rather than merely unreachable.
+
+The operational gate still reads **`pending`** and is untouched; `gate_state` returns
+`passed: False` with the same reason as before, through the shared parser.
+
+### A DEFECT IN MY OWN FIXTURE, CAUGHT BY THE SIGNATURE ITSELF
+
+`contract_with` built its test contracts by replacing the literal `**NO**`. The moment the row
+said YES that string was gone, **the replacement silently did nothing, and every "unsigned" test
+ran against the SIGNED contract** — one of them reporting `'NO' read as signed` about a row it had
+not written. The vacuous-fixture family. Repaired by substituting **on the field name** and then
+**asserting the substitution happened**, so a fixture that cannot apply its own perturbation fails
+loudly instead of testing the shipped state under another name. The guard is proved non-vacuous by
+removing the row and watching it fire.
+
+**The unsigned behaviour is still pinned**, through that fixture rather than through the shipped
+document — which is the right split, because *"the record does not move while the row says NO"*
+has to stay true for the next amendment as much as for this one. `tests/test_amendment3.py`: **29
+tests**.
+
+### ONE THING FOR DON TO KNOW, AND IT IS MY ERROR
+
+**I edited `DECISIONS.md` for Amendment 3 before the instruction not to arrived**, and that edit
+is on `origin/main` (`1d92215`). If Don has local commits touching that file his pull will not be
+a fast-forward. **Not reverted** — it is a dated record of a decision and reverting it would cause
+a second conflict rather than fewer — but it is flagged rather than left to be discovered.
+Nothing since has touched it, and item 70's results are here instead.
+

@@ -500,9 +500,11 @@ class TheCeilingCountsTradingDays(_Tmp):
         """**THE OLD TEST WAS `held_now > baseline`, WHICH A SELL CAN NEVER SATISFY** -- and
         item 67 sends the sells first, so the sell leg of every rebalance registered as no
         progress and burned a day off the ceiling."""
-        src = io.open(LC.__file__, encoding="utf-8").read()
-        block = src[src.index("# **THE CEILING COUNTS TRADING DAYS"):]
-        block = block[:block.index("# ---- SIZE THE BUYS")]
+        import inspect
+        # REPOINTED at the function that owns the ceiling [item 70] -- see the note on the
+        # sibling guard in test_item64. The property is unchanged; it moved so three branches
+        # could reach one definition.
+        block = inspect.getsource(LC.note_no_progress)
         self.assertIn("event_fingerprint", block)
         self.assertIn("sorted(held_map)", block)
 

@@ -745,21 +745,69 @@ PLAN_TARGETS_MET = "targets_met"          # nothing to do: no orders AND nothing
 PLAN_BLOCKED = "blocked"                  # something was skipped: the plan is INCOMPLETE
 PLAN_WORK = "work"                        # there are orders to send
 
+#: **AND A FOURTH: MY OWN ORDERS ARE STILL WORKING [item 70, the auditor's FIFTH blocker].**
+#:
+#: Item 67 subtracts this slot's own resting same-side quantity so a remainder cannot stack --
+#: right, and it changed what an EMPTY PLAN MEANS. Before item 67 an empty plan meant "the
+#: holdings match the targets"; since item 67 it can also mean "the gap is already covered by an
+#: order that has not filled." The close branch read the first and got the second, so a resting
+#: sell covering a whole exit CLOSED the event with no alert, and nothing retried once the `day`
+#: order expired. **On a sell-out at 0% that leaves the slot fully invested at a declared 0%**,
+#: and because `last_pct` is written to 0 the sell-out cannot re-fire.
+#:
+#: Fourth occurrence of ONE shape on this path, which is why it gets a value and not a boolean:
+#: `place_limit` missing (two names, one call), `[]` meaning both empty and failed, truncated
+#: versus failed, three populations for one fact -- and now "nothing left to PLAN" versus
+#: "nothing left to DO".
+PLAN_RESTING = "orders_working"           # nothing to send: my own orders are still unfilled
+
 #: Every value. An outcome absent from this tuple is a programming error rather than a state,
-#: and the guard that enumerates it would not see a fourth one added elsewhere.
-PLAN_OUTCOMES = (PLAN_TARGETS_MET, PLAN_BLOCKED, PLAN_WORK)
+#: and the guard that enumerates it would not see a fifth one added elsewhere.
+PLAN_OUTCOMES = (PLAN_TARGETS_MET, PLAN_BLOCKED, PLAN_WORK, PLAN_RESTING)
 
 #: The ONLY outcome that may close an event. Declared as a one-element tuple rather than a bare
 #: equality so the test can assert the set and a future addition shows up as a change here.
 PLAN_OUTCOMES_THAT_CLOSE_AN_EVENT = (PLAN_TARGETS_MET,)
 
 
-def plan_outcome(plan: dict) -> str:
+def resting_for_event(resting, slot, key) -> list:
+    """This slot's own resting orders THAT BELONG TO THIS EVENT. [item 70]
+
+    **THE EVENT IS READ FROM THE `coid`, AND THE PREFIX IS DERIVED FROM THE WRITER RATHER THAN
+    PARSED.** `client_order_id` builds `valquo-<slot>-<event>-<TICKER>-a<n>`; calling it with an
+    EMPTY ticker returns exactly `valquo-<slot>-<event>-`, so "does this order belong to this
+    event" is a `startswith` against the generator's own output. Splitting on `-` would be
+    wrong on both sides: an event key carries dates (`rebalance:2026-10-22`) and a ticker can
+    carry a dash (`BRK-B`), so a hand-rolled parse would mis-attribute both (`MA5`).
+
+    **AND THE FILTER MATTERS RATHER THAN BEING TIDINESS.** `reconcile`'s list is scoped to the
+    slot and NOT to the event, which is correct for item 67's subtraction -- a leftover order
+    from the PREVIOUS event must still be subtracted so a remainder cannot stack. But a leftover
+    from a previous event is no reason to hold THIS event open, and holding it open on one would
+    stall every subsequent rebalance behind an order nobody is waiting for.
+    """
+    if not key or str(key) == "none":
+        return []
+    want = client_order_id(slot, str(key), "")
+    out = []
+    for r in (resting or []):
+        if str((r or {}).get("coid") or "").startswith(want):
+            out.append(r)
+    return out
+
+
+def plan_outcome(plan: dict, *, resting=None) -> str:
     """Which of `PLAN_OUTCOMES` this plan is.
 
     **`skipped` BEATS AN EMPTY `orders`.** A plan with nothing to send and something skipped is
     not a finished event -- it is an event whose work could not be worked out, and the two had
     the same truth value until this existed.
+
+    **AND A RESTING ORDER FOR THIS EVENT BEATS AN EMPTY PLAN [item 70].** `resting` is this
+    slot's own unfilled orders FOR THIS EVENT (see `resting_for_event`); when the plan is empty
+    because they cover the gap, the event is not finished and must not close. It defaults to
+    empty so a caller that does not supply it gets exactly the old behaviour -- which is why
+    every call site is checked by test rather than assumed.
     """
     if (plan or {}).get("orders"):
         # **ORDERS BEAT A SKIP, and that is not a softening.** A skip alongside work is item
@@ -768,7 +816,72 @@ def plan_outcome(plan: dict) -> str:
         # would refuse the whole cycle for one withheld name and revert it. The skip is alerted
         # either way; what differs is whether anything is sent.
         return PLAN_WORK
-    return PLAN_BLOCKED if ((plan or {}).get("skipped")) else PLAN_TARGETS_MET
+    if (plan or {}).get("skipped"):
+        # **A SKIP BEATS A REST, and the order of these two is a judgement rather than an
+        # accident.** Both keep the event open, so the only thing the precedence decides is
+        # which one a reader is told about -- and "I could not work out what to do with this
+        # name" needs a human, while "my order has not filled yet" does not. The resting fact
+        # is reported alongside either way.
+        return PLAN_BLOCKED
+    return PLAN_RESTING if resting else PLAN_TARGETS_MET
+
+
+def note_no_progress(st: dict, out: dict, key, *, counts_a_day: bool,
+                     on_date: str = None) -> dict:
+    """Record one attempt at `key` against the no-progress ceiling. ONE definition. [item 70]
+
+    Returns `{"exhausted", "days", "reason"}` and MUTATES `st["event_fingerprint"]` and
+    `st["event_attempt_days"]`; the caller decides what to do with an exhausted event.
+
+    **PROGRESS IS A CHANGE IN THE HOLDINGS, NOT AN INCREASE**, and the holdings come from
+    `reconcile`, which builds them from FILLS -- so the counter cannot be fooled by orders that
+    are accepted and never fill, which is exactly what an unfillable limit or a permanent
+    rejection produces. A fingerprint of the whole map also catches a sell and a buy that net to
+    the same total. The old test was `held_now > baseline`, which a SELL can never satisfy, so
+    the sell leg of a rebalance registered as no progress -- and under item 67 the sells go
+    first.
+
+    **`counts_a_day` IS THE CALLER'S, AND IT IS A PRECONDITION RATHER THAN AN OPTION.**
+    `note_trading_day`'s own docstring reads *"Every date reaching this function is a date on
+    which the orders window was open, so the returned list is a trading-day count with no
+    holiday calendar anywhere near it."* A branch that can run outside the window (the resting
+    and blocked branches both can) must pass False there, or a Saturday manual cycle would spend
+    a trading day and the ceiling would stop meaning what its own alert says -- item 64's
+    false-alarm family, which item 64 itself reintroduced by adding four more schedules.
+    """
+    held_map = st.get("holdings") or {}
+    fp = "|".join("%s:%.6f" % (t, float(held_map.get(t) or 0))
+                  for t in sorted(held_map))
+    prints_seen = dict(st.get("event_fingerprint") or {})
+    day_map = dict(st.get("event_attempt_days") or {})
+    days = list(day_map.get(key) or [])
+    if prints_seen.get(key) is None:
+        # **A CHANGED DEFINITION DOES NOT INHERIT ITS OLD VALUES [item 64's rule, twice
+        # over].** `event_attempts` counted cycles and `event_progress` stored a float total;
+        # both were written under rules this one replaces, so neither is evidence about trading
+        # days and neither is read. Item 64's fourth real cycle read 5 of 5 while the book
+        # advanced 72 -> 77, one cycle from stopping a healthy rebalance on a number that meant
+        # something else when it was written.
+        days = []
+    elif fp != prints_seen[key]:
+        days = []                           # it advanced: the retry is working
+    prints_seen[key] = fp
+    st["event_fingerprint"] = prints_seen
+    if counts_a_day:
+        days = SETTLE.note_trading_day(days, on_date or _stamp())
+    day_map[key] = days
+    st["event_attempt_days"] = day_map
+    out["attempts_without_progress"] = len(days)
+    out["attempt_days"] = list(days)
+    out["attempts_counted_in"] = "trading days"
+    out["attempt_day_counted"] = bool(counts_a_day)
+    done = len(days) > SETTLE.MAX_EVENT_TRADING_DAYS
+    return {"exhausted": done, "days": list(days),
+            "reason": (("this slot has attempted %s on %d separate TRADING DAYS (%s onward) "
+                        "with NO change in what it holds, and stops trying; something is "
+                        "rejecting these orders or leaving them unfillable, and a daily retry "
+                        "would be deduped into silence" % (key, len(days), days[0]))
+                       if done else "")}
 
 
 def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
@@ -1120,15 +1233,33 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         out["slot_value"] = tg["slot_value"]
         out["targets"] = tg["targets"]
 
-        # THE TARGETS ARE MET: nothing left to do for this event, so it CLOSES. Recorded here
-        # rather than after sending, because "met" is a property of the reconciled holdings
-        # and not of whether this particular cycle transmitted anything.
+        # THE TARGETS ARE MET: nothing left to do for this event, so it CLOSES.
         #
         # **AND IT TESTS FOR THAT OUTCOME BY NAME [item 69].** `not plan["orders"]` was true of
         # "nothing to do" AND of "something was skipped, so I could not work out what to do" --
         # so an exit the feed could not price closed the event with no alert, and
         # `marks_coverage` reported perfect coverage while it happened.
-        outcome = plan_outcome(plan)
+        #
+        # **AND THE OUTCOME IS NOW COMPUTED WITH THIS EVENT'S RESTING ORDERS [item 70].** The
+        # comment that used to sit here read: *"Recorded here rather than after sending, because
+        # 'met' is a property of the reconciled holdings and not of whether this particular
+        # cycle transmitted anything."* **That sentence was true when it was written and item 67
+        # made it false** -- since the planner subtracts this slot's own resting same-side
+        # quantity, an empty plan can mean "the gap is already covered by an order that has not
+        # filled", and the reconciled holdings can be BBB: 0 against a target of 500 while this
+        # branch reports the targets as met. It is deleted rather than softened, because the
+        # auditor records nearly trusting it, and because six blockers on this path have been a
+        # docstring asserting a property the code had lost.
+        rest_mine = resting_for_event(rec.get("resting") or [], slot, key)
+        out["resting_this_event"] = [dict(r) for r in rest_mine]
+        # **`open_remainder` IS NOW READ [item 70, the auditor's non-blocking item 5].** It was
+        # computed on every cycle and read nowhere. Both facts ship, because they are different:
+        # `open_remainder` is "this slot has SOME order working" and `resting_this_event` is
+        # "...for THIS event". An order left over from a previous event is a reason to subtract
+        # (item 67) and NOT a reason to hold this event open, or every later rebalance would
+        # stall behind an order nobody is waiting for.
+        out["open_remainder"] = bool(rec.get("open_remainder"))
+        outcome = plan_outcome(plan, resting=rest_mine)
         out["plan_outcome"] = outcome
         # **ANY SKIP IS ALERTED, WHATEVER THE OUTCOME [item 69].** The auditor's blocker is a
         # skip in the empty-plan branch going unannounced; a skip in the branch that DOES trade
@@ -1160,13 +1291,70 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                              "skipped is not a finished rebalance. %s"
                              % (key, out["alerts"][-1]["reason"]))
             out["skipped"] = plan["skipped"]
-            # The day is recorded so a persistent block escalates through the ceiling rather
-            # than being deduped into silence -- `live_notify` keys on the reason's first 120
-            # characters, so an unchanging refusal is announced ONCE.
+            # **AND THE EVENT NOW ACTUALLY STAYS OPEN [item 70, the auditor's second
+            # instance].** This branch has always SAID *"The event stays OPEN and the next cycle
+            # tries again"* and then written `last_event_date` -- the one field `event_for` keys
+            # on -- without setting `open_event`, which is the one field the remainder path
+            # reads. So the next cycle found no event and no remainder and returned early: one
+            # alert, then silence, with the rebalance abandoned at half the target.
+            #
+            # The old comment claimed the write existed *"so a persistent block escalates
+            # through the ceiling"*. It could not: the ceiling is 100 lines further down, this
+            # branch returns before it, and what the ceiling counts is `event_attempt_days` and
+            # not `last_event_date`. **So the escalation is now called rather than asserted**,
+            # and WITHOUT counting a trading day, because this branch can run outside the orders
+            # window and `note_trading_day`'s precondition is that every date reaching it is one
+            # the window was open on.
+            st["open_event"] = key
             st["last_event_date"] = (book or {}).get("formed_on")
             st["last_pct"] = pct
+            blk = note_no_progress(st, out, key, counts_a_day=bool(session_ok))
+            if blk["exhausted"]:
+                out["alerts"].append({"kind": "event_attempts_exhausted", "slot": str(slot),
+                                      "reason": blk["reason"]})
+                out["attempts_exhausted"] = True
+                # **AND AN EXHAUSTED EVENT CLOSES, or "stays open" becomes "stalls for ever".**
+                # Keeping it open was the fix; keeping it open past the ceiling would replace a
+                # silent close with a silent hold, and every later rebalance would queue behind
+                # it. Don is told, which is the point of the ceiling.
+                st["open_event"] = None
             _note_write(out, write_state(slot, st, root), slot,
                         "recording an incomplete plan")
+            return out
+        if outcome == PLAN_RESTING:
+            # **MY OWN ORDERS ARE STILL WORKING, SO THERE IS NOTHING TO SEND AND NOTHING IS
+            # FINISHED [item 70].** The event stays open, so the next cycle re-prices whatever
+            # is left once the `day` order has expired -- which is §8a's own rule, and the one
+            # the close branch was skipping past.
+            #
+            # **IT CANNOT RE-STACK**, which is the thing that makes leaving it open safe: item
+            # 67's subtraction still applies, so while the order works the plan stays empty and
+            # this branch simply repeats. The moment it expires unfilled, `reconcile` stops
+            # listing it, the planner sees the whole remainder again, and it is re-sent with a
+            # fresh `coid` suffix.
+            st["open_event"] = key
+            # NOT `last_event_date`, and NOT `processed`: both are how an event is recorded as
+            # DONE, and this one is not.
+            rst = note_no_progress(st, out, key, counts_a_day=bool(session_ok))
+            names = ", ".join(sorted({str(r.get("ticker")) for r in rest_mine}))
+            out["reason"] = ("this slot has %d order(s) still working at the broker for %s "
+                             "(%s), so there is nothing to send this cycle and the event is "
+                             "NOT recorded as complete -- it stays open and the next cycle "
+                             "re-prices whatever has not filled"
+                             % (len(rest_mine), key, names))
+            if rst["exhausted"]:
+                # **NO ALERT WHILE THEY ARE FRESH, AN ALERT WHEN THEY NEVER FILL.** A `day`
+                # limit at the mid routinely takes several cycles to work through 85 names --
+                # the real book filled 81 of 85 after five cycles -- so alerting on a resting
+                # order would alert on the designed behaviour, and an alert that fires on
+                # healthy cycles is one nobody reads on the unhealthy one (`MA21`).
+                out["alerts"].append({"kind": "event_attempts_exhausted", "slot": str(slot),
+                                      "reason": rst["reason"]})
+                out["attempts_exhausted"] = True
+                out["reason"] = rst["reason"]
+                st["open_event"] = None
+            _note_write(out, write_state(slot, st, root), slot,
+                        "recording that this slot's own orders are still working")
             return out
         if outcome == PLAN_TARGETS_MET:
             if key and key != "none" and key not in st["processed"]:
@@ -1261,46 +1449,22 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # rebalance registered as no progress, and under item 67 the sells go first. A
         # fingerprint of the whole holdings map also catches a sell and a buy that happen to
         # net to the same total.
-        held_map = st.get("holdings") or {}
-        fp = "|".join("%s:%.6f" % (t, float(held_map.get(t) or 0))
-                      for t in sorted(held_map))
-        prints_seen = dict(st.get("event_fingerprint") or {})
-        day_map = dict(st.get("event_attempt_days") or {})
-        days = list(day_map.get(key) or [])
-        if prints_seen.get(key) is None:
-            # **A CHANGED DEFINITION DOES NOT INHERIT ITS OLD VALUES [item 64's rule, twice
-            # over].** `event_attempts` counted cycles and `event_progress` stored a float
-            # total; both were written under rules this one replaces, so neither is evidence
-            # about trading days and neither is read. Item 64's fourth real cycle read 5 of 5
-            # while the book advanced 72 -> 77, one cycle from stopping a healthy rebalance on a
-            # number that meant something else when it was written.
-            days = []
-        elif fp != prints_seen[key]:
-            days = []                           # it advanced: the retry is working
-        prints_seen[key] = fp
-        st["event_fingerprint"] = prints_seen
-        days = SETTLE.note_trading_day(days, _stamp())
-        if len(days) > SETTLE.MAX_EVENT_TRADING_DAYS:
-            out["alerts"].append({
-                "kind": "event_attempts_exhausted", "slot": str(slot),
-                "reason": ("this slot has attempted %s on %d separate TRADING DAYS (%s onward) "
-                           "with NO change in what it holds, and stops trying; something is "
-                           "rejecting these orders or leaving them unfillable, and a daily "
-                           "retry would be deduped into silence"
-                           % (key, len(days), days[0]))})
-            out["reason"] = out["alerts"][-1]["reason"]
+        # **ONE DEFINITION, THREE CALLERS [item 70].** The send path, the resting branch and
+        # the blocked branch all need this, and the two new ones used to be unable to reach it
+        # at all -- the blocked branch's own comment claimed it escalated through the ceiling
+        # from 100 lines above it. A second copy of a counter whose reset rules took two items
+        # to get right would be a second set of reset rules (`B7`).
+        ceil = note_no_progress(st, out, key, counts_a_day=True)
+        if ceil["exhausted"]:
+            out["alerts"].append({"kind": "event_attempts_exhausted", "slot": str(slot),
+                                  "reason": ceil["reason"]})
+            out["reason"] = ceil["reason"]
             out["attempts_exhausted"] = True
             # The day is recorded even on the refusing branch, or the count would stop rising
-            # and the alert would re-fire identically for ever instead of once.
-            day_map[key] = days
-            st["event_attempt_days"] = day_map
+            # and the alert would re-fire identically for ever instead of once. `note_no_progress`
+            # has already written it into `st`.
             _note_write(out, write_state(slot, st, root), slot, "recording the stopped event")
             return out
-        day_map[key] = days
-        st["event_attempt_days"] = day_map
-        out["attempts_without_progress"] = len(days)
-        out["attempt_days"] = list(days)
-        out["attempts_counted_in"] = "trading days"
 
         # **A SEPARATE, MONOTONE COUNTER FOR THE ORDER ID [item 64].** The attempt counter was
         # doing both jobs and they have OPPOSITE requirements: the ceiling must RESET when the

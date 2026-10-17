@@ -58,28 +58,50 @@ def contract_with(signed, effective, path):
     happen to parse.
     """
     txt = io.open(CONTRACT, encoding="utf-8").read()
-    txt = txt.replace("| **Amendment 3 signed** | **NO** |",
-                      "| **Amendment 3 signed** | **%s** |" % signed)
-    txt = txt.replace("| **Amendment 3 effective from segment base** | **2027-01-25** |",
-                      "| **Amendment 3 effective from segment base** | **%s** |" % effective)
+    # **BY FIELD NAME, NOT BY THE CURRENT VALUE, AND THE SUBSTITUTION IS ASSERTED.** The first
+    # cut replaced the literal `**NO**`; the moment Don signed, that string was gone, the
+    # replacement silently did nothing, and every "unsigned" test ran against the SIGNED
+    # contract -- one of them reporting `'NO' read as signed` about a row it had not written.
+    # A fixture that cannot apply its own perturbation must fail, not fall back to the shipped
+    # state under another name.
+    import re as _re
+    for field, value in (("Amendment 3 signed", signed),
+                         ("Amendment 3 effective from segment base", effective)):
+        pat = _re.compile(r"^\|\s*\*{0,2}%s\*{0,2}\s*\|.*\|\s*$" % _re.escape(field),
+                          _re.M)
+        txt, n = pat.subn("| **%s** | **%s** |" % (field, value), txt)
+        assert n == 1, "the %r row was not substituted (%d matches)" % (field, n)
     io.open(path, "w", encoding="utf-8").write(txt)
     return path
 
 
 class TheContractIsTheSwitch(unittest.TestCase):
-    """**AS SHIPPED, AMENDMENT 3 IS NOT IN FORCE**, and the reason names the row."""
+    """**SIGNED BY DON ON 2026-10-17, EFFECTIVE FROM SEGMENT BASE 2027-01-25.** The document is
+    the switch and these read it; the UNSIGNED behaviour is pinned below through a fixture,
+    because "the record does not move while the row says NO" must stay true for the next
+    amendment as much as for this one."""
 
-    def test_it_is_UNSIGNED_as_shipped(self):
+    def test_it_IS_SIGNED_as_shipped(self):
         got = IM._amendment_3()
-        self.assertFalse(got["signed"])
-        self.assertIsNone(got["effective_from"])
-        self.assertIn("amendment 3 signed", got["reason"])
+        self.assertTrue(got["signed"], got["reason"])
+        self.assertEqual(got["effective_from"], "2027-01-25")
+        self.assertIn("2027-01-25", got["reason"])
 
-    def test_the_contract_SAYS_it_is_a_draft(self):
+    def test_the_contract_RECORDS_THE_SIGNATURE_and_who_gave_it(self):
         txt = io.open(CONTRACT, encoding="utf-8").read()
         self.assertIn("AMENDMENT 3", txt)
-        self.assertIn("DRAFT — AWAITING DON'S SIGNATURE. NOT IN FORCE.", txt)
-        self.assertIn("| **Amendment 3 signed** | **NO** |", txt)
+        self.assertIn("SIGNED — Don, 2026-10-17", txt)
+        self.assertIn("Amendment 3 signed", txt)
+        self.assertIn("2026-10-17 (Don, in chat)", txt)
+
+    def test_and_the_document_does_NOT_still_call_itself_a_draft(self):
+        """**A HEADLINE SAYING "NOT IN FORCE" ABOVE A SIGNATURE ROW SAYING YES IS THE SHAPE THIS
+        PROJECT KEEPS PAYING FOR** -- two states, one value, and a reader trusts the headline.
+        The headline is a statement ABOUT the row, so it moved with it."""
+        txt = io.open(CONTRACT, encoding="utf-8").read()
+        self.assertNotIn("DRAFT — AWAITING DON'S SIGNATURE", txt)
+        self.assertNotIn("NOT IN FORCE.", txt)
+        self.assertNotIn("The signature row is still NO", txt)
 
     def test_a_signature_makes_it_in_force(self):
         tmp = tempfile.mkdtemp()
@@ -89,6 +111,16 @@ class TheContractIsTheSwitch(unittest.TestCase):
         got = IM._amendment_3(p)
         self.assertTrue(got["signed"], got["reason"])
         self.assertEqual(got["effective_from"], "2027-01-25")
+
+    def test_a_BARE_NO_is_not_a_signature(self):
+        """The state the record shipped in until Don signed, kept as a behaviour test."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        p = contract_with("NO", "2027-01-25", os.path.join(tmp, "c.md"))
+        got = IM._amendment_3(p)
+        self.assertFalse(got["signed"])
+        self.assertIsNone(got["effective_from"])
+        self.assertIn("not a signature", got["reason"])
 
     def test_HEDGED_PROSE_IS_NOT_A_SIGNATURE(self):
         """`index_track`'s own lesson: its first implementation read `yes-ish, mostly` as a pass.
@@ -261,6 +293,31 @@ class ItChangesTheRecordONLYWhenSignedAndInWindow(unittest.TestCase):
                 IM._amendment_3 = orig
         finally:
             IM.DISTRIBUTIONS = real
+
+    def test_AS_SHIPPED_TODAY_the_record_does_not_move_AT_ALL(self):
+        """**THE PROPERTY DON ASKED FOR, AND IT HOLDS FOR TWO INDEPENDENT REASONS -- both have
+        to be said or the signature reads as a restatement.**
+
+        (a) **NO BACKFILL**: the credit window is `base < distribution <= mark`, so a segment
+            whose base predates 2027-01-25 cannot be reached. The record's own bases are
+            inception 2026-07-30 and the 2026-10-22 rebalance, both earlier.
+        (b) **NOTHING IS DECLARED**: `DISTRIBUTIONS` is empty, so the credit is zero in every
+            segment whether the amendment is in force or not.
+
+        Either alone would be enough; (b) is why a row produced today is bit-identical rather
+        than merely unreachable.
+        """
+        self.assertEqual(IM.DISTRIBUTIONS, ())
+        a = IM._amendment_3()
+        for base in ("2026-07-30", "2026-10-22"):
+            self.assertFalse(base >= (a["effective_from"] or "9999"),
+                             "a RECORDED segment is in scope: %s" % base)
+        # And a declared distribution inside a recorded segment credits nothing.
+        got = IM.distribution_credit(
+            "APTV", "2026-07-30", "2026-08-20",
+            distributions=({"ticker": "APTV", "date": "2026-07-25",
+                            "value_per_parent_share": 9.28, "source": "t"},))
+        self.assertEqual(got["credit"], 0.0, got["reason"])
 
     def test_UNSIGNED_the_fake_loss_STANDS(self):
         """**THE PROPERTY THAT MAKES THIS SAFE TO SHIP BEFORE DON SIGNS.** The record is what it

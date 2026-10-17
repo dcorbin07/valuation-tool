@@ -703,14 +703,16 @@ class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
         unfillable limit produces, so counting accepted orders as progress would make the
         ceiling unreachable in the one state it exists for. `reconcile` builds holdings from
         FILLS, which is why it cannot be fooled."""
+        import inspect
         from valuation.edge import live_cycle as LC
-        src = open(LC.__file__, encoding="utf-8").read()
-        # **THE MARKERS MOVED WITH THE CHANGE [item 67].** The block now ends at the budget
-        # rather than at the intent, because item 67 inserted the no-borrow sizing between
-        # them. A source assertion keyed on surrounding prose is a guard that rots, which is
-        # why this one is bounded by its own opening line and the NEXT dashed header instead.
-        block = src[src.index("# **THE CEILING COUNTS TRADING DAYS, NOT CYCLES"):]
-        block = block[:block.index("# ---- SIZE THE BUYS TO WHAT CAN BE SPENT")]
+        # **REPOINTED AT THE FUNCTION THAT OWNS THE PROPERTY [item 70].** This used to slice
+        # `run_slot` between two comments, and item 70 moved the ceiling into
+        # `note_no_progress` so that three branches reach ONE definition -- the resting branch
+        # and the blocked branch could not reach it at all before, and the blocked branch's own
+        # comment claimed it did. The PROPERTY is unchanged; a guard keyed on where a property
+        # lives rather than on the property is the shape this record keeps catching, and
+        # `getsource` cannot drift when a neighbouring comment changes.
+        block = inspect.getsource(LC.note_no_progress)
         self.assertIn('st.get("holdings")', block)
         self.assertNotIn('out["sent"]', block)
         self.assertNotIn('plan["orders"]', block)

@@ -1614,21 +1614,29 @@ fills experiment, not a verdict.
 
 ## 5a-3. AMENDMENT 3 — A DISTRIBUTION IS RECEIVED (spin-offs and demergers)
 
-# DRAFT — AWAITING DON'S SIGNATURE. NOT IN FORCE.
+# SIGNED — Don, 2026-10-17. IN FORCE FOR SEGMENTS BASED ON OR AFTER 2027-01-25.
 
 **Nothing in the record changes until the signature row below says YES.** The code that
 implements this rule reads that row on every mark and is dormant while it reads anything else,
 so this document is the switch rather than a description of one.
 
+**SIGNED 2026-10-17, AND NO RECORDED NUMBER MOVES, for two independent reasons that both have to
+be stated or the signature reads as a restatement.** First, the effective date is a segment base
+in the future, and the credit window is `segment base < distribution date <= mark`, so no segment
+the record has already marked can be reached. Second, **the declared distribution list is
+EMPTY** -- the count is a row below -- so there is nothing to credit in any segment, in force or
+not. A row produced today is therefore bit-identical to a row produced before the signature,
+which is pinned by test rather than promised here.
+
 | field | value |
 |---|---|
-| **Amendment 3 signed** | **NO** |
+| **Amendment 3 signed** | **YES — 2026-10-17 (Don, in chat)** |
 | **Amendment 3 effective from segment base** | **2027-01-25** |
 
-Don approved the rule on **2026-10-17**, on item 69's finding. The signature row is still NO
-because **a rule that changes a recorded number should be switched on by the person who owns the
-record, in the document that defines it** — the same reason §5's operational gate is a row a
-human sets rather than a day count the code reaches on its own.
+Don approved the rule on **2026-10-17**, on item 69's finding, and signed it the same day.
+The signature is a row in this document because **a rule that changes a recorded number should be
+switched on by the person who owns the record, in the document that defines it** — the same reason
+§5's operational gate is a row a human sets rather than a day count the code reaches on its own.
 
 ### THE RULE
 
