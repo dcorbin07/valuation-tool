@@ -12405,3 +12405,211 @@ asserts the total is unchanged.
   asserting my own fixture.** Replaced with a shape built to exhibit the mechanism, and the
   general fixture now only pins that the two figures are both reported and differ.
 * **14 tests.** `valuation/web/scream_track.py`.
+
+
+---
+
+## 93. EARNINGS-CSP's FREE KILL IS UNRESOLVED, AND THE PERMISSION IT EXISTS TO GRANT IS THEREFORE NOT GRANTED (2026-10-16, `K1`)
+
+The Frontier Scout's `PREREG_DRAFT_earnings_csp.md` (`d5c50e4`) froze one pre-outcome kill:
+*"the arm runs only if the measured earnings payoff ratio is <= 0.65. Above it, the register STOPS
+and reports the ratio."* **Run exactly as frozen. ZERO TRIALS, zero new data, no option quoted,
+no chain read** (`DC-1`'s precedent) - every input is a banked column of `O6O7O17_EVENTS.pkl`.
+**NO REGISTER IS COMMITTED AND NO ARM RUNS.**
+
+* **THE REGISTERED STATISTIC PASSES BY 0.0014 AND CANNOT BE SEPARATED FROM ITS OWN BAR.** On
+  `O7`'s 6,013 banked events (5,991 scored, 22 dropped), the payoff ratio is **0.6486** against a
+  bar of 0.65 - clearing by **0.2% of the bar** - with a **name-clustered CI95 of [0.5852,
+  0.7105] THAT SPANS IT**. Clustered by NAME because the event is never the unit (`SC-3`): one
+  ticker contributes up to ~40 earnings events whose vols move together, and an event-level
+  interval would be far too narrow on a reading this close.
+* **AND THE READING MATCHED TO THE DESIGN'S OWN DECLARED TENOR FIRES, DECISIVELY.** The draft
+  sells a **15-calendar-DTE** put; restricted to events whose expiry is inside that tenor
+  (n 5,091) the ratio is **0.7358, CI95 [0.6643, 0.8023] - the ENTIRE interval above the bar**,
+  and above the draft's own second line that *"at a ratio of 0.70 or worse the arm is
+  underpowered by construction and must not run"*.
+* **BOTH BIAS DIRECTIONS WERE DECLARED IN THE INSTRUMENT BEFORE THE NUMBER WAS READ, AND BOTH ARE
+  PINNED BY TEST - WHICH IS THE ONLY REASON THE TWO READINGS CAN BE TOLD APART.** **(a) No skew:**
+  `O7` banks only the ATM straddle, so a 25-delta put is priced off the ATM vol; a real one trades
+  dearer, so the modelled price is too LOW and the ratio too HIGH - **the direction that makes the
+  kill FIRE, i.e. safe**. **(b) Settlement at `post` rather than at expiry:** `O7` holds the price
+  the day after the announcement and never at expiry, so remaining time value is dropped, the
+  payoff is too LOW and the ratio too LOW - **the direction that makes the kill PASS, i.e.
+  unsafe.** **THAT SECOND BIAS IS EXACTLY WHAT SEPARATES THE TWO READINGS**: the full sample
+  carries events dated out to 45 days whose price covers a window the settle never reaches, and
+  removing them lifts the ratio over the bar.
+* **THE THIRD QUANTITY DECIDES IT AND THIS DATA CANNOT SEE IT.** The skew sensitivity re-prices
+  the same strike and the same realised payoff at a richer vol: **x1.05 -> 0.6671, x1.10 ->
+  0.6092** on the tenor-matched reading. **A 10% relative skew premium on the 25-delta put takes
+  even the firing reading back under the bar.** So the answer turns on a number no banked column
+  holds.
+* **VERDICT `UNRESOLVED`, AND THE REGISTER STOPS.** The rule is a **PERMISSION** - *"the arm runs
+  ONLY IF"* - and a permission that cannot be established is not granted. `RUN_RULES` A6:
+  ambiguous against a pre-committed threshold is a NULL, never a judgement call. **Reporting
+  "passes" would be reporting a point estimate as though it were the quantity**, on a margin of
+  0.2% inside an interval six percentage points wide.
+* **WHAT IT IS NOT: this is NOT a finding that selling earnings premium loses money.** `O7`'s
+  own result that earnings options are RICH on this universe is untouched. It is a finding that
+  **the free kill cannot establish the permission it exists to grant**, which is a statement
+  about the instrument and not about the trade.
+* **WHAT WOULD SETTLE IT, AND WHY IT IS NOT DONE HERE.** Price a **real** 25-delta put from the
+  **owned raw chain layer** at the pre date and settle it at **expiry**. That removes the no-skew
+  and the settle-early approximations **at once**, uses data this project already holds, and
+  needs no purchase. **It needs its own pre-commitment**, because choosing a better instrument
+  *after* seeing 0.6486 is choosing an instrument on an outcome - the draft deliberately defined
+  `K1` as *"no new data, no option quote"*, and substituting now would be exactly the "keep
+  measuring until something clears" this record warns about hardest.
+* **22 ROWS DROPPED AND COUNTED, NEVER SETTLED.** `realised_move` is an absolute move off the
+  ADJUSTED series and the sign comes from the AS-TRADED pair, so a corporate action inside the
+  four-day window is caught by the two magnitudes disagreeing - `O-1`'s MNST 3-for-1, which
+  booked a fake +1453% from precisely this shape.
+* **A DEFECT IN MY OWN TEST, AND A SECOND ONE WORTH NAMING.** The ratio-of-means test asserted
+  that the ratio of means differs from the mean of ratios **on a fixture where every event had
+  the same price**, on which the two coincide identically - it failed against correct code.
+  And its sibling asserted `assertIn("<=", "<=")`, **a tautology that cannot fail**; it now
+  asserts the direction appears in the rule string, because a kill that silently became `>=`
+  would invert the verdict while every other test still passed. **16 tests.**
+  `scripts/earnings_csp_k1.py`, `tests/test_earnings_csp_k1.py`;
+  `data/free_analysis/EARNINGS_CSP_K1.json`.
+
+---
+
+## 94. A FREE FORWARD EARNINGS CALENDAR EXISTS AND IS GOOD ENOUGH FOR AN EVENT-AVOIDING BOOK WITH A BUFFER - AND THE CONFIRMED/ESTIMATED FLAG IS THE WHOLE DESIGN (2026-10-16)
+
+**ZERO TRIALS, `FIXED`-class** - facts about what data exists, no hypothesis, no bar, no verdict
+against one. **NOTHING IS WIRED INTO A BOOK.**
+
+**WHY IT IS A PREREQUISITE RATHER THAN A DETAIL.** The licensed event spine holds **385,426
+code-22 rows and not one forward date**, which is why `F-4` earned `RULE_ARMED_NEVER_FIRES` and
+*"as declared enters nothing, ever"*. `F-4`, `F-10`, `EARNINGS-CSP`'s stage 3 and every
+event-avoiding book need a calendar that says when the NEXT announcement is.
+
+* **THE TWO LEGS ARE BOTH FREE AND BOTH ALREADY IN REACH.** Forward: Yahoo's
+  `earningsTimestampStart`, which `valuation/data/yahoo.py` **already reads for the live app**, so
+  this is the route the project is on rather than a new vendor. Realised:
+  **`data.sec.gov/submissions/CIK*.json`, 8-K Item 2.02** - *Results of Operations and Financial
+  Condition*, i.e. the earnings release itself - no key, no licence.
+* **COVERAGE, on the fleet's own 487-name optionable gate.** Yahoo returns a **future** date for
+  **444 (91.2%)**; the SEC leg resolves **477 of 487 to a CIK** and finds Item 2.02 history for
+  **414 (85.0%)**, at a median of **12 releases over three years** - four a year, as it should be.
+  **43 names (8.8%) have no forward date at all, and a book must REFUSE those rather than read
+  them as event-free** - `O7`'s 29 foreign private issuers are the precedent for what a
+  fail-open costs.
+* **THE FIELD THAT MAKES THIS USABLE IS `isEarningsDateEstimate`, AND IT IS EXPLICIT.** Of the 444
+  forward dates, **377 (84.9%) are CONFIRMED and 67 are projected**. **And the split is
+  informative about horizon rather than merely descriptive: confirmed dates sit a median of 13
+  days ahead and estimated ones 34.** So a name's date firms up as the announcement approaches -
+  which is exactly the window a 15-DTE put or a 30-DTE event-avoidance rule cares about.
+  **207 confirmed dates fall inside 15 days and 339 inside 30.** Not one date came back as a
+  RANGE, so the `Start`/`End` pair adds nothing here and the flag carries the whole signal.
+* **"HOW OFTEN IT MOVES" IS MEASURED RETROSPECTIVELY, WITH NO YAHOO DATA AT ALL, AND IT IS THE
+  CEILING ON ANY PROJECTED CALENDAR.** Yahoo's *estimated* dates are a projection from the prior
+  year's calendar position, and that rule is testable on SEC history alone. Over **3,391
+  year-on-year pairs**: **median absolute drift 1 day, p75 5, p90 6, p95 9, max 45** -
+  **exact only 9.6% of the time, within 3 days 69.4%, within 7 days 92.1%.**
+* **SO THE ANSWER IS CONDITIONAL AND THE CONDITION IS THE TOLERANCE THE BOOK NEEDS.** **For an
+  event-AVOIDING book: good enough, on CONFIRMED dates, with a buffer** - a confirmed date is one
+  the company has published, and the 8% of names without any forward date are refused rather than
+  assumed clear. **For an event-OWNING book such as `EARNINGS-CSP`'s stage 3: good enough only
+  with about a week of buffer**, because a projected date is exact less than a tenth of the time
+  and the p95 miss is 9 days. **A rule that needs the date to the day does not exist on free
+  data.**
+* **THE WEAKER CROSS-CHECK, LABELLED AS WEAKER.** Yahoo's published date against the date the SEC
+  history implies by the same projection: **n 389, median absolute gap 1 day, 87.9% within a
+  week.** Two independent free sources agreeing is **not** a realised check, and it is said so in
+  the artifact - **Yahoo publishes only the next date, so its own forecasts cannot be scored
+  without snapshots this project has never taken. This run writes the first one.**
+* **NOT DONE, named so it is not mistaken for done: nothing is wired into any book**, no
+  declaration is amended, `F-4` and `F-10` are not re-declared (Don's ruling of 2026-10-16 is
+  explicitly *"not now"*), and the retrospective accuracy of **Yahoo's own forecasts** remains
+  unmeasured until a second snapshot exists. `scripts/earnings_calendar_census.py`;
+  `data/free_analysis/EARNINGS_CALENDAR_CENSUS.json`.
+
+
+---
+
+## 95. F-21b's RULE IS FROZEN BEFORE THE FIRST FILL, AND THE FLEET'S OWN SCHEDULE SITS FOUR HOURS AFTER THE CLOSE (2026-10-16)
+
+**`PREREG_f21b_stress_gate.md` committed ALONE at `753b96c`**, markdown only, zero `.py`, a
+strict ancestor of anything that reads it, with **1 options trial booked at `3953d10` BEFORE any
+runner exists** (options `N` 323 -> 324). Accepted from the Frontier Scout's draft `da616fc`.
+**NOTHING IS ADOPTED, NO RULE IS APPLIED, NO PARTITION IS COMPUTED.**
+
+* **THE REGISTER PROMISES NO VERDICT, AND THAT IS WHY IT IS WORTH COMMITTING.** The partition
+  needs about **84 gate-on fills** against `F-21`'s declared **2.0 fills/month** - roughly
+  **17.5 years** - so a register claiming the gate will be confirmed would claim what the
+  arithmetic forbids. What it delivers is a **rule frozen before the fills exist** plus a
+  four-part reporting obligation whose fourth item is **the gate's COST**, because `R1-VAR` makes
+  that the number Don decides on.
+* **THE RULE, with zero free parameters: SPY below its 200-session simple moving average of the
+  adjusted close means stand aside.** Faber (2007), published nine years before the first options
+  row. No buffer, no confirmation window, no second condition, no alternative lookback - each
+  would be a free parameter. **The VIX/VIX3M alternative is preferred on MECHANISM and blocked on
+  a measured data absence** (no VIX or VIX3M series exists in this repository), and if that feed
+  is ever built **the two must be frozen together**, because choosing it after seeing the SMA's
+  partition is choosing a rule on its outcome.
+* **THE CONTAMINATION IS DECLARED RATHER THAN MANAGED: I KNOW 2020 HAPPENED.** The only window
+  containing a crash has been read twice and **options data begins in 2016**, so a gate fitted
+  and confirmed there is circular. **Computing the gate's effect on 2016-2026 in any form is a
+  void condition.** The two defences - zero parameters, and a publication predating the data -
+  are weaker than blindness and are what exists.
+* **THE DRAFT'S OWN FIRST ACT, VERIFIED HERE AND NEGATIVE SO FAR.** *"The register's first act is
+  to confirm F-21 is actually recording fills on its declared population"*, because a partition
+  of an empty book is `RULE_ARMED_NEVER_FIRES` wearing a finding's clothes. **Measured: `F-21`
+  and `F-22` have NO record stream at all in the 2026-10-04 backup - not an empty one, none** -
+  and the only book with fills is `f3_bear_puts` at 72. **That backup predates their arming, so
+  it is evidence the partition is not yet readable and NOT evidence the rule never fires**, and
+  the first deliverable at the read is `n`, so an empty partition reports itself.
+* **THE TRIAL IS BOOKED NOW THOUGH THE DRAFT PRICES IT AT THE VERDICT READ.** `MA6`: overstating
+  `N` is the safe direction, and nothing is measured here, so the charge is purely conservative.
+  A reader who thinks it should be zero has the row to amend.
+
+### The fleet's schedule, its balance, and the one thing Alpaca does not document
+
+* **THE CYCLE RUNS FOUR HOURS AFTER THE CLOSE, MEASURED RATHER THAN ASSUMED.** `fleet-cycle.yml`
+  crons at **22:19Z** and the last six runs landed at **00:24Z, 00:31Z, 01:13Z, 07:15Z, 03:03Z
+  and 01:45Z** - GitHub firing this repository's crons 3.5 to 7.5 hours late, exactly item 64's
+  measurement. **00:24Z is 8:24pm ET.**
+* **AND WHAT ALPACA DOES WITH AN OPTIONS ORDER AT THAT HOUR IS NOT DOCUMENTED.** What IS
+  documented: options support **market and limit only**, **time in force DAY only**, *"Extended
+  hours is not supported for options trading"*, and market orders *"only during market hours"*.
+  What is documented for **EQUITIES** is that an after-hours order not eligible for extended
+  hours *"will be queued up for release the next trading day"*. **Whether an OPTIONS limit order
+  queues the same way or is rejected is stated nowhere - searched, and Alpaca does not say.**
+  **That is a measurement, not an inference**, and the live cycle makes it for free: whatever the
+  broker answers lands in the record as a fill or a named refusal. **It is deliberately NOT
+  probed from here** - the only credentials this machine could reach are the Index paper slot's,
+  and spending them on a probe would put an option position in the book that records the Index.
+* **SO THE IN-HOURS SCHEDULE IS HANDED OVER NOW RATHER THAN AFTER A FAILURE**, in
+  `pending_workflows/fleet-cycle-in-hours.yml`. **The cron is DERIVED from the measured delay
+  rather than chosen: 12:00Z + 3.5h = 15:30Z and 12:00Z + 7.5h = 19:30Z, so both ends of the
+  range land inside regular hours in BOTH halves of the year** (13:30-20:00Z under EDT,
+  14:30-21:00Z under EST) and no DST pair is needed. It is a **REPLACEMENT**, and the file says
+  so twice: **two schedules would run two cycles a day and each can enter**, so the books would
+  fill at twice their declared rate and their verdict horizons would stop meaning what the
+  declarations say. Body otherwise verbatim from `fleet-cycle.yml` so the two cannot drift in
+  anything but the schedule.
+* **THE STARTING BALANCE THE FLEET ACCOUNT NEEDS, derived from the declarations and the measured
+  book rather than guessed.** The three short books declare **concurrency caps of 10 (`F-21`),
+  10 (`F-22`) and 5 (`F-8`) - 25 concurrent cash-secured puts**. Secured cash per contract,
+  measured on `SELL-PREMIUM-2`'s own 4,617-trade stage-2 book (the exact construction `F-21` and
+  `F-22` run): **median $7,000, mean $11,220, p75 $13,400, p95 $33,500, max $304,500** at a
+  median strike of $70.
+
+  | balance | covers 25 positions at |
+  |---|---|
+  | $175,000 | the **median** contract |
+  | $250,000 | the median with 43% headroom - **the recommendation** |
+  | $335,000 | the **p75** contract |
+  | $837,500 | the **p95** contract |
+
+  **$250,000 is the recommendation**, and the reason it is not larger is that the cap, not the
+  cash, should be what binds. **An undersized account does not corrupt the record** - the
+  declarations require the skip reason to be stored, so **an affordability skip is never read as
+  a concurrency skip** (`MB3`, whose own finding was that a small account's failures were
+  affordability rather than ruin) - **but it does silently shrink the book**, and a few very
+  high-priced names can consume a disproportionate share of it.
+* **NOT DONE: no Alpaca paper option order has been placed on the service yet.** Tonight's cycle
+  is the first since the client landed, `F-4` and `F-10` stay retired on Don's 2026-10-16 ruling,
+  and the three short books still refuse with `SHARED_ACCOUNT_WOULD_COLLIDE` until
+  `ALPACA_FLEET_PAPER_KEY_ID` / `_SECRET_KEY` exist.

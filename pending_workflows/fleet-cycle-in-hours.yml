@@ -1,0 +1,85 @@
+name: FLEET CYCLE (in market hours)
+
+# HANDOVER, 2026-10-16 (item 66b part 1). INSTALL THIS ONLY IF THE OUT-OF-HOURS CYCLE IS NOT
+# PLACING OPTION ORDERS. It is a REPLACEMENT SCHEDULE for `fleet-cycle.yml`, not an addition --
+# see "BEFORE YOU INSTALL" below, because running both would double-enter the books.
+#
+# WHY IT MIGHT BE NEEDED, STATED AS WHAT IS KNOWN AND WHAT IS NOT.
+#   * Alpaca documents, for OPTIONS: market and limit order types only, time in force DAY only,
+#     and "Extended hours is not supported for options trading". Market orders are explicitly
+#     allowed "only during market hours".
+#   * Alpaca documents, for EQUITIES: an order submitted after 4:00pm ET that is not eligible
+#     for extended hours "will be queued up for release the next trading day".
+#   * WHAT IS *NOT* DOCUMENTED ANYWHERE: whether an OPTIONS limit order submitted after the
+#     close is queued the same way or rejected. Searched; Alpaca does not say. **That is a
+#     measurement, not an inference**, and the live cycle makes it for free -- whatever the
+#     broker answers lands in the fleet record as a fill or a named refusal.
+#
+# So this file exists so the fleet is not blocked on an undocumented behaviour. The current
+# cycle fires at 22:19Z and has been LANDING at about 00:24Z -- 8:24pm ET, hours after the
+# close -- because GitHub fires this repository's crons 3.5 to 7.5 hours late (item 64's
+# measurement, not an estimate).
+#
+# THE CRON IS DERIVED FROM THAT DELAY RATHER THAN CHOSEN.
+#   12:00Z + 3.5h = 15:30Z  = 11:30am EDT / 10:30am EST  -- inside regular hours
+#   12:00Z + 7.5h = 19:30Z  =  3:30pm EDT /  2:30pm EST  -- inside regular hours
+# Regular hours are 13:30-20:00Z under EDT and 14:30-21:00Z under EST, so **both ends of the
+# measured delay range land inside the session in BOTH halves of the year** and no DST cron
+# pair is needed. A later cron would risk the 7.5h tail landing after the close; an earlier one
+# would risk the 3.5h head landing before the open.
+#
+# BEFORE YOU INSTALL -- ONE THING TO CHECK AND ONE TO DO:
+#   1. Read the fleet records first. If option orders ARE filling on the 22:19Z schedule, do
+#      NOT install this: the out-of-hours door works and a second schedule buys nothing.
+#   2. If you do install it, DISABLE `fleet-cycle.yml`'s schedule (Actions -> FLEET CYCLE ->
+#      "..." -> Disable workflow). **Two schedules would run two cycles a day and each one can
+#      enter**, so the books would fill at twice their declared rate and their verdict horizons
+#      would stop meaning what the declarations say.
+#
+# Everything below this line is `fleet-cycle.yml` verbatim except the name and the cron -- the
+# door, its rules, the secrets and the cause-reporting are unchanged, deliberately, so the two
+# files cannot drift in anything but their schedule.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 12 * * 1-5"
+
+concurrency:
+  group: fleet-cycle
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST the fleet-cycle door
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "::error::SITE_BASE_URL or ADMIN_TOKEN is unset"; exit 1
+          fi
+          BODY=$(mktemp)
+          CODE=$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
+                   --max-time 280 \
+                   -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                   "${SITE_BASE_URL%/}/admin/fleet-cycle?run=1") || CODE="000"
+          echo "HTTP ${CODE}"
+          cat "$BODY"
+          [ "$CODE" = "200" ] || { echo "::error::fleet-cycle returned ${CODE}"; exit 1; }
+          if grep -q '"breathing": *true' "$BODY"; then
+            echo "the fleet is BREATHING"
+          else
+            REASON=$(python -c "import json,sys;print((json.load(open(sys.argv[1])) or {}).get('not_breathing_reason') or 'unreported')" "$BODY" 2>/dev/null || echo unreported)
+            echo "::warning::fleet is DECLARED-BUT-NOT-BREATHING -- cause: ${REASON}"
+            case "$REASON" in
+              *SELFCHECK_STALE*)
+                echo "::warning::fix: run the FLEET SELF-CHECK (re-certify) workflow once -- Actions -> Run workflow" ;;
+            esac
+          fi
