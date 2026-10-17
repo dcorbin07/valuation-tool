@@ -779,6 +779,121 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# AMENDMENT 3 -- A DISTRIBUTION IS RECEIVED.  Dormant until the contract's signature row says so.
+# ---------------------------------------------------------------------------------------------
+
+#: The contract field that switches this rule on. **The DOCUMENT is the switch**, read on every
+#: mark through the same parser `gate_state` uses -- so a rule that changes a recorded number is
+#: turned on by the person who owns the record, in the place where the record is defined.
+AMENDMENT_3_FIELD = "amendment 3 signed"
+
+#: And the segment base it takes effect from. A SEGMENT BASE rather than a calendar date, so the
+#: rule turns on at a rebalance: switching mid-segment would leave one segment measured two ways.
+AMENDMENT_3_FROM_FIELD = "amendment 3 effective from segment base"
+
+#: First whole word of the signature value that counts as signed. Reuses `index_track`'s
+#: vocabulary rather than inventing a second one -- `yes-ish, mostly` is not a signature.
+AMENDMENT_3_YES = ("yes", "signed", "true")
+
+#: EVERY DISTRIBUTION THE RECORD KNOWS ABOUT, declared in tracked source.
+#:
+#: **COMMITTED SOURCE IS "STORED AT THE TIME."** Amendment 2 records that *"a successor wanting
+#: the series reproducible to the digit needs the delisting close STORED on the row at the time,
+#: not re-fetched later"*, and a distribution's value is worse than a delisting close for
+#: re-fetching: the spun-off entity's first-day price is exactly the figure vendors disagree
+#: about and revise. A declared entry is dated by its commit and visible in a diff.
+#:
+#: `value_per_parent_share` is in the SAME CURRENCY AND UNITS as the parent's close, and `source`
+#: must say which construction produced it -- a when-issued price, a first regular-way close
+#: times the ratio, and an official declared value are three different numbers.
+#:
+#: **EMPTY TODAY**, because no distribution has occurred inside a segment on or after the
+#: effective date. The two measured cases (Aptiv 2026-04-01, Unilever 2025-12-08) both predate
+#: the record's inception, so there is nothing for them to correct.
+DISTRIBUTIONS = ()
+
+
+def _amendment_3(path: str = None) -> dict:
+    """Is Amendment 3 in force, and from which segment base? Read from the contract.
+
+    `{"signed", "effective_from", "reason"}`. **Anything other than a clean signature is NOT
+    signed** -- absent, blank, `NO`, hedged prose, or two rows disagreeing, which is a broken
+    register rather than an approval. Same resolution as the operational gate, for the same
+    reason.
+    """
+    out = {"signed": False, "effective_from": None, "reason": ""}
+    try:
+        from . import index_track as _it
+    except Exception as ex:                                             # noqa: BLE001
+        out["reason"] = "the contract could not be read: %r" % (ex,)
+        return out
+    got = _it.contract_rows(AMENDMENT_3_FIELD, path)
+    vals = list(got.get("values") or [])
+    if not vals:
+        out["reason"] = ("the contract carries no '%s' row, so Amendment 3 is NOT in force and "
+                         "a distribution is recorded as the parent's price alone"
+                         % AMENDMENT_3_FIELD)
+        return out
+    tokens = [_it._verdict_token(v) in AMENDMENT_3_YES for v in vals]
+    if not all(tokens):
+        out["reason"] = (("the contract carries conflicting '%s' rows (%r), resolved as NOT "
+                          "signed" % (AMENDMENT_3_FIELD, vals)) if any(tokens) else
+                         ("the contract records '%s' as %r, which is not a signature"
+                          % (AMENDMENT_3_FIELD, vals[0])))
+        return out
+    eff = list((_it.contract_rows(AMENDMENT_3_FROM_FIELD, path).get("values") or []))
+    day = _date(eff[0][:10]) if len(eff) == 1 else None
+    if day is None:
+        # **SIGNED WITH NO USABLE EFFECTIVE DATE IS NOT IN FORCE.** A signature without a
+        # segment base would apply the rule to every segment including recorded ones, which is
+        # the backfill the amendment forbids -- so the missing half refuses rather than
+        # defaulting to "all of it".
+        out["reason"] = ("Amendment 3 is signed and its '%s' row is %s, so there is no segment "
+                         "base to apply it from and it stays dormant -- a signature without an "
+                         "effective date would reach recorded rows, which the amendment forbids"
+                         % (AMENDMENT_3_FROM_FIELD,
+                            ("missing" if not eff else "ambiguous (%r)" % eff)))
+        return out
+    out.update(signed=True, effective_from=day.isoformat(),
+               reason=("Amendment 3 is in force for segments based on or after %s"
+                       % day.isoformat()))
+    return out
+
+
+def distribution_credit(ticker: str, seg_base: str, mark: str, *,
+                        distributions=None) -> dict:
+    """The value per parent share this holding RECEIVED inside this segment, and why.
+
+    `{"credit", "events", "reason"}`. Only a distribution strictly AFTER the segment base and
+    on or before the mark counts: **the base price already reflects a distribution that happened
+    before it**, so crediting one twice would invent a gain. That window is also what makes
+    no-backfill structural rather than a policy.
+    """
+    out = {"credit": 0.0, "events": [], "reason": ""}
+    b, m = _date(seg_base), _date(mark)
+    if b is None or m is None:
+        out["reason"] = "the segment base or the mark date is unreadable"
+        return out
+    t = str(ticker or "").strip().upper()
+    for ev in (DISTRIBUTIONS if distributions is None else distributions):
+        if str((ev or {}).get("ticker") or "").strip().upper() != t:
+            continue
+        d = _date((ev or {}).get("date"))
+        v = _f((ev or {}).get("value_per_parent_share"))
+        if d is None or v is None or v <= 0:
+            continue
+        if b < d <= m:
+            out["credit"] += float(v)
+            out["events"].append({"date": d.isoformat(), "value_per_parent_share": float(v),
+                                  "source": (ev or {}).get("source")})
+    out["reason"] = ("%d distribution(s) received inside this segment, worth %.6f per parent "
+                     "share" % (len(out["events"]), out["credit"]) if out["events"]
+                     else "no declared distribution falls inside this segment")
+    return out
+
+
+
 def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
                  now: _dt.datetime = None, refuse_before_close: bool = True,
                  history_path: str = None) -> dict:
@@ -921,6 +1036,10 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     _apply_ca = (seg_base_key >= CORPORATE_ACTION_FROM)
     num, wsum, unpriced = 0.0, 0.0, []
     exited: list = []
+    # AMENDMENT 3's state, read ONCE per mark rather than per holding: a contract that changed
+    # half-way through a row would be a row measured two ways.
+    _a3 = _amendment_3()
+    distributed: list = []
     total_w = sum(p["weight"] for p in seg_positions)
     for p in seg_positions:
         m = _closes(p["ticker"], fetch, vendors, as_of=mark_key)
@@ -948,7 +1067,25 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
                     continue
             unpriced.append(p["ticker"])
             continue
-        num += p["weight"] * (cur / base - 1.0)
+        # ---- AMENDMENT 3: A DISTRIBUTION IS RECEIVED ---------------------------------
+        #
+        # The parent's price alone books a loss the holder did not suffer: they hold the parent
+        # AND the shares that were handed out. `credit` is the declared value per parent share,
+        # taken at the distribution date and carried flat -- which makes NO CLAIM about what the
+        # distributed shares did next, exactly as Amendment 2's "sold at the last traded close"
+        # makes none about the proceeds.
+        #
+        # **DORMANT UNLESS THE CONTRACT'S SIGNATURE ROW SAYS OTHERWISE, and unreachable for a
+        # segment whose base predates the effective date** -- which is what "effective from the
+        # next segment, no backfill" means, and it is structural rather than a policy.
+        credit = 0.0
+        if _a3["signed"] and _a3["effective_from"] and seg_base_key >= _a3["effective_from"]:
+            dc = distribution_credit(p["ticker"], seg_base_key, mark_key)
+            if dc["events"]:
+                credit = dc["credit"]
+                distributed.append({"ticker": p["ticker"], "credit": round(credit, 6),
+                                    "events": dc["events"], "weight": p["weight"]})
+        num += p["weight"] * ((cur + credit) / base - 1.0)
         wsum += p["weight"]
 
     coverage = (wsum / total_w) if total_w else 0.0
@@ -983,6 +1120,14 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
             # in its note. `corporate_action_applies` is carried in BOTH states so a reader can
             # tell "no name exited" from "the rule was not in force yet".
             "exited": exited, "corporate_action_applies": _apply_ca,
+            # AMENDMENT 3, REPORTED EITHER WAY. A rule that is dormant says so, with the reason
+            # naming the contract row -- so "no distribution was credited" is distinguishable
+            # from "the rule is not in force", which is the two-states-as-one shape items 65,
+            # 67 and 69 each paid for on the live path.
+            "amendment_3": dict(_a3, applies_to_this_segment=bool(
+                _a3["signed"] and _a3["effective_from"]
+                and seg_base_key >= _a3["effective_from"])),
+            "distributions_credited": distributed,
             "corporate_action_from": CORPORATE_ACTION_FROM,
             "inception_date": inception.isoformat(), "benchmark": bench,
             "n_positions": len(seg_positions),

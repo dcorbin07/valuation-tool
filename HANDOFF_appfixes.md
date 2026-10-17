@@ -21376,3 +21376,111 @@ file avoids the name instead.
   `wait_state` reading the wall clock rather than the cycle's `now`, and deriving `HOLDERS`. All
   three are test seams or latent, none can place an order, and none is in this brief.
 
+
+## AMENDMENT 3 — a distribution is RECEIVED. DRAFTED FOR SIGNATURE, implemented, DORMANT.
+
+Don approved item 69 part 2's rule on **2026-10-17**. Amendment 3 is in
+`PAPER_TRACK_CONTRACT.md` **§5a-3** and the code that implements it is on `main` — **and the
+record has not changed, because the amendment is unsigned.**
+
+### THE SWITCH IS THE DOCUMENT, NOT A FLAG
+
+| field | value as shipped |
+|---|---|
+| `Amendment 3 signed` | **NO** |
+| `Amendment 3 effective from segment base` | **2027-01-25** |
+| `Amendment 3 declared distributions` | **0** |
+
+`index_mark._amendment_3()` reads those rows **on every mark**, through the same parser
+`gate_state` uses for the operational gate. **Unsigned, the row a mark produces is what it always
+was** — pinned by test, not promised. Don turns the rule on by setting one row, in the document
+that defines the record, which is the same arrangement §5's operational gate already uses and for
+the same reason: a rule that changes a recorded number should be switched on by the person who
+owns the record.
+
+**AND ANYTHING THAT IS NOT A CLEAN SIGNATURE IS NOT A SIGNATURE** — absent, blank, `NO`, `pending`,
+`yes-ish, mostly`, or two rows disagreeing, which resolves as a broken register rather than an
+approval. The vocabulary is **reused** from `index_track` rather than re-invented, because its own
+first implementation read `yes-ish, mostly` as a pass and its own test caught it; a second copy
+would be free to make the same mistake again.
+
+**ONE MORE REFUSAL WORTH NAMING: SIGNED WITH NO EFFECTIVE DATE IS NOT IN FORCE.** A signature with
+no segment base would reach every segment including recorded ones — exactly the backfill the
+amendment forbids — so the missing half refuses rather than defaulting to all of it.
+
+### EFFECTIVE FROM THE NEXT SEGMENT, AND NO BACKFILL IS STRUCTURAL RATHER THAN A POLICY
+
+The credit window is **`segment base < distribution date <= mark`**. A distribution on or before
+the base is already in the base price, so crediting it would invent a gain — and that same window
+means **a segment that opened before the effective date cannot be touched at all.** No-backfill is
+therefore a property of the arithmetic rather than a rule somebody has to remember.
+
+**AND THERE IS NOTHING TO BACKFILL.** Both measured cases — Aptiv 2026-04-01 and Unilever
+2025-12-08 — predate the record's 2026-07-30 inception, so the exposure this amendment removes is
+entirely prospective. Re-deriving recorded rows would change published figures to fix a problem
+they do not have.
+
+**THE EFFECTIVE DATE IS DERIVED, AND MY FIRST DRAFT INVENTED IT.** I typed `2027-01-28`;
+`index_in_force.next_rebalance("2026-10-22")` returns **2027-01-25** — 63 trading days on
+`market_session`'s calendar, the same authority the contract's gap report uses. A date typed into
+a document Don is about to sign, two clicks from the function that computes it, is the shape
+`MA5` and `MA19` keep catching.
+
+**WHY JANUARY AND NOT 2026-10-22, which is five days away.** If the signature lands *after* the
+next boundary, the rule would switch on part-way through that segment while its earlier marks were
+recorded under the old one — **one segment, two rules**, which is the thing a segment base exists
+to prevent. January is safe under either signing date, and the amendment states the condition for
+moving it earlier: **the date must be a segment base still in the future when the row is set.**
+
+### THE DISTRIBUTED VALUE IS DECLARED IN TRACKED SOURCE
+
+`index_mark.DISTRIBUTIONS`, following `EXITS`'s idiom exactly — ticker, date, value per parent
+share, and **the source of that value**. Committed source IS "stored at the time": dated by its
+commit, visible in a diff, and it cannot be silently re-fetched. **Amendment 2's own stated limit
+applies here with more force** — it records that a reproducible series needs the delisting close
+stored rather than re-fetched, and a spun-off entity's first-day price is exactly the figure
+vendors disagree about and revise.
+
+**The list is EMPTY today**, which the contract carries as its own row so the count is checkable
+rather than asserted. A malformed entry — no value, a zero, a negative, an unreadable date —
+credits **nothing**, because an entry this cannot read must not become a gain.
+
+**THE SOURCE MUST NAME ITS CONSTRUCTION, and that is not pedantry:** *"the spun-off entity's first
+regular-way close times the distribution ratio"* is the obvious choice, and a when-issued price or
+an official declared value are **different numbers**.
+
+### WHAT IT DOES NOT CLAIM
+
+**NO CLAIM ABOUT WHAT THE DISTRIBUTED SHARES DID NEXT.** The value is taken at the distribution
+date and carried flat, exactly as Amendment 2's *"sold at the last traded close"* *"makes no claim
+about what the proceeds did next."* A holder who kept their Versigent shares and watched them rise
+is not credited with it. **That is a deliberate floor on what this record claims to know**, and
+the alternative — tracking every spun-off entity forward — would make the Index a book of names it
+never selected.
+
+### A KNOWN GAP, NAMED IN THE AMENDMENT ITSELF
+
+**Nothing in this repository watches for a distribution.** The entry is made by a human who
+noticed, and a mark taken before the entry exists books the fake loss — which a recorded row then
+keeps. Item 68's `classify_disagreement`, pointed at the book's names since inception, detects
+exactly this shape and is the **same narrow measurement item 68 already put to Don**; until it
+runs, this rule's trigger is somebody reading the news. The amendment says so where a successor
+will read it rather than leaving it to be discovered.
+
+### ONE PARSER FOR THE CONTRACT
+
+`gate_state`'s row scan is extracted to `index_track.contract_rows` and `gate_state`
+**delegates**. A second reader of the document that governs the record would be a second
+definition of what it says, on the worst possible file (`B7`). The extraction is **proved inert**
+— `gate_state` returns the same verdict and the same reason, and its own suites pass unchanged —
+because that function decides the public posture.
+
+### WHAT IS NOT DONE
+
+- **The amendment is NOT signed, so nothing about the record has changed.** That is the state Don
+  asked for: drafted for his signature.
+- **No distribution is declared**, because none has occurred inside an eligible segment.
+- **Nothing watches for one.** Named above and in the amendment.
+- **No clock, σ, threshold or vintage moved**, and Amendment 2 is untouched and still in force for
+  acquisitions and delistings.
+

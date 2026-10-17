@@ -1609,3 +1609,156 @@ fills experiment, not a verdict.
 | **Auditor design review** | STILL REQUIRED, and it now covers item 67 as well — the live path changed |
 | **Slot 1 live authorization** | NOT YET |
 | **Slot 2 live authorization** | NOT YET |
+
+---
+
+## 5a-3. AMENDMENT 3 — A DISTRIBUTION IS RECEIVED (spin-offs and demergers)
+
+# DRAFT — AWAITING DON'S SIGNATURE. NOT IN FORCE.
+
+**Nothing in the record changes until the signature row below says YES.** The code that
+implements this rule reads that row on every mark and is dormant while it reads anything else,
+so this document is the switch rather than a description of one.
+
+| field | value |
+|---|---|
+| **Amendment 3 signed** | **NO** |
+| **Amendment 3 effective from segment base** | **2027-01-25** |
+
+Don approved the rule on **2026-10-17**, on item 69's finding. The signature row is still NO
+because **a rule that changes a recorded number should be switched on by the person who owns the
+record, in the document that defines it** — the same reason §5's operational gate is a row a
+human sets rather than a day count the code reaches on its own.
+
+### THE RULE
+
+> **A held name that distributes shares of another company counts as HAVING RECEIVED that
+> distribution. Its contribution to the book is measured against the parent's price PLUS the
+> value of what was distributed, per parent share, at the distribution date — and that value is
+> STORED AT THE TIME, not re-fetched later.**
+
+### WHY IT IS NEEDED — a measured defect, not a theoretical one
+
+**The record would otherwise book a loss that no holder suffered.** Each holding contributes
+`cur / base - 1` on the vendor's adjusted close, and item 68 measured that the record's own
+vendor left **Aptiv's** spin-off of Versigent (1 April 2026) as a **−10.58%** one-day cliff and
+**Unilever's** Magnum demerger (8 December 2025) as **−7.03%**. A holder of Aptiv that day lost
+nothing: they held one Aptiv share and a third of a Versigent share. The record, reading the
+parent's price alone, would have recorded −10.58% on that holding.
+
+**AND AMENDMENT 2 DOES NOT COVER IT — BY CONSTRUCTION, NOT BY OMISSION.** Its rule fires on a
+name that is *"acquired or stops trading"*, and in the code that branch sits behind "the name has
+no current price" plus a stopped-trading test. **A spin-off is the one corporate action where the
+held name keeps trading**: the parent prices normally under the same ticker the next morning. So
+both conditions fail and Amendment 2's branch is unreachable. Item 69 demonstrated this through
+the record's own arithmetic rather than by argument.
+
+**THE SIZE IS WHATEVER WALKED OUT OF THE DOOR, and nothing bounds it below 100%.** Aptiv's was
+~10.6% and Unilever's ~7.0% — at the book's ~1.16% average weight, −0.12pp and −0.08pp on the
+Index level, about 3% of one month's declared σ of 3.9847pp. But **Corteva's separation of Vylor
+(1 October 2026) was ~85% of the combined company**, and the only reason that one is harmless to
+the record is that the vendor happened to restate it. A rule that waits for a small case to
+recur is a rule that is absent for the large one.
+
+### WHAT IT IS NOT — the limitation, stated in Amendment 2's own terms
+
+**IT MAKES NO CLAIM ABOUT WHAT THE DISTRIBUTED SHARES DID NEXT.** The value is taken at the
+distribution date and carried flat thereafter, exactly as Amendment 2's *"sold at the last traded
+close"* *"makes no claim about what the proceeds did next."* A holder who kept their Versigent
+shares and watched them rise is not credited with that rise, and one who watched them fall is not
+charged with it. **That is a deliberate floor on what this record claims to know**, and the
+alternative — tracking every spun-off entity forward — would make the Index a book of names it
+never selected.
+
+**IT IS NOT A THRESHOLD, A CLOCK OR A σ CHANGE.** No window is voided and no clock moves, which
+is what keeps it inside an additive amendment's scope. §2's arithmetic is untouched, the 6-month
+operational gate and the 60-month verdict are untouched, and this is **not a vintage event**: the
+Index construction does not change, only how one corporate action is recorded.
+
+### THE ALTERNATIVES, NAMED SO THE CHOICE IS LEGIBLE
+
+- **Do nothing.** The record books a fake loss of whatever was distributed, permanently, in a
+  five-year series. Costs nothing to build and is wrong by construction.
+- **Treat it as an exit under Amendment 2** — sold at the last close before the distribution,
+  weight redistributed pro-rata. Honest about the parent and **throws the holding away entirely**,
+  which is a larger falsehood than the one it fixes: the holder still owns it.
+- **Switch the record's price vendor to one that restates spin-offs.** Item 68 measured that no
+  such vendor exists among the two tested — the incumbent restated Corteva and AstraZeneca and
+  **missed** Aptiv and Unilever; Alpaca did the exact opposite. There is nothing to switch to.
+- **This rule.** Correct about the holder's experience, and it needs one number per event.
+
+### EFFECTIVE FROM THE NEXT SEGMENT. NO BACKFILL.
+
+**A segment whose base date is BEFORE the effective date above is untouched, and the row it
+produces is bit-identical.** That is pinned by test, not promised here.
+
+**WHY NO BACKFILL, stated because the opposite is tempting.** Both measured cases — Aptiv and
+Unilever — fall before the record's 2026-07-30 inception, so **there is nothing in the recorded
+series to correct**: the exposure this amendment removes is entirely prospective. Re-deriving
+past rows would change published figures to fix a problem they do not have, and §3's own
+discipline is that a recorded row stands.
+
+**THE EFFECTIVE DATE IS A SEGMENT BASE, not a calendar date**, so the rule turns on at a
+rebalance rather than mid-segment. A rule that changed how a holding is measured half-way through
+a segment would make the segment's own base inconsistent with its marks — one segment, two rules.
+
+**WHERE 2027-01-25 COMES FROM, AND WHY NOT 2026-10-22.** It is DERIVED, not chosen:
+`index_in_force.next_rebalance("2026-10-22")` returns it — 63 trading days on
+`market_session`'s calendar, which is the same authority the contract's own gap report uses. (My
+first draft typed 2027-01-28, two clicks from the function that computes it.)
+
+The next segment boundary from the approval date is **2026-10-22**, five days away, and it is
+deliberately NOT the default: **if the signature lands after it, the rule would switch on
+part-way through that segment** and its earlier marks would already be recorded under the old
+one. January is safe under either signing date.
+
+**DON MAY MOVE THIS ROW EARLIER, and the condition is checkable: the date must be a segment base
+that is still in the FUTURE when the signature row is set.** If he signs before 2026-10-22 he may
+set it to 2026-10-22 and the rule covers that segment. **The derived date also assumes the next
+scan is 2026-10-22**; the book on the service is the authority on its own scan date, so if it
+differs, this row is what gets corrected — the code reads the row, not the derivation.
+
+### THE DISTRIBUTED VALUE IS STORED AT THE TIME
+
+**Amendment 2's own stated limit applies here with more force.** It records that *"a successor
+wanting the series reproducible to the digit needs the delisting close STORED on the row at the
+time, not re-fetched later"* — and a distribution's value is worse than a delisting close for
+re-fetching, because the spun-off entity's first-day price is exactly the figure vendors
+disagree about and revise.
+
+So each event is **declared in tracked source**, in `index_mark.DISTRIBUTIONS`, with its value,
+its date and where the value came from. Committed source IS "stored at the time": it is dated by
+the commit, visible in a diff, and cannot be silently re-fetched. The declared list is **empty
+today** — no event has occurred inside a segment on or after the effective date.
+
+| field | value |
+|---|---|
+| **Amendment 3 declared distributions** | **0** |
+
+### WHAT A SUCCESSOR MUST DO WHEN ONE HAPPENS
+
+1. **Add the event to `index_mark.DISTRIBUTIONS`** with the parent ticker, the distribution date,
+   the value per parent share, and the source of that value.
+2. **Do it before the next mark**, because a mark taken without the entry books the fake loss and
+   a recorded row stands.
+3. **Name the source.** "The spun-off entity's first regular-way close times the distribution
+   ratio" is the obvious construction and it is a CHOICE; a when-issued price or an official
+   declared value are different numbers and whichever is used must be the one written down.
+
+**A KNOWN GAP, NAMED RATHER THAN LEFT TO BE DISCOVERED: nothing in this repository watches for a
+distribution.** The entry is made by a human who noticed. Item 68's `classify_disagreement`,
+pointed at the book's names since inception, detects exactly this shape — a corporate action one
+vendor restated and the other did not — and is the same narrow measurement item 68 already put to
+Don. **Until that runs, this rule's trigger is somebody reading the news.**
+
+### WHAT THIS DOES NOT CHANGE
+
+| | |
+|---|---|
+| **§2's power arithmetic** | untouched — no σ, no clock, no threshold |
+| **The 6-month operational gate** | untouched, and still `pending` |
+| **The 60-month verdict horizon** | untouched |
+| **Vintage** | **NOT a vintage event.** The Index construction does not change |
+| **Amendment 2** | untouched and still in force for acquisitions and delistings |
+| **Rows already recorded** | untouched. No backfill, by the section above |
+

@@ -130,6 +130,59 @@ def _verdict_token(s: str) -> str:
     return words[0].strip(".,;:!()[]'\"") if words else ""
 
 
+def contract_rows(field: str, path: str = None) -> dict:
+    """Every `| field | value |` row in the contract matching `field`.
+
+    `{"ok", "contract_present", "field", "values", "reason"}`. **ONE PARSER FOR THE WHOLE
+    CONTRACT** -- `gate_state` delegates to it and Amendment 3's signature row reads it, because
+    a second implementation of "what the contract says" about the document that governs the
+    record is the `B7` shape on the worst possible file.
+
+    The hard parts, all inherited rather than re-derived:
+
+    * **blockquote markers are stripped FIRST**, before the fence test. The contract documents
+      its own canonical rows inside a fenced block inside a blockquote; without this the fence
+      markers read as prose and the example is skipped only by accident of its `> ` prefix.
+    * a fenced example is NOT a register row.
+    * matching is case- and whitespace-insensitive, and `*emphasis*` is ignored.
+    * **every matching row is returned, not the first.** Two rows disagreeing is a broken
+      register and the caller must be able to see both -- resolving silently to the first is how
+      a contradiction becomes an approval.
+    """
+    out = {"ok": False, "contract_present": False, "field": field, "values": [],
+           "reason": ""}
+    want = " ".join(str(field).replace("*", "").lower().split())
+    p = path or contract_path()
+    try:
+        with open(p, encoding="utf-8") as f:
+            text = f.read()
+    except Exception:                                                   # noqa: BLE001
+        out["reason"] = ("%s is not readable, so nothing it says can be relied on"
+                         % CONTRACT_FILE)
+        return out
+    out["contract_present"] = True
+    fenced = False
+    for line in text.splitlines():
+        t = line.strip()
+        while t.startswith(">"):
+            t = t[1:].strip()
+        if t.startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced or not t.startswith("|"):
+            continue
+        cells = [c.strip() for c in t.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        if " ".join(cells[0].replace("*", "").lower().split()) == want:
+            out["values"].append(cells[1].replace("*", "").strip())
+    out["ok"] = bool(out["values"])
+    out["reason"] = ("%s carries %d '%s' row(s)" % (CONTRACT_FILE, len(out["values"]), field)
+                     if out["ok"] else
+                     "%s carries no '%s' row" % (CONTRACT_FILE, field))
+    return out
+
+
 def gate_state(path: str = None) -> dict:
     """Has the paper-track contract's 6-month OPERATIONAL GATE been recorded as passed?
 
@@ -145,37 +198,19 @@ def gate_state(path: str = None) -> dict:
     of `yes` / `passed` / `true`. `pending`, `no`, blank, an absent row and hedged prose like
     `yes-ish, mostly` are all not-passed.
     """
-    p = path or contract_path()
     out = {"passed": False, "source": CONTRACT_FILE, "field": GATE_FIELD, "value": None,
            "reason": "", "contract_present": False}
-    try:
-        with open(p, encoding="utf-8") as f:
-            text = f.read()
-    except Exception:
+    # **DELEGATED [Amendment 3].** The row scan is `contract_rows`, shared with the amendment's
+    # signature row rather than copied -- a second reader of this document would be a second
+    # definition of what it says. Every message below is unchanged, and the extraction is proved
+    # inert by test rather than by inspection, because this function gates the public posture.
+    got = contract_rows(GATE_FIELD, path)
+    out["contract_present"] = bool(got.get("contract_present"))
+    if not out["contract_present"]:
         out["reason"] = (f"{CONTRACT_FILE} is not readable, so the operational gate cannot have "
                          f"been recorded as passed.")
         return out
-    out["contract_present"] = True
-
-    values, fenced = [], False
-    for line in text.splitlines():
-        s = line.strip()
-        # Strip blockquote markers FIRST. The contract documents the canonical row inside a
-        # fenced block inside a blockquote; without this the fence markers read as prose, the
-        # example is skipped only because of its "> " prefix, and the fence rule above would
-        # be true by accident rather than by construction.
-        while s.startswith(">"):
-            s = s[1:].strip()
-        if s.startswith("```"):
-            fenced = not fenced
-            continue
-        if fenced or not s.startswith("|"):
-            continue
-        cells = [c.strip() for c in s.strip("|").split("|")]
-        if len(cells) < 2:
-            continue
-        if " ".join(cells[0].replace("*", "").lower().split()) == GATE_FIELD:
-            values.append(cells[1].replace("*", "").strip())
+    values = list(got.get("values") or [])
 
     if not values:
         out["reason"] = (f"{CONTRACT_FILE} carries no '{GATE_FIELD}' row, so the operational gate "
