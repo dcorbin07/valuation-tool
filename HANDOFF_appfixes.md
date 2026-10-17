@@ -21684,3 +21684,70 @@ a fast-forward. **Not reverted** — it is a dated record of a decision and reve
 a second conflict rather than fewer — but it is flagged rather than left to be discovered.
 Nothing since has touched it, and item 70's results are here instead.
 
+
+## MAIN WAS RED AND IT BLOCKED EVERY LANE — the installer pushes past the gate, and the guard it tripped asserted a clock fact
+
+**Not this lane's file, and the reason for touching it is in the heading.** Item 70's commit
+failed the land gate on `tests/test_fleet_schedule_handover.py`, which is the fleet-schedule
+lane's. The cause is not item 70.
+
+### THE MECHANISM, MEASURED
+
+`install_workflows.bat` **pushes straight to `main` and does not go through the gate.** So:
+
+| | |
+|---|---|
+| 18:31 | `1d92215` (Amendment 3, drafted) — gate **green** |
+| ~21:00 | `2dc5496` *"Install workflow(s): fleet-cycle.yml live-cycle.yml"* — **pushed ungated** |
+| 21:07 | `05b6bbc` (item 70) — gate **red**, on a suite item 70 does not touch |
+
+The install landed the fleet-cycle handover, and **nothing ran the suite that guards it against
+the installed result.** Every lane was then blocked behind a failure none of them caused. The
+installer being able to bypass the gate is the standing hazard here — it is how a stale
+`live-cycle.yml` got installed over a newer main earlier the same day (the auditor's own finding),
+and now it is how main went red.
+
+### THE GUARD ASSERTED THAT THE HANDOVER HAD NOT HAPPENED
+
+```python
+self.assertNotEqual(pend, inst, "they must differ -- by the cron")
+self.assertNotEqual(_crons(PENDING), _crons(INSTALLED))
+```
+
+Both are true **only while the pending file is pending**, so *installing* it — the one event the
+whole suite exists to make safe — is what made them fail. `CLAUDE.md` names the shape: *"a guard
+asserting 'these two numbers are equal today' fires on the CLOCK; assert the property the
+equality stood in for."* **Third item in three days to pay for it**, after `MB31`'s re-derivation
+guard and `MA57`'s allowlist guard.
+
+### REPOINTED, AND STRICTLY STRONGER THAN WHAT IT REPLACED
+
+The two declared crons are named as committed literals (`19 22 * * 1-5` → `0 12 * * 1-5`,
+`MA13`), `_handover_state()` reads which one is installed, and the suite's own stated obligations
+are asserted **in both states**:
+
+- **pending** → the bodies must differ, by the cron;
+- **done** → the installed file must be the pending one **verbatim**, because if it is not then
+  the installer copied something else — which is exactly the failure mode that put a stale
+  `live-cycle.yml` on main earlier the same day;
+- **either way** → nothing but the cron may differ, each file carries exactly one schedule, and
+  **the installed cron must be one of the two DECLARED values.**
+
+That last check is one the old form could not make: **a third cron, from anywhere, is now red
+whether the handover has run or not.** Proved non-vacuous rather than asserted — a third cron,
+two installed schedules, and a body drift beyond the cron all fire.
+
+### WHAT I DID NOT DO
+
+- **Nothing under `.github/` is touched.** The installed workflow is left exactly as Don
+  installed it; only the guard that reads it moved.
+- **The handover is not reversed or re-run.** It is installed, the installed cron is the declared
+  12:00Z one, and `_handover_state()` reads `done`.
+- I merged `origin/main`'s **current** tip to reach the file, and verified the land policy's own
+  three-dot diff (`git diff --name-status origin/main...HEAD`) contains **only this lane's nine
+  files and no `.github/` path** before pushing — a checkable precondition rather than a hope,
+  because a branch carrying a stale main is how that diff comes to include somebody else's
+  `.github/` commits.
+- **Worth one line to whoever owns the installer:** a `.bat` that writes to `main` outside the
+  gate can red-light every lane, and did. Not this lane's to change.
+

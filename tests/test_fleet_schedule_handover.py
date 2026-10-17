@@ -38,6 +38,34 @@ PENDING = os.path.join(REPO, "pending_workflows", "fleet-cycle.yml")
 INSTALLED = os.path.join(REPO, ".github", "workflows", "fleet-cycle.yml")
 
 
+#: THE TWO DECLARED CRONS. `MA13`'s committed-literal idiom: the handover moves the installed
+#: file from the first to the second, and a THIRD value has not been declared by anybody -- so
+#: naming both is what lets this suite stay sharp after the install instead of going red on it.
+CRON_BEFORE = "19 22 * * 1-5"       # 22:19Z, which GitHub's measured 3.5-7.5h delay pushed
+                                    # past the dip row the entry rules read
+CRON_AFTER = "0 12 * * 1-5"         # 12:00Z, inside regular hours across the whole delay range
+
+
+def _handover_state():
+    """`"pending"` or `"done"`, read from the installed cron. [repointed]
+
+    **THE SUITE USED TO ASSERT THE PENDING STATE, WHICH MADE INSTALLING THE FILE -- the thing it
+    exists to make safe -- THE EVENT THAT BROKE IT.** A guard keyed on "these two differ today"
+    fires on the clock; the property it stood in for is that they differ in NOTHING BUT THE
+    CRON, which holds in both states and is asserted in both.
+    """
+    inst = _crons(INSTALLED)
+    if inst == [CRON_AFTER]:
+        return "done"
+    if inst == [CRON_BEFORE]:
+        return "pending"
+    # **AND A THIRD VALUE IS NEITHER, which the old form could not say.** An installed cron
+    # nobody declared is a finding whatever the handover's state.
+    raise AssertionError("the installed fleet cron is %r, which is neither the declared "
+                         "before (%r) nor the declared after (%r)"
+                         % (inst, CRON_BEFORE, CRON_AFTER))
+
+
 def _text(p):
     with io.open(p, encoding="utf-8") as fh:
         return fh.read().replace("\r\n", "\n")
@@ -106,7 +134,18 @@ class TestTheBodyIsVerbatim(unittest.TestCase):
     def test_the_body_is_byte_identical_once_the_cron_block_is_substituted(self):
         """The whole obligation, in one comparison: nothing but the schedule may differ."""
         pend, inst = _body(PENDING), _body(INSTALLED)
-        self.assertNotEqual(pend, inst, "they must differ -- by the cron")
+        # **THE HANDOVER HAS RUN, OR IT HAS NOT, AND BOTH ARE LEGITIMATE.** This used to assert
+        # the files DIFFER, which is only true while the pending file is pending -- so the
+        # install that this suite exists to make safe is what broke it (`2dc5496`, pushed
+        # straight to main by the installer, which does not go through the gate).
+        state = _handover_state()
+        if state == "pending":
+            self.assertNotEqual(pend, inst,
+                                "the handover is pending, so they must differ -- by the cron")
+        else:
+            self.assertEqual(pend, inst,
+                             "the handover is DONE, so the installed file must be the pending "
+                             "one verbatim -- if it is not, the installer copied something else")
         # swap the pending cron block back for the installed one and they must coincide
         pc, ic = _crons(PENDING), _crons(INSTALLED)
         self.assertEqual(len(pc), 1)
@@ -136,8 +175,21 @@ class TestTheCron(unittest.TestCase):
     def test_the_pending_cron_is_1200Z_on_weekdays_and_is_the_only_one(self):
         self.assertEqual(_crons(PENDING), ["0 12 * * 1-5"])
 
-    def test_it_differs_from_the_installed_cron_or_the_handover_is_pointless(self):
-        self.assertNotEqual(_crons(PENDING), _crons(INSTALLED))
+    def test_the_installed_cron_is_one_of_THE_TWO_DECLARED_VALUES(self):
+        """**REPOINTED.** This read `assertNotEqual(pending, installed)` -- *"or the handover is
+        pointless"* -- which is a statement that the handover has not happened, and it went red
+        the moment it did. The durable property is that the installed cron is the declared
+        before-value or the declared after-value and never a third thing, and
+        `_handover_state()` raises on anything else."""
+        self.assertIn(_handover_state(), ("pending", "done"))
+        self.assertIn(_crons(INSTALLED)[0], (CRON_BEFORE, CRON_AFTER))
+
+    def test_and_the_handover_actually_MOVES_the_cron(self):
+        """The thing the old assertion was reaching for, stated as a property of the two
+        DECLARED values rather than of today's files: the handover is not pointless because the
+        two crons it moves between are different."""
+        self.assertNotEqual(CRON_BEFORE, CRON_AFTER)
+        self.assertEqual(_crons(PENDING), [CRON_AFTER])
 
     def test_the_header_carries_the_measurement_the_cron_is_derived_from(self):
         with io.open(PENDING, encoding="utf-8") as fh:
