@@ -205,6 +205,39 @@ manager from Don's own words in chat.
   selling side), a stress gate for put selling judged forward, a census only for O-1's data,
   and the DTE question answered from the record. The alert-driven long-call entry is not
   re-opened: it loses to random days in every score band and at every threshold.
+- **2026-10-17 — ITEM 69: AN UNPRICED EXIT WAS DROPPED IN SILENCE (the auditor's fourth blocker,
+  and item 67's own fix half done); AND A SPIN-OFF WOULD BOOK A FAKE LOSS IN THE RECORD.** The
+  auditor reproduced it through `run_cycle` with the real broker: the slot knows MSFT must go,
+  cannot price it on a one-sided IEX quote, **sends nothing, raises no alert, records the
+  rebalance COMPLETE, and reports "1 of 1 priced, missing: none"** — indistinguishable from a
+  healthy day on every surface Don reads. §8 requires no-trade, an alert and a retry; only the
+  first happened. **Three places computed "the names this cycle cares about" from the book's held
+  positions and item 67 widened only the quote list** — and an exit is by definition not in the
+  book's held positions. One definition now (`tradable_names`), read by all three, scoped to the
+  slot's own record so it can never reach Don's other holdings. **And the close branch tested `not
+  plan["orders"]`, which is true of both "nothing to do" and "I could not work out what to do" —
+  the third collapse of two epistemic states on this path**, so the planner's outcome is now a
+  value from a declared set and exactly one of them closes an event. Two defects in my own first
+  cut: it refused the whole cycle for any skip, which would have reverted item 67's per-name
+  granularity that the auditor endorsed; and `exits_planned` vanished from the refusing cycle,
+  losing the diagnostic that made the blocker legible. 17 of 20 new tests fail on the old code.
+  **PART 2, REPORTED AND PROPOSED, NOTHING CHANGED: a held name that spins something off would
+  book a FAKE LOSS** — the record contributes `cur/base − 1` on yfinance's adjusted close, and
+  item 68 measured yfinance leaving Aptiv's spin-off as a −10.58% cliff and Unilever's demerger as
+  −7.03%. Demonstrated through `contract_row`: a two-name book reads −5.3% having lost nothing.
+  **Amendment 2's corporate-action rule does not cover it by CONSTRUCTION, not omission** — its
+  trigger sits behind `if not cur:` plus `_stopped_trading`, and a spin-off is the one action where
+  the held name keeps trading. The size is the distributed fraction, so it is unbounded below 100%
+  (Corteva's separation was ~85%, harmless only because yfinance restated that one). Neither
+  measured case has touched the record: both predate the 2026-07-30 inception, so the exposure is
+  prospective. **The proposed rule — a distribution is RECEIVED, so the contribution is measured
+  against the parent plus what was distributed, with that value STORED on the row at the time —
+  is Don's decision and a contract amendment; the alternatives are named.** The trigger needs no
+  new feed: item 68's `classify_disagreement` pointed at the book since inception detects it, and
+  is the same narrow measurement already routed to Don. **Which current holdings are affected is
+  UNMEASURED from a lane** (the book is on the service); the names to check against are MSGS
+  (distribution 2026-10-26, days after the rebalance), KBR (2027-01-04), FLEX, GPC and CMCSA —
+  none of which is in today's 218-name live screen, which is not the same as not in the book.
 - **2026-10-17 — THE ALPACA PRICE SEAM FAILED, AND IT IS CORPORATE ACTIONS ON BOTH SIDES. NO
   SWITCH; ALPACA STAYS OFF THE INDEX PRICE PATH FOR THE 10-22 REBALANCE.** Don's run completed:
   217 names, 58,318 bars, coverage 95.5%. **Daily closes on the declared `all` basis agree on

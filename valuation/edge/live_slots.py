@@ -435,6 +435,36 @@ def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
 POSITIONS_NOT_SUPPLIED = object()
 
 
+def tradable_names(book: dict, slot_holdings=None) -> list:
+    """THE NAMES THIS CYCLE MIGHT TRADE: the book's held names, plus what this slot holds.
+
+    **ONE DEFINITION, BECAUSE THERE WERE THREE AND ONLY ONE GOT WIDENED [item 69].** Item 67
+    widened the quote list to cover an exited name and left `preflight`'s refusal and
+    `marks_coverage`'s report computing the same fact from the book alone -- so an unpriced exit
+    was asked for, and then neither refused nor shown. The auditor's fourth blocker.
+
+    An exited name is by definition NOT in the book's held positions, so a population built from
+    the book cannot contain the one thing an exit is.
+
+    **`slot_holdings` IS THE SLOT'S OWN RECORD AND NOTHING ELSE.** `reconcile` builds it from
+    this slot's `valquo-<slot>-` prefixed orders, so widening the population cannot reach Don's
+    other holdings -- the same reason `order_plan`'s targets-only iteration is safe. A holding of
+    zero is dropped: a name the slot has already sold out of needs no price, and demanding one
+    would refuse the cycle for ever over a record that is merely stale.
+    """
+    out = []
+    for q in ((book or {}).get("positions") or []):
+        if (q or {}).get("status") == "held":
+            t = str((q or {}).get("ticker") or "").strip().upper()
+            if t and t not in out:
+                out.append(t)
+    for t, qty in (slot_holdings or {}).items():
+        t = str(t).strip().upper()
+        if t and t not in out and (_f(qty) or 0.0) > 0:
+            out.append(t)
+    return out
+
+
 def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
               broker_positions=POSITIONS_NOT_SUPPLIED, slot_symbols=None,
               record_is_fresh: bool = False, tolerance: float = 0.01) -> dict:
@@ -490,14 +520,24 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
     if not isinstance(marks, dict):
         problems.append("no price map was supplied")
     elif isinstance(book, dict) and book.get("ok"):
-        need = [str(q.get("ticker") or "").upper()
-                for q in (book.get("positions") or []) if q.get("status") == "held"]
+        # **THE BOOK'S HELD NAMES *PLUS WHAT THIS SLOT HOLDS* [item 69].** An EXIT is a name the
+        # book no longer carries, so a population built from the book alone could not contain
+        # one -- and an exit the feed cannot price was therefore neither refused nor reported.
+        need = tradable_names(book, slot_record)
         missing = [t for t in need
                    if not _f((marks.get(t) or {}).get("mid")
                              if isinstance(marks.get(t), dict) else marks.get(t))]
         if missing:
-            problems.append("no usable price for %d name(s) the cycle would trade: %s"
-                            % (len(missing), ", ".join(missing[:8])))
+            exits = [t for t in missing
+                     if t not in {str(q.get("ticker") or "").upper()
+                                  for q in (book.get("positions") or [])
+                                  if q.get("status") == "held"}]
+            problems.append(
+                "no usable price for %d name(s) the cycle would trade: %s%s"
+                % (len(missing), ", ".join(missing[:8]),
+                   ("; %d of them the slot must SELL because the book no longer holds it (%s), "
+                    "so this is an EXIT that cannot be priced rather than a buy that can wait"
+                    % (len(exits), ", ".join(exits[:8]))) if exits else ""))
     positions_checked = False
     if broker_positions is None:
         # AN UNREADABLE POSITION LIST IS A REFUSAL, NOT A SKIP [item 63, auditor question 7].
