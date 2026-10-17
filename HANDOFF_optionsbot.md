@@ -12684,3 +12684,133 @@ than a derivation, and it is the first cycle since the Alpaca client landed.
   was for; attributing those 42 rows to that fix specifically is not established here**, and the
   cycle's own `sandbox_caveat` still names Tradier, so which venue they reconciled against is
   not settled by this response.
+
+
+---
+
+## 97. THE TWO BROKEN STREAMS ARE RE-ANCHORED, AND THE REASON FOUR BOOKS NEVER FILLED IS A CLOCK (2026-10-17)
+
+Don's ruling of 2026-10-17, remedy **(b)**. **ZERO TRIALS** - correctness repairs, no
+hypothesis, no bar, no verdict. 32 new tests; all 18 fleet suites green.
+
+### The re-anchor, built in the write door
+
+* **WHAT MADE THE SECOND ATTEMPT WORK WHERE THE FIRST DIED.** §96's version archived the stream
+  and let it restart at seq 1; `record` then refused with *"holds rows only up to seq 0 but 2
+  was already recorded"* - **correct**, because a restarted stream is indistinguishable from the
+  whole-file loss `fleet_highwater` exists to catch. **This one CONTINUES THE SEQUENCE at
+  `high_water + 1`**, so nothing is lowered and no guard is weakened. **The load-bearing test is
+  therefore not that the re-anchor returns `ok` - it is that AN ORDINARY WRITE SUCCEEDS
+  AFTERWARDS**, through the real door, which is the step the first attempt never reached.
+* **THE GUARD CLEARS A RE-ANCHORED STREAM ON EVIDENCE, NEVER BY EXEMPTION.** `state()` opens the
+  named archive and counts it, and the book goes **straight back to `REGRESSED` the moment the
+  archive is deleted** - pinned by test. A new `REANCHORED` state keeps it distinguishable from
+  `OK`, because a re-anchored book and an untouched one must not read the same.
+* **THE RECORD IS IN-BAND, DATED AND CHAINED.** The first row of the new stream is a `reanchor`
+  event naming both anchors and the archive, so **a reader of the records alone - with no access
+  to the sibling mark file - still sees that it happened.**
+* **FOUR REFUSALS**, each because archiving a chained record is what someone hiding a tamper
+  would want: a stream carrying **any fill or close** (real trades are history and orphaning
+  them to unblock a book would be the worst trade this harness could make), a chain that fails
+  against its **own** stored anchor (tampered, not moved), an anchor that **has not moved**, and
+  a book with **no declaration** to re-anchor to.
+* **APPLIED TO TWO BOOKS AND NO OTHERS.** `REANCHOR_ALLOWLIST` is a **committed literal** rather
+  than a capability - pinned by an AST test - so a third book takes a diff, and it is
+  **self-extinguishing**: the repair refuses once the anchor matches, so each book is repaired
+  at most once and a later cycle is a no-op.
+* **A DEFECT I INTRODUCED AND THE SUITE CAUGHT.** `advance` rewrote the whole book entry from
+  the fields it knew about, so **the next ordinary append would have silently dropped the
+  re-anchor note** and the book would have gone `REGRESSED` with nothing left to explain why.
+  **A writer that rebuilds a record from the fields it happens to know about deletes the ones it
+  does not.**
+* **THE GUARD DON ASKED FOR, IN THE ONLY FORM THAT CAN EXIST.** A lane cannot refuse an edit to
+  a markdown file - the edit is a commit, not an API call - so the amendment is made **LOUD**
+  instead: every gate read now diagnoses a moved anchor **by name** and names the remedy,
+  instead of the bare `prev_hash mismatch at row 0` that reads like corruption and sends the
+  reader hunting. With a positive control, so the diagnosis does not fire on every break.
+
+### Why `dip_healthy` and `dip_rejects` were NOT CONSULTED - one defect, four symptoms
+
+* **IT IS A CLOCK, AND BOTH HALVES WERE ALREADY MEASURED AND WRITTEN DOWN SEPARATELY.**
+  `fleet-cycle.yml` crons at **22:19Z** and item 64 measured GitHub firing this repository's
+  crons **3.5 to 7.5 hours late**, so the last six cycles landed at 00:24Z, 00:31Z, 01:13Z,
+  07:15Z, 03:03Z and 01:45Z - **every one on the FOLLOWING UTC day**. Meanwhile
+  `/admin/record-dip-rejects` stamps its rows with **`last_closed_session()`**, deliberately,
+  *"so a slipped run still records the day whose data it read"*. **Every entry rule then
+  compared the recorded date against `date.today()`.**
+* **WRITER AND READER ON DIFFERENT CLOCKS, EXACT MATCH BETWEEN THEM, SO IT COULD NEVER SUCCEED.**
+  `f11_recorded_rejects` returns `None` - *"no row for today"* - on every run, and the harness
+  then reports **`RULE_ARMED_NEVER_FIRES`**, a phrase that reads as *the rule cannot qualify
+  anybody* when the truth is **the rule never saw the data**. On a Saturday it is worse: no
+  session exists for that date at all.
+* **SO DON'S QUESTION - "is the rule unable to qualify anyone, or is the market quiet?" - HAS A
+  THIRD ANSWER, AND IT IS NEITHER.** `F-8` and `F-11`'s 32 observations are 32 days of a rule
+  looking at the wrong date. `F-21` and `F-22` would have inherited it the moment their chains
+  were repaired.
+* **ONE DEFINITION NOW (`B7`): `fleet_books.cycle_session()`**, six call sites repointed, with a
+  test that **reconstructs the old behaviour on the six real landing times and shows it failing
+  on every one** - so this cannot be read as a speculative fix. The calendar fallback is
+  reported rather than silent, and an AST test bans `date.today()` from every rule while
+  exempting the one function allowed to name the fallback.
+* **AND THE CLOCK FIX IS NECESSARY BUT NOT SUFFICIENT, MEASURED RATHER THAN ASSUMED.** The cycle
+  lands **about seventeen minutes BEFORE** the door that records the dip screen - 17m48s,
+  18m28s and 16m16s on 2026-10-15, -16 and -17 against an 18-minute cron gap. **The scheduler's
+  delay is SHARED between the two workflows rather than drawn independently**, so the cycle will
+  keep arriving first for as long as its cron is earlier, and the rules will read a session
+  whose row lands a quarter of an hour later. **`pending_workflows/fleet-cycle-in-hours.yml`
+  fixes it as a side effect** - at 12:00Z the previous session's row is ~15 hours old - and that
+  note is now in the file.
+* **F-21's TWO VALID DAYS ARE A YOUNG SERIES, NOT A DEFECT.** `dip_healthy` was added on
+  2026-10-13; `daily-doors.yml` succeeded on 10-15 and 10-16 (recording sessions 10-14 and
+  10-15) and **FAILED on 10-14**. The 10-17 cycle read it 16 minutes before the third row landed.
+  **It grows one row per trading day and needs no repair** - the thing that needed repair is
+  that nothing could read it.
+
+---
+
+## 98. F-4 IS RE-DECLARED AT 25 DELTA AS A NEW BOOK, BECAUSE AMENDING ITS OWN DECLARATION WOULD HAVE BRICKED IT (2026-10-17)
+
+`DECL_f4b_eventfree_25d.md` committed **ALONE at `d45877f`**, markdown only. Don's ruling:
+*"F-4 is re-declared at 25 delta on the free forward calendar. F-10 stays retired."*
+
+* **THE BOOK ID IS NEW AND THAT FOLLOWS DIRECTLY FROM §97's DEFECT.**
+  `f4_eventfree_premium` already carries a **13-row stream**, and the chain anchors at the
+  declaration's content hash - so editing that file would have broken its row 0 permanently,
+  which is exactly what bricked `F-21` and `F-22`, and the re-anchor is deliberately scoped to
+  an allowlist of those two. **The 0.90-moneyness declaration is left untouched and stays
+  RETIRED as the record of what was retired.**
+* **THE BUFFER IS 9 CALENDAR DAYS AND IT IS DERIVED RATHER THAN CHOSEN.** Don asked for *"at
+  least the 7-day buffer your drift measurement implies"*; 7 is the **92.1%** point of the
+  year-on-year drift and **9 is the p95** over 3,391 SEC Item 2.02 pairs, so 9 satisfies the
+  instruction and is what the measurement actually hands over.
+* **A NAME WITH NO FORWARD DATE IS REFUSED, COUNTED, NEVER TREATED AS EVENT-FREE** - 8.8% of the
+  gate, and `O7`'s 29 foreign private issuers are what a fail-open on that costs.
+* **SIGMA IS MEASURED RATHER THAN A PRIOR, AND IT MAKES THE HORIZON LONGER.** The retired
+  expression carried **4.0 as an explicit PRIOR** for a 0.90-moneyness strike; this book carries
+  **5.047**, `SELL-PREMIUM-2`'s realised per-trade SD for a 25-delta CSP over 4,617 trades. So
+  `fills_needed` is **DERIVED at 507** against the retired 306, and the horizon is **3.84 years
+  rather than 2.32**. A re-declaration that shortened its own horizon would be the thing to
+  distrust.
+* **IT CARRIES BOTH HALVES OF THE EVIDENCE, IN THE DECLARATION.** The crash gate improves
+  **11.57 -> 4.7539 years** build and **3.5185** check, a **2.43x improvement from the strike
+  rule alone** - **and** §87b's 2020 result, **-2.7788% a trade at 33.52% assigned**, with the
+  sentence that a cleared crash gate *"establishes nothing about whether either book makes
+  money"*. §87 is this project's own counter-example, where `K3` passed on a window whose real
+  crash cost **82% of the account**.
+* **THE HARNESS REFUSED IT TWICE BEFORE IT HELD, WHICH IS THE ROUTE WORKING.**
+  `DELTA_STRIKE_WITHOUT_V6OPT_ARGUMENT` until the declaration argued past `V6-OPT`'s autopsy,
+  and `SHORT_BOOK_WITHOUT_ASSIGNMENT` until `S3-I3` registers. **The argument is that V6-OPT's
+  neutralisation is this book's INTENT rather than its defect:** V6-OPT's signal was a per-name
+  risk ranking, which is precisely what a per-name vol normalisation cancels, whereas this
+  book's condition is **the absence of a scheduled jump inside the option's life - a property of
+  the calendar, not of the name** - and implied vol is what carries the earnings jump premium.
+  **The residual exposure is stated too:** if the calendar misses a date, the delta strike is set
+  off a vol that INCLUDES the unremoved event and therefore sits FURTHER out of the money than a
+  fixed moneyness would, so a filter failure is partly self-protecting.
+* **NOT DONE, AND IT IS THE THING THAT STOPS THIS BOOK ENTERING: ITS ENTRY RULE IS NOT
+  IMPLEMENTED**, so it will read `ARMED_NO_ENTRY_RULE` - the harness's honest distinction between
+  a build gap and a quiet market. **And the implementation has a measured architectural
+  constraint:** the Yahoo calendar costs about a second per name and the cycle's budget is 120
+  seconds, so the forward calendar must be **RECORDED by its own door and READ by the rule**,
+  exactly as `dip_rejects` already is. Building that recorder is the next step and it is named
+  rather than attempted here. **`F-10` stays retired.**
