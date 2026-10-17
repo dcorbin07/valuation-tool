@@ -18,6 +18,7 @@ class and recorded HTTP replies, and passes no `slot_symbols` anywhere.
 """
 from __future__ import annotations
 
+import datetime as dt
 import io
 import json
 import os
@@ -32,6 +33,8 @@ sys.path.insert(0, REPO)
 
 import state_isolation   # noqa: E402,F401
 
+from valuation.data import alpaca_data as AD       # noqa: E402
+from valuation.data import alpaca_seam as S        # noqa: E402
 from valuation.edge import alpaca_broker as AB      # noqa: E402
 from valuation.edge import live_cycle as LC         # noqa: E402
 
@@ -768,6 +771,200 @@ class TheRestatementDoorPlansBeforeItWrites(unittest.TestCase):
                                     headers=self.h).get_data(as_text=True))
         self.assertIn("LEFT UNRESTATED", got["unpriceable_note"])
         self.assertIn("no fallback", got["unpriceable_note"])
+
+
+class _SipGatedAlpaca:
+    """**ALPACA'S DOCUMENTED RULE, IMPLEMENTED AS A FIXTURE.** [item 65 part 5]
+
+    This is the thing item 64's tests did not have. They verified the window *"at every
+    quarter-hour of a week against the rule's own definition"* -- that the end's session close is
+    more than the delay in the past -- and **that test could not fail, because it asserted the
+    rule against itself.** It never asked what the rule's output means to the VENDOR, which is
+    the only thing that decides whether the request is served.
+
+    So this refuses exactly as Alpaca's FAQ says it does: *"the `end` parameter must be at least
+    15 minutes old to query SIP data without a subscription"*, with the real payload
+    `{"code":42210000,"message":"subscription does not permit querying recent SIP data"}`.
+
+    **`date_means` IS A PARAMETER BECAUSE THE EXPANSION IS NOT DOCUMENTED.** Alpaca's docs show
+    bare dates in examples and say nothing about whether one becomes 00:00:00 or 23:59:59. Both
+    readings are tested, and the fix has to hold under either -- which is the whole reason the
+    fix sends an explicit instant rather than reasoning about the expansion.
+    """
+
+    def __init__(self, now, date_means="end_of_day", delay_minutes=15):
+        self.now, self.date_means, self.delay = now, date_means, delay_minutes
+        self.ends, self.served = [], 0
+
+    def _instant(self, raw):
+        import datetime as _dt
+        txt = str(raw or "")
+        if "T" in txt:
+            return _dt.datetime.strptime(txt[:19], "%Y-%m-%dT%H:%M:%S").replace(
+                tzinfo=_dt.timezone.utc)
+        if not txt:
+            return None
+        d = _dt.date.fromisoformat(txt[:10])
+        if self.date_means == "start_of_day":
+            return _dt.datetime(d.year, d.month, d.day, 0, 0, tzinfo=_dt.timezone.utc)
+        return _dt.datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=_dt.timezone.utc)
+
+    def request(self, method, url, headers=None, params=None, data=None, timeout=None):
+        import datetime as _dt
+        end = (params or {}).get("end")
+        self.ends.append(end)
+        inst = self._instant(end)
+        # NO `end` AT ALL IS SAFE: the FAQ records that a subscription-less default is set to 15
+        # minutes ago, which is item 62's own observation from the other side -- that run got
+        # served and returned one bar because it also sent no `start`.
+        if inst is not None:
+            age = (self.now - inst).total_seconds() / 60.0
+            if age < self.delay:
+                return Reply({"code": 42210000,
+                              "message": "subscription does not permit querying recent "
+                                         "SIP data"}, status=403)
+        self.served += 1
+        syms = str((params or {}).get("symbols") or "").split(",")
+        bars = {}
+        for sym in [x for x in syms if x]:
+            bars[sym] = [{"t": "2026-10-%02dT00:00:00Z" % d, "o": 1, "h": 1, "l": 1,
+                          "c": 100.0 + d, "v": 1} for d in range(1, 16)]
+        return Reply({"bars": bars})
+
+
+class TheWindowsEndIsSentAsAnInstant(unittest.TestCase):
+    """**PART 5.** Don ran the door at ~22:00Z on 2026-10-16, after item 64 deployed. The new
+    code worked -- its own "RE-RUNNING WILL NOT HELP" note came back -- and the pull still got
+    nothing, because the bare date it sent was TODAY."""
+
+    import datetime as _dt
+    EVENING = _dt.datetime(2026, 10, 16, 22, 0, tzinfo=_dt.timezone.utc)
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _noyf(self, t, days=None):
+        return {"adj": {}, "asof": {}, "error": "fixture"}
+
+    def test_our_side_reproduces_DONS_EXACT_WINDOW(self):
+        """Before diagnosing anything: the observation is reproduced, so the rest is about the
+        same request Don made and not a lookalike."""
+        w = S.window(now=self.EVENING)
+        self.assertEqual((w["start"], w["end"]), ("2025-09-11", "2026-10-16"))
+
+    def test_the_date_is_STILL_today_and_that_is_correct_by_the_rule(self):
+        """The rule is not wrong: today's 21:00Z close IS more than 16 minutes before the
+        21:44Z cutoff. The date was right and the WIRE VALUE was the problem."""
+        self.assertEqual(S.sip_safe_end(self.EVENING)["end"].isoformat(), "2026-10-16")
+
+    def test_the_wire_value_is_an_RFC_3339_INSTANT_in_the_past(self):
+        w = S.window(now=self.EVENING)
+        self.assertEqual(w["end_param"], "2026-10-16T21:00:00Z")
+        inst = dt.datetime.strptime(w["end_param"], "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=dt.timezone.utc)
+        age = (self.EVENING - inst).total_seconds() / 60.0
+        self.assertGreaterEqual(age, S.SIP_DELAY_MINUTES)
+
+    def test_THE_EVENING_CASE_IS_SERVED_against_a_recorded_Alpaca(self):
+        """**THE TEST THE BRIEF ASKS FOR**, and it is against the vendor's rule rather than
+        ours."""
+        for means in ("end_of_day", "start_of_day"):
+            sess = _SipGatedAlpaca(self.EVENING, date_means=means)
+            c = AD.AlpacaData("k" * 12, "s" * 12, session=sess)
+            root = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, root, True)
+            got = S.pull(client=c, names=["AAPL", "MSFT"], root=root, end=None,
+                         yf_fetch=self._noyf, now=self.EVENING)
+            self.assertGreater(got["n_alpaca"], 0,
+                               "the evening pull got nothing under date_means=%s: %s"
+                               % (means, got.get("reason")))
+            self.assertTrue(all("T" in str(e) for e in sess.ends), sess.ends)
+
+    def test_THE_OLD_BARE_DATE_IS_REFUSED_by_the_same_fixture(self):
+        """**THE CONTROL that makes the test above mean something.** If the fixture served
+        everything, "it is served now" would prove nothing. A bare TODAY date is refused under
+        the end-of-day reading, which is what Don observed."""
+        sess = _SipGatedAlpaca(self.EVENING, date_means="end_of_day")
+        c = AD.AlpacaData("k" * 12, "s" * 12, session=sess)
+        got = c.bars(["AAPL"], adjustment=AD.ADJ_ALL, start="2025-09-11", end="2026-10-16")
+        self.assertFalse(got.get("ok"), "the fixture served a bare today-date")
+        self.assertIn("recent SIP data", str(got.get("error")))
+        self.assertEqual(sess.served, 0)
+
+    def test_the_BRIEFS_PREDICTION_holds_a_bare_date_is_fine_once_it_is_YESTERDAY(self):
+        """The brief predicts the old code works *"before about 21:16Z on a weekday, and all
+        weekend"*, because then the end rolls back to a finished day. Checked -- and it is why
+        this went unnoticed through item 64's own in-session runs."""
+        midday = dt.datetime(2026, 10, 16, 17, 36, tzinfo=dt.timezone.utc)
+        self.assertEqual(S.window(now=midday)["end"], "2026-10-15")
+        sess = _SipGatedAlpaca(midday, date_means="end_of_day")
+        c = AD.AlpacaData("k" * 12, "s" * 12, session=sess)
+        got = c.bars(["AAPL"], adjustment=AD.ADJ_ALL, start="2025-09-11", end="2026-10-15")
+        self.assertTrue(got.get("ok"), "a bare YESTERDAY date was refused")
+
+    def test_a_caller_supplied_end_is_sent_AS_GIVEN(self):
+        """Reproducing a recorded window means reproducing the REQUEST; silently converting it
+        would make a reproduction a different request."""
+        w = S.window(end=dt.date(2026, 1, 2))
+        self.assertEqual(w["end_param"], "2026-01-02")
+        self.assertEqual(w["end_param_bound"], "supplied_by_the_caller")
+
+    def test_the_instant_is_the_EARLIER_of_the_close_and_now_minus_the_delay(self):
+        """Both candidates are instants here, so unlike the DATE version there is no unit
+        mismatch -- which is the defect item 64 found in the brief's own first suggestion."""
+        just_after = dt.datetime(2026, 10, 19, 21, 10, tzinfo=dt.timezone.utc)
+        got = S.sip_safe_end_instant(just_after)
+        inst = dt.datetime.strptime(got["param"], "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=dt.timezone.utc)
+        self.assertLessEqual((just_after - inst).total_seconds() / 60.0 * -1,
+                             -S.SIP_DELAY_MINUTES)
+
+    def test_the_wire_value_is_NEVER_too_recent_across_a_full_week(self):
+        """The sweep item 64 ran, pointed at the thing that actually decides the outcome: not
+        "does my rule obey my rule" but "is what I send old enough"."""
+        n = dt.datetime(2026, 10, 12, 0, 0, tzinfo=dt.timezone.utc)
+        for _ in range(7 * 24 * 4):
+            w = S.window(now=n)
+            self.assertIn("T", w["end_param"], w)
+            inst = dt.datetime.strptime(w["end_param"], "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=dt.timezone.utc)
+            age = (n - inst).total_seconds() / 60.0
+            self.assertGreaterEqual(age, S.SIP_DELAY_MINUTES,
+                                    "at %s the end sent is only %.1f minutes old" % (n, age))
+            n += dt.timedelta(minutes=15)
+
+    def test_the_note_no_longer_names_a_cause_THAT_CANNOT_HAPPEN(self):
+        """It said *"an explicit end= was probably supplied"*, and `/admin/alpaca-seam` calls
+        `pull(root=None, budget_names=...)` and accepts no `end` at all. **A diagnosis naming an
+        impossible cause is worse than none**, because it sends the reader looking for something
+        that is not there."""
+        sess = _SipGatedAlpaca(self.EVENING, date_means="end_of_day")
+        c = AD.AlpacaData("k" * 12, "s" * 12, session=sess)
+        got = S.pull(client=c, names=["AAPL"], root=self.root, end=dt.date(2026, 10, 16),
+                     yf_fetch=self._noyf, now=self.EVENING)
+        self.assertFalse(got["advanced"])
+        self.assertNotIn("explicit end= was probably supplied", got["rerun_note"])
+        self.assertIn("42210000", got["rerun_note"])
+        self.assertIn("2026-10-16", got["rerun_note"])
+
+    def test_the_door_cannot_supply_an_end_so_the_old_note_was_unreachable(self):
+        """Asserted on the door's source, because that is what made the old wording false."""
+        import inspect
+        from valuation.saas import app_saas
+        src = inspect.getsource(app_saas)
+        door = src[src.index("def admin_alpaca_seam("):]
+        door = door[:door.index("def admin_live_slots(")]
+        code = chr(10).join(ln.split("#", 1)[0] for ln in door.splitlines())
+        self.assertIn("SEAM.pull(", code)
+        self.assertNotIn("end=", code, "the door now accepts an end, so the note's old cause "
+                                       "is reachable again and should be restored")
+
+    def test_WHY_ITEM_64_MISSED_IT_is_recorded(self):
+        """The brief asks for this explicitly, and it is the portable part: item 64's sweep
+        asserted the rule against its own definition, so it could not fail."""
+        doc = (S.sip_safe_end_instant.__doc__ or "") + (S.__doc__ or "")
+        self.assertIn("not an instant", doc.lower())
 
 
 if __name__ == "__main__":

@@ -20706,3 +20706,50 @@ did.
 - **No live key, no percentage, nothing armed**, and **the auditor re-reviews parts 1 and 2
   before any live key goes in.**
 
+### PART 5 — the seam pull still 403'd in the evening: a DATE where the vendor wants an INSTANT
+
+Don ran the door at ~22:00Z on 2026-10-16, after item 64 deployed. **The new code worked** — its
+own *"RE-RUNNING WILL NOT HELP"* note came back — and the pull still got nothing, over
+`2025-09-11` to `2026-10-16`.
+
+**THE RULE WAS RIGHT AND THE WIRE VALUE WAS WRONG**, which is a distinction worth keeping
+separate: at 22:00Z `sip_safe_end` correctly returns **today**, because today's 21:00Z close is
+more than sixteen minutes before the 21:44Z cutoff. Our side reproduces Don's window string
+exactly. But **Alpaca's rule is about an INSTANT** — its FAQ: *"the `end` parameter must be at
+least 15 minutes old"* — with refusal code `42210000`, the code Don received.
+
+**WHAT IS ESTABLISHED AND WHAT IS NOT.** The bare-date expansion is **undocumented and
+unverified**: Alpaca shows bare dates in examples and says nothing about 00:00:00 versus
+23:59:59. What the observation settles is narrower and sufficient — a bare `end` equal to today is
+refused at 22:00Z, so it is not treated as an instant that old. An unrelated codebase hit the
+identical error with an explicit `date + time.max`, which fits end-of-day; that corroborates the
+consequence, not the mechanism. **The fix therefore does not depend on the mechanism:** the end
+goes on the wire as an explicit RFC-3339 instant, and an explicit past instant is past under every
+reading. `end` stays a date for the record; `end_param` is what the request carries.
+
+**THE HYPOTHESIS PREDICTS ITS OWN HISTORY.** The old code works whenever the end rolls back to a
+finished day — before ~21:16Z on a weekday and all weekend — and every in-session run during item
+64 was inside that window. That is tested.
+
+**AND THE NOTE NAMED A CAUSE THAT CANNOT HAPPEN.** It said *"an explicit `end=` was probably
+supplied"*, and `/admin/alpaca-seam` calls `pull(root=None, budget_names=...)` and accepts no
+`end` at all. **A diagnosis naming an impossible cause is worse than none**, because it sends the
+reader looking for something that is not there. It now names the code and the instant actually
+sent, and says what to check if that instant IS in the past.
+
+**WHY ITEM 64's TESTS COULD NOT CATCH IT — the portable part.** It verified the window *"at every
+quarter-hour of a week against the rule's own definition"*. **That test could not fail, because it
+asserted the rule against itself.** It never asked what the rule's output means to the VENDOR,
+which is the only thing that decides whether a request is served. A property test is only as good
+as the property, and *"my rule obeys my rule"* is not one. There is now a fixture implementing
+Alpaca's documented rule, and the evening case is tested against that — under **both** candidate
+readings of a bare date — with a control proving the fixture refuses the old bare-date request.
+
+`pull` and `measure` also take an injectable `now`, because the value sent on the wire is a
+function of the clock and a pull whose clock cannot be pinned cannot be tested at a stated
+instant.
+
+**NOT ESTABLISHED: the pull has still never completed.** It needs the admin token, which no lane
+handles. If it 403s again, the note now tells you whether the instant sent was in the past — and
+if it was, the cause is not the SIP delay.
+

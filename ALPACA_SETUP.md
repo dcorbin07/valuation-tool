@@ -212,3 +212,40 @@ The two fails worth telling apart, because they point at different things:
   the serious one: it means substituting Alpaca would have changed numbers already published,
   and the answer is to leave the vendor alone.
 
+### AND IT STILL 403'd IN THE EVENING — the end was a DATE where Alpaca wants an INSTANT (item 65 part 5)
+
+Don ran it again at about **22:00Z on 2026-10-16**, after the fix above had deployed. The new code
+worked — its own *"RE-RUNNING WILL NOT HELP"* note came back — and the pull still got nothing,
+over the window `2025-09-11` to **`2026-10-16`**, which is **today**.
+
+**THE DATE WAS CORRECT AND THE WIRE VALUE WAS NOT.** `sip_safe_end` returns a *date*, and at
+22:00Z it correctly returns today: today's close was more than sixteen minutes earlier. But
+**Alpaca's rule is about an instant** — its own FAQ: *"For historical queries, the `end`
+parameter must be at least 15 minutes old to query SIP data without a subscription"* — and the
+refusal is `{"code":42210000,"message":"subscription does not permit querying recent SIP
+data"}`, exactly what came back.
+
+**WHAT THE EXPANSION OF A BARE DATE IS, IS NOT DOCUMENTED AND IS NOT ESTABLISHED HERE.** Alpaca's
+docs show bare dates in examples and say nothing about whether `2026-10-16` becomes 00:00:00 or
+23:59:59. What the observation settles is narrower and enough: a bare `end` equal to **today** is
+refused at 22:00Z, so it is not read as an instant fifteen minutes old. (An unrelated codebase hit
+the same error by sending an explicit `date + time.max`, which fits end-of-day — corroboration of
+the consequence, not proof of the mechanism.)
+
+**SO THE FIX DOES NOT RELY ON KNOWING WHICH.** The end now goes on the wire as an explicit
+RFC-3339 instant — the earlier of that session's close and *now minus the delay* — and an explicit
+past instant is past under every reading. The window's own `end` stays a date, because that is the
+right description of the period a reader is looking at; `end_param` is what the request carries.
+
+**IT PREDICTS ITS OWN HISTORY, which is why the diagnosis is credible:** the old code works
+whenever the end rolls back to a finished day — before about 21:16Z on a weekday, and all weekend.
+Every in-session run during item 64 was inside that window, which is exactly why nobody saw it.
+
+**AND WHY THE TESTS MISSED IT IS THE PART WORTH KEEPING.** Item 64 verified the window *"at every
+quarter-hour of a week against the rule's own definition"* — that the end's session close is more
+than the delay in the past. **That test could not fail, because it asserted the rule against
+itself.** It never asked what the rule's output means to the vendor, which is the only thing that
+decides whether the request is served. There is now a fixture that implements Alpaca's documented
+rule and refuses accordingly, and the evening case is tested against **that** rather than against
+ours — under both candidate readings of a bare date.
+

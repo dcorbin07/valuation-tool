@@ -363,6 +363,42 @@ def sip_safe_end(now=None) -> dict:
             "why": "no date within ten days qualified, which should be impossible"}
 
 
+def sip_safe_end_instant(now=None) -> dict:
+    """The exact INSTANT to put on the wire, RFC-3339, and why. [item 65 part 5]
+
+    **`sip_safe_end` RETURNS A DATE AND A DATE IS NOT AN INSTANT.** Alpaca's rule is about the
+    instant -- *"the `end` parameter must be at least 15 minutes old"* -- and a bare `end` equal
+    to today was refused at 22:00Z, so a date equal to today is not read as an instant that old.
+    Whether it expands to 23:59:59 or to the whole day is undocumented and does not matter: an
+    explicit past timestamp is past under every reading.
+
+    The instant is the EARLIER of that session's close and `now - the delay`, which is the one
+    line the brief asks for -- and unlike the date version there is no unit mismatch here,
+    because both candidates are instants.
+    """
+    import datetime as _dt
+    n = now or _dt.datetime.now(_dt.timezone.utc)
+    if n.tzinfo is None:
+        n = n.replace(tzinfo=_dt.timezone.utc)
+    safe = sip_safe_end(n)
+    d = safe["end"]
+    close = _dt.datetime(d.year, d.month, d.day, SESSION_CLOSE_UTC_HOUR, 0,
+                         tzinfo=_dt.timezone.utc)
+    delayed = n - _dt.timedelta(minutes=SIP_DELAY_MINUTES)
+    inst, which = ((close, "that session's close")
+                   if close <= delayed else (delayed, "now minus the SIP delay"))
+    return {"instant": inst,
+            "param": inst.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "bound": which,
+            "date": str(d),
+            "why": ("sent as an RFC-3339 INSTANT rather than the bare date %s, because Alpaca's "
+                    "rule is about the instant (\"the end parameter must be at least 15 minutes "
+                    "old\") and a bare end equal to TODAY was refused at 22:00Z on 2026-10-16 -- "
+                    "so a date equal to today is not read as an instant that old. This is %s, "
+                    "which is %d minutes or more in the past under every reading of a date."
+                    % (d, which, SIP_DELAY_MINUTES))}
+
+
 def window(end=None, now=None) -> dict:
     """The stated window. Declared rather than left to the vendor's default, which is what
     turned the first run into three quotes on one day.
@@ -390,8 +426,24 @@ def window(end=None, now=None) -> dict:
     if bound is not None:
         out["end_bound"] = bound["bound"]
         out["end_why"] = bound["why"]
+        # **WHAT ACTUALLY GOES ON THE WIRE. [item 65 part 5]** `end` stays the DATE because it
+        # is the right description of the window a reader is looking at -- the last session
+        # included -- and `end_param` is the RFC-3339 instant the request carries, because a
+        # bare date equal to today is refused and the expansion is undocumented.
+        inst = sip_safe_end_instant(now)
+        out["end_param"] = inst["param"]
+        out["end_param_bound"] = inst["bound"]
+        out["end_param_why"] = inst["why"]
     else:
         out["end_bound"] = "supplied_by_the_caller"
+        # A CALLER-SUPPLIED END GOES ON THE WIRE AS GIVEN, bare date and all: reproducing a
+        # recorded window means reproducing the request, and silently converting it would make
+        # a reproduction a different request.
+        out["end_param"] = out["end"]
+        out["end_param_bound"] = "supplied_by_the_caller"
+        out["end_param_why"] = ("sent exactly as supplied, so a recorded window reproduces as "
+                                "the same request. A bare date equal to TODAY is refused by "
+                                "the free plan -- see `sip_safe_end_instant`.")
         out["end_why"] = ("the caller named this end explicitly, so no SIP-delay bound was "
                           "applied; a window ending inside the free plan's %d-minute delay "
                           "will be refused in full" % SIP_DELAY_MINUTES)
@@ -431,7 +483,8 @@ def yf_both_bases(ticker: str, days: int = WINDOW_CALENDAR_DAYS) -> dict:
     return out
 
 
-def pull(*, client=None, names=None, root: str = None, end=None, budget_names: int = 60,
+def pull(*, client=None, names=None, root: str = None, end=None, now=None,
+         budget_names: int = 60,
          yf_fetch=None, env=None) -> dict:
     """Fill the stored raw pull, RESUMING where a previous call stopped. Returns a progress report.
 
@@ -458,7 +511,10 @@ def pull(*, client=None, names=None, root: str = None, end=None, budget_names: i
         return out
 
     raw = read_raw(root)
-    win = window(end)
+    # `now` IS INJECTABLE because the end sent on the wire is a function of the clock
+    # (`sip_safe_end_instant`), so a pull whose clock cannot be pinned cannot be tested
+    # against the vendor's rule at a stated instant. [item 65 part 5]
+    win = window(end, now=now)
     # A WINDOW CHANGE INVALIDATES THE STORE. Mixing bars from two windows would make the bar
     # count meaningless, which is the quantity the floor is on.
     if raw.get("window") and raw["window"].get("start") != win["start"]:
@@ -470,7 +526,9 @@ def pull(*, client=None, names=None, root: str = None, end=None, budget_names: i
     # ---- ALPACA: cheap, multi-symbol, so it is pulled whole on the first call ---------------
     if not raw["alpaca"]:
         for adj in (AD.ADJ_ALL, AD.ADJ_RAW):
-            got = client.bars(names, adjustment=adj, start=win["start"], end=win["end"])
+            # `end_param`, NOT `end`: the instant, not the bare date. [item 65 part 5]
+            got = client.bars(names, adjustment=adj, start=win["start"],
+                              end=win.get("end_param") or win["end"])
             out["requests"] += int(got.get("requests") or 0)
             if not got.get("ok"):
                 err = str(got.get("error") or "")
@@ -480,16 +538,26 @@ def pull(*, client=None, names=None, root: str = None, end=None, budget_names: i
                 # THE 403 THAT COST TEN RUNS, NAMED BY ITS CAUSE [item 64]. Alpaca refuses a
                 # window reaching inside the free plan's SIP delay IN FULL, so `n_alpaca` never
                 # leaves 0 and every retry is identical. The window's own end is now bounded
-                # (`sip_safe_end`), so seeing this again means something else is wrong -- most
-                # likely an explicit `end=` supplied by the caller.
+                # (`sip_safe_end_instant`), and it is sent as an RFC-3339 INSTANT rather
+                # than a bare date -- because a bare date equal to today was refused at 22:00Z
+                # even though the DATE was correct by the rule's own definition. [item 65 p5]
                 if "recent SIP data" in err or "subscription does not permit" in err:
+                    # **THE OLD WORDING NAMED A CAUSE THAT CANNOT HAPPEN HERE [item 65 part 5]:**
+                    # *"an explicit end= was probably supplied"* -- and `/admin/alpaca-seam`
+                    # calls `pull(root=None, budget_names=...)` and accepts no `end` at all. A
+                    # diagnosis naming an impossible cause is worse than none, because it sends
+                    # the reader to look for something that is not there. It names what is
+                    # actually on the wire instead.
                     out["rerun_note"] = (
-                        "RE-RUNNING WILL NOT HELP. Alpaca refused the WHOLE request because the "
-                        "window reaches inside the free plan's %d-minute SIP delay. The window "
-                        "asked for was %s to %s. This end is normally bounded automatically, so "
-                        "an explicit end= was probably supplied."
+                        "RE-RUNNING WILL NOT HELP. Alpaca refused the WHOLE request (code "
+                        "42210000) because the `end` it was given is not at least %d minutes "
+                        "old. The window was %s to %s and the end SENT was %r (%s). If that "
+                        "timestamp is in the past, the cause is not the SIP delay -- check the "
+                        "feed and the key's entitlement."
                         % (SIP_DELAY_MINUTES, (out.get("window") or {}).get("start"),
-                           (out.get("window") or {}).get("end")))
+                           (out.get("window") or {}).get("end"),
+                           (out.get("window") or {}).get("end_param"),
+                           (out.get("window") or {}).get("end_param_bound")))
                 else:
                     out["rerun_note"] = ("RE-RUNNING WILL NOT HELP until this failure is "
                                          "understood: this call pulled nothing.")
@@ -996,7 +1064,7 @@ def closes_fetch(yf_closes: dict):
     return fetch
 
 
-def measure(*, client=None, names=None, root: str = None, end=None, yf_fetch=None,
+def measure(*, client=None, names=None, root: str = None, end=None, now=None, yf_fetch=None,
             yf_closes=None, env=None, series=None, contract_row=None, feeds=None,
             write: bool = True, budget_names: int = None) -> dict:
     """PULL, THEN ANALYSE, in one call. The offline and single-machine entry point.
@@ -1017,8 +1085,8 @@ def measure(*, client=None, names=None, root: str = None, end=None, yf_fetch=Non
     """
     if yf_fetch is None and yf_closes is not None:
         yf_fetch = closes_fetch(yf_closes)
-    prog = pull(client=client, names=names, root=root, end=end, yf_fetch=yf_fetch, env=env,
-                budget_names=budget_names)
+    prog = pull(client=client, names=names, root=root, end=end, now=now, yf_fetch=yf_fetch,
+                env=env, budget_names=budget_names)
     if not prog.get("ok"):
         return {"schema": SCHEMA, "ok": False, "pull": prog,
                 "closes": {"passed": False, "measured": False,
