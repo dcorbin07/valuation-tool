@@ -20996,3 +20996,191 @@ side.
 - **No decision is taken on a non-fractionable name.** Reported, priced, and left to Don.
 - **Nothing is adopted and no percentage is set.** `?run=paper` throughout.
 
+
+## ITEM 68 — the seam ran to completion and did not pass. Both failures, by cause.
+
+Don's run completed 2026-10-17 03:10Z after he regenerated the stale paper keys: **217 names,
+58,318 bars, 215 compared, coverage 95.5%.** Two legs failed, for entirely unrelated reasons.
+**Nothing switches. Alpaca stays off the Index price path for the 2026-10-22 rebalance.**
+
+### 1. THE RECORDED-SERIES LEG NEVER RAN, AND THE REASON IS THE PULL'S UNIVERSE
+
+*"The benchmark SPY could not be priced on the inception 2026-07-30."* True, and it arrives from
+`contract_row` one row at a time, and it is not the sentence a reader can act on.
+
+**`_sample_names` returns `fmp_seam.sample()` plus five named probes — the live hot list and the
+dip screen.** That is a screen of what looks good TODAY. **SPY is in no screen, and a bound book
+holds what it HELD**: a name that has since left the hot list is in the record and not in the
+sample. So the one leg that gates the Index switch reported UNMEASURED on every run, and the
+switch was reported "available" without it.
+
+**FIXED, and for every segment rather than just the book in force.** `recorded_universe()` reads
+the bound book and returns its benchmark plus every ticker in **every rebalance segment since
+inception**; `_sample_names` adds them to the pull. Pulling only the current segment would
+reproduce the same failure one rebalance later — the kind of fix that looks right until the next
+event. **The declared SAMPLE is unchanged and still reported separately**, so the daily-closes
+bar is still measured on the population it was declared against; these names are ADDED to the
+pull, not substituted into the sample.
+
+**AND THE LEG NOW SAYS WHAT IS MISSING UP FRONT**, naming the symbols, as UNMEASURED rather than
+failed — a vendor that was never asked is not a vendor that got it wrong.
+
+**A SECOND DEFECT IN THE SAME LEG, which this fix makes live rather than latent.**
+`measure_vs_recorded` recorded `n_priced_alpaca` beside `n_priced_recorded` **and read neither**:
+`agree` came from the percentage gap alone, so a vendor pricing 60 of 86 names could report
+agreement in basis points on a book that is not the recorded one. `index_mark`'s own docstring
+already names that failure — *"only 78 of 86 names have a 2026-07-31 close in this tape against a
+recorded `n_priced` of 86, so its book leg compares two different books."* **A count recorded and
+not read is the same defect as a refusal not read**, which is item 65's and item 67's family, now
+three items running. Three states, not two: same book / different book / **NOT KNOWN**, and
+`passed` requires confirmation.
+
+**DOES IT PASS NOW? UNKNOWN, AND IT CANNOT BE RUN FROM HERE.** The bound record and the paper keys
+live on Render; `data/` is gitignored, so `recorded_universe()` correctly refuses on this machine.
+**The next pull answers it** — and it needs a fresh pull, because the stored one does not contain
+the record's names.
+
+### 2. THE ADJUSTED-BASIS GAP IS CORPORATE ACTIONS, AND IT RUNS IN BOTH DIRECTIONS
+
+**THE ASYMMETRY IS THE WHOLE DIAGNOSIS: daily closes on `all` agree 0.9020 and the AS-TRADED leg
+agrees 0.9915.** The as-traded close is the same number on both sides, so the gap lives entirely
+in the ADJUSTMENT.
+
+Measured from yfinance's own series and the companies' own filings:
+
+| name | event | date | yfinance | Alpaca | **right** |
+|---|---|---|---|---|---|
+| CTVA | Vylor spin-off, 1:1 | 2026-10-01 | restated (6.665) | **did not** | **yfinance** |
+| AZN | ADS → 0.5 ordinary share, NYSE direct listing | 2026-02-02 | restated (0.5) | **did not** | **yfinance** |
+| APTV | Versigent spin-off, 1-for-3 | 2026-04-01 | **left a −10.6% cliff** | restated (~0.847) | **Alpaca** |
+| UL | Magnum demerger, 1-for-5 | 2025-12-08 | **left a −7.0% cliff** | restated (~0.949) | **Alpaca** |
+| UL | 8-for-9 share consolidation | 2025-12-09 | restated (0.888) | restated | both |
+| HAFN | dividends only (~1.67 on a $7–10 price) | — | adjusted | adjusted, more | **neither — convention** |
+
+**THE ARITHMETIC CLOSES ON DON'S OWN FIGURE, which is what makes this a measurement rather than a
+story.** yfinance's restated CTVA close for 2025-12-03 is **9.732215**; times the **6.665** factor
+yfinance itself recorded for the separation that is **64.8652**, against the **64.87** his run read
+from Alpaca. So Alpaca's `all` close for that day IS the unrestated price, to rounding.
+
+**NEITHER VENDOR IS CONSISTENT, AND THE ONE THAT IS WRONG ON APTV AND UL IS THE INCUMBENT.** The
+record is priced on yfinance. yfinance restated three of these four events and left the fourth as
+a raw cliff; Alpaca did the opposite on two of them. **So "Alpaca is wrong" is not the finding and
+neither is "they are only different".**
+
+**AND THE FAILURE IS CONCENTRATED IN NAMES, WHICH A PER-BAR RATE HIDES.** One corporate action
+poisons every bar BEFORE it for that name. At 271 bars per name, **0.9020 is about 21 affected
+names of 215** — and the as-traded leg's 494 bars is **about 1.8 names**. 2025–26 was a heavy year
+for separations, so ~21 of 215 is an ordinary number, not an anomaly.
+
+**THE CLASSIFIER SHIPS SO THE NEXT RUN REPORTS THE BREAKDOWN BY CAUSE.** Five rows can be
+classified by hand; 5,715 cannot. `classify_disagreement` reads the cause from **the shape of the
+ratio of the two series** — a restatement one side applied multiplies every bar before the event
+by one constant, so the ratio **STEPS** on the event date; a dividend-basis difference accumulates
+and **DRIFTS**. No third source to keep right, and the step's DATE identifies the action.
+`unexplained` is a named class: **a classifier that explains everything is not measuring.**
+
+**A DEFECT IN MY OWN CLASSIFIER, and it reported the finding backwards.** I read which vendor
+adjusted off the SIGN of the step — and that cannot work: yfinance DIVIDED Corteva's history by
+6.665 and MULTIPLIED AstraZeneca's by 2, so the ratio sits above 1 in one and below it in the
+other while the answer is the same vendor both times. **What carries it is CONTINUITY**: the
+vendor that applied the action has no cliff on the event date, because that is what applying it
+means. Caught by its own test, and reported **UNKNOWN** where the step sits at the window's edge
+and one side has no move to compare.
+
+### EVERY CLASS THE BRIEF NAMED, INCLUDING THE TWO WITH NO INSTANCE
+
+The brief names five candidate causes. All five are addressed, and **the two with no instance are
+reported as having none rather than left out** — an absent class is a finding about these five
+rows, and a reader who sees only three classes cannot tell which two were checked.
+
+| class | instances among the five | which vendor is right |
+|---|---|---|
+| **dividend-adjustment convention** | **HAFN** | **neither — it is a convention.** ~1.67 of dividends on a $7–10 price makes the term large; the two differ by ~3.7%. Reinvestment timing and gross-versus-net of withholding tax on a foreign issuer are both live candidates and **this does not establish which applies** |
+| **spin-off / demerger** | **CTVA, APTV, UL** | **whichever restated — measured per event, and it is not the same vendor twice** |
+| **listing or ADR change** | **AZN** | **yfinance.** 1 ADS was cancelled for 0.5 new ordinary shares, so comparing a price then with a price now on a per-current-unit basis REQUIRES the ×2 restatement |
+| **symbol reuse** | **NONE FOUND.** Corteva kept `CTVA` and the new entity is `VYLR`; Aptiv kept `APTV` and the new one is `VGNT`; `AZN` carried over to the ordinary-share listing | n/a — **and the classifier cannot tell reuse from a missed restatement**, because both produce a step. A step whose date matches no known action is where a reader should suspect reuse |
+| **a genuine wrong price on either side** | **NONE FOUND.** All five rows are fully explained by a restatement or a dividend basis | n/a |
+
+**HOW CONFIDENT EACH ONE IS, stated rather than levelled.** CTVA is **exact** — 9.732215 × 6.665 =
+64.8652 against a measured 64.87, a 0.005% miss, which is rounding. AZN, APTV and UL are
+identified by **class and direction** with the factor within a few percent of the independently
+computed one (APTV: Alpaca's implied 0.847 against 0.870 from the close plus 1/3 of VGNT at
+27.85), because the exact factor a vendor uses comes from official when-issued or
+declared-distribution values rather than from a close-to-close estimate. **So the class and the
+direction are measured; the last percent of the factor is not.**
+
+### 3. WHICH BASIS THE RECORD USES, AND WHAT THAT MEANS FOR THE COMPARISON
+
+**The bound record is priced on yfinance `auto_adjust=True` — splits and dividends.** Alpaca's
+`all` is splits, dividends **and spin-offs**. The project's own source already declares that
+difference, in `prices.VENDOR_ADJUSTMENT`'s own comment. **The 0.98 bar was declared over two
+conventions that were never the same thing, and both vendors turn out to be internally
+inconsistent about the term that differs — so that bar was not reachable.** The bar is not
+changed here, and neither is the basis: changing either after seeing the result is choosing the
+design on the outcome.
+
+**THE DECLARED COMPARISON IS NOT THE ONE THE SWITCH NEEDS, AND THE DATES SHOW IT.** The record is
+cumulative from **2026-07-30**. A restatement BEFORE that date changes only bars the record never
+reads. Of the five worst rows, **all five bars are pre-inception**, and of the four events, **only
+Corteva's (2026-10-01) falls after inception at all.** So four of the five cannot touch the record
+under any convention, and the 0.9020 is dominated by historical restatements of names that may
+not even be in the book.
+
+**AND ON THE ONE EVENT THAT COULD TOUCH IT, THE INCUMBENT IS THE VENDOR THAT GOT IT RIGHT.** If
+CTVA is in the book, switching to Alpaca would have carried a **6.665×** error into that holding's
+return — against a measured yfinance-to-FMP seam of about **0.02pp**. That is not a seam; it is a
+wrong number.
+
+**ROUTED TO DON AS A NEW, SEPARATELY DECLARED MEASUREMENT — not run as a substitute.** The
+question a January switch actually turns on is narrow: *do the two vendors agree on the bars SINCE
+INCEPTION, for the BOOK's names only?* That is a few hundred bars over ~86 names rather than
+58,318 over 215, every bar of it is a bar the record uses, and a corporate action inside the
+window is exactly what it would catch. **It needs its own declared bar and its own declared
+population before it is run**, and it is not a relaxation of the 0.98 — it is a different
+question. `vs_recorded`, which part 1 makes runnable, is the same question asked of the recorded
+rows themselves.
+
+### WHAT A SWITCH WOULD DO TO THE SEAM — MEASURED, ON THE ONE EVENT THAT COULD TOUCH IT
+
+A vendor switch is a price-vendor change and not a vintage event (DECISIONS, 2026-10-14). **But
+the switch on the table also changes the CONVENTION** — from splits-and-dividends to
+splits-dividends-and-spin-offs — and a convention change is still a seam. Here is that seam with
+a number on it, for Corteva, the only one of the four events falling after the record's inception:
+
+| | CTVA since 2026-07-30 |
+|---|---|
+| as-traded base on 2026-07-30 | **89.15** (yfinance's restated 13.3758 × 6.665) |
+| today | CTVA **12.88** + VYLR **72.18** |
+| **what a holder actually got** | **−4.6%** |
+| the record **on yfinance** (restated) | **−3.7%** — within 0.9pp of the truth |
+| the record **on Alpaca** (unrestated base) | **−85.6%** |
+
+**AN 81-POINT ERROR ON ONE HOLDING.** At 1.2% weight that is about **−0.97pp on the Index level**
+— roughly a quarter of one month's declared sigma (3.9847pp) and about **49× the 0.02pp
+yfinance-to-FMP seam this project has already disclosed**; at the 2.3% cap it is −1.86pp and 93×.
+**That is not a seam to record. It is a wrong number**, and it would have been in the published
+Index level for as long as Corteva stayed in the book.
+
+**CONDITIONAL ON ONE FACT THIS LANE CANNOT CHECK: whether CTVA is in the bound book.** The book
+lives on the service. If it is not, the figure above is a demonstration rather than an exposure —
+and the mechanism is unchanged either way, because the next separation of a book name does the
+same thing.
+
+### IS A JANUARY SWITCH WORTH PREPARING FOR?
+
+**Not on this evidence, and the reason is specific rather than general.** Alpaca's as-traded tape
+agrees with the incumbent at **0.9915**, its coverage is **95.5%**, and the two fixed legs can now
+both be measured — so nothing here says Alpaca's prices are bad. What it says is that **Alpaca did
+not apply the one post-inception corporate action in the window**, and the record is a cumulative
+series where that is not a rounding difference. The cheap next step is the narrow measurement
+above plus a fresh pull so `vs_recorded` can run; **until one of those passes there is nothing to
+prepare.**
+
+### WHAT IS NOT DONE
+
+- **Whether `vs_recorded` passes is UNMEASURED** — it needs a fresh pull on the service.
+- **The per-cause COUNTS are unmeasured.** The classifier ships; the breakdown arrives with the
+  next run. The five named rows are classified by hand and that is all five.
+- **No switch, no opt-in, no change to the record, and the declared bar and basis are untouched.**
+- **Whether CTVA is in the bound book is not established here** — the book is on the service.
+

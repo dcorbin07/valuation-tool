@@ -305,6 +305,141 @@ def compare_closes(a: dict, b: dict, tol: float = AGREE_TOL) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------
+# WHY A NAME DISAGREES -- the cause, from the two series alone  [item 68 part 2]
+# ---------------------------------------------------------------------------------------------
+
+#: A restatement one vendor applied and the other did not. Every bar BEFORE the event is
+#: multiplied by one constant and every bar after it is untouched, so the ratio of the two
+#: series is a STEP. Spin-offs, demergers, share consolidations and ADR/listing ratio changes
+#: all produce this, and the step's DATE is what identifies which.
+CAUSE_STEP = "corporate_action_one_side_only"
+
+#: A dividend-basis difference. It accumulates bar by bar rather than jumping, so the ratio
+#: DRIFTS. Both vendors are "adjusted"; the methods differ -- reinvestment timing, and gross
+#: versus net of withholding tax on a foreign issuer are both live candidates.
+CAUSE_DRIFT = "dividend_convention"
+
+#: Both at once: a step, and a residual drift either side of it.
+CAUSE_BOTH = "a_corporate_action_AND_a_dividend_drift"
+
+#: Named rather than folded into any of the above. An unexplained gap is the one a reader most
+#: needs to see, and a classifier that explains everything is not measuring.
+CAUSE_UNEXPLAINED = "unexplained"
+
+#: No disagreeing bar at all.
+CAUSE_NONE = "agrees"
+
+#: How large a one-day move in the RATIO counts as a step rather than drift. 1% is far above
+#: any dividend's one-day contribution on a normal payer and far below the smallest corporate
+#: action worth adjusting for, so it separates the two questions rather than blurring them --
+#: the same reasoning as `RECORDED_TOL_BPS`.
+STEP_MIN_REL = 0.01
+
+#: How much the ratio may wander, either side of a step, before the residual is called a drift.
+#: Deliberately looser than `AGREE_TOL`: a bar that misses agreement by a hair is rounding, and
+#: calling that a dividend convention would invent a cause.
+DRIFT_MIN_REL = 0.002
+
+
+def classify_disagreement(a: dict, b: dict, tol: float = AGREE_TOL) -> dict:
+    """Why these two `{date: close}` series disagree. `a` is Alpaca, `b` is the other vendor.
+
+    Returns the cause, the step's date and size where there is one, and the ratio either side.
+    **An empty or single-bar overlap is UNMEASURED, never a cause** (`C5`): one bar cannot show
+    a step or a drift, and naming a cause from it would be inventing one.
+    """
+    out = {"measured": False, "cause": None, "n": 0, "n_disagree": 0, "reason": ""}
+    shared = sorted(d for d in (set(a) & set(b)) if a.get(d) and b.get(d))
+    if len(shared) < 2:
+        out["reason"] = ("%d shared bar(s) with a usable close: a cause cannot be told from "
+                         "fewer than two" % len(shared))
+        return out
+    ratios = [(d, float(a[d]) / float(b[d])) for d in shared]
+    out.update(measured=True, n=len(ratios),
+               n_disagree=sum(1 for _, r in ratios if abs(r - 1.0) > tol))
+    if not out["n_disagree"]:
+        out.update(cause=CAUSE_NONE, reason="every shared bar agrees within %g" % tol)
+        return out
+
+    # THE LARGEST ONE-DAY MOVE IN THE RATIO. A restatement one side applied shows up here and
+    # nowhere else; a dividend difference cannot produce it.
+    steps = []
+    for i in range(1, len(ratios)):
+        prev, cur = ratios[i - 1][1], ratios[i][1]
+        if prev:
+            steps.append((abs(cur / prev - 1.0), ratios[i][0], prev, cur))
+    steps.sort(reverse=True)
+    biggest = steps[0] if steps else None
+
+    first_r, last_r = ratios[0][1], ratios[-1][1]
+    if biggest and biggest[0] >= STEP_MIN_REL:
+        size, when, before, after = biggest
+        # **WHICH VENDOR APPLIED IT IS READ FROM CONTINUITY, NOT FROM THE RATIO'S SIGN.** A
+        # restatement scales either way -- yfinance DIVIDED Corteva's history by 6.665 and
+        # MULTIPLIED AstraZeneca's by 2 -- so the ratio sits above 1 in one case and below it in
+        # the other while the answer is the same vendor both times. What distinguishes them is
+        # that the vendor which applied the action has NO CLIFF on the event date: that is what
+        # applying it means. So compare each series' OWN one-day move and take the smaller.
+        idx = [d for d, _ in ratios].index(when)
+        who, who_why = None, ("the step sits at the edge of the shared window, so one side has "
+                              "no move to compare and which vendor applied it CANNOT be told "
+                              "from these two series")
+        if idx >= 1:
+            pa, ca = float(a[ratios[idx - 1][0]]), float(a[when])
+            pb, cb = float(b[ratios[idx - 1][0]]), float(b[when])
+            if pa and pb:
+                move_a, move_b = abs(ca / pa - 1.0), abs(cb / pb - 1.0)
+                who = "Alpaca" if move_a < move_b else "the other vendor"
+                who_why = ("across %s Alpaca's own series moves %.2f%% and the other vendor's "
+                           "%.2f%%; the one WITHOUT the cliff is the one that applied the "
+                           "action, because that is what applying it means"
+                           % (when, move_a * 100.0, move_b * 100.0))
+        # Is anything LEFT once the step is accounted for? Compared within each side rather
+        # than across the step, because across it the step itself is the whole difference.
+        left = [r for d, r in ratios if d < when]
+        right = [r for d, r in ratios if d >= when]
+        resid = max((max(x) / min(x) - 1.0) for x in (left, right) if len(x) >= 2) \
+            if any(len(x) >= 2 for x in (left, right)) else 0.0
+        out.update(
+            cause=(CAUSE_BOTH if resid >= DRIFT_MIN_REL else CAUSE_STEP),
+            step_date=when, step_rel=round(size, 6),
+            ratio_before_step=round(before, 6), ratio_after_step=round(after, 6),
+            residual_rel=round(resid, 6),
+            which_vendor_adjusted=who, which_vendor_adjusted_why=who_why,
+            reason=("the ratio STEPS by %.2f%% on %s (%.4f -> %.4f), which is a corporate "
+                    "action one vendor restated the series for and the other did not. %s. "
+                    "Spin-offs, demergers, share consolidations and ADR or listing ratio "
+                    "changes all produce exactly this%s."
+                    % (size * 100.0, when, before, after,
+                       ("%s applied it -- %s" % (who, who_why)) if who else who_why,
+                       (", and a residual %.2f%% drift either side is a dividend-basis "
+                        "difference on top" % (resid * 100.0))
+                       if resid >= DRIFT_MIN_REL else "")))
+        return out
+
+    spread = (max(r for _, r in ratios) / min(r for _, r in ratios)) - 1.0
+    if spread >= DRIFT_MIN_REL:
+        out.update(cause=CAUSE_DRIFT, drift_rel=round(spread, 6),
+                   ratio_first=round(first_r, 6), ratio_last=round(last_r, 6),
+                   reason=("the ratio DRIFTS by %.2f%% across the window with no step, which "
+                           "is a dividend-basis difference: it accumulates bar by bar rather "
+                           "than jumping. Both vendors are adjusted and the methods differ -- "
+                           "reinvestment timing, and gross versus net of withholding tax on a "
+                           "foreign issuer, are both live candidates and this does not say "
+                           "which is right." % (spread * 100.0)))
+        return out
+
+    out.update(cause=CAUSE_UNEXPLAINED, drift_rel=round(spread, 6),
+               ratio_first=round(first_r, 6), ratio_last=round(last_r, 6),
+               reason=("%d of %d bars miss the %g tolerance, and the ratio neither steps nor "
+                       "drifts -- so this is NOT explained by a corporate action or a dividend "
+                       "basis, and is reported unexplained rather than assigned a cause"
+                       % (out["n_disagree"], out["n"], tol)))
+    return out
+
+
+
+# ---------------------------------------------------------------------------------------------
 # the pull -- stored, resumable, and it says what it still owes
 # ---------------------------------------------------------------------------------------------
 #: HOW FAR BACK THE FREE PLAN'S SIP ENTITLEMENT STARTS, IN MINUTES. [item 64]
@@ -629,6 +764,68 @@ def pull(*, client=None, names=None, root: str = None, end=None, now=None,
     return out
 
 
+def recorded_universe(root=None) -> dict:
+    """THE BOUND RECORD'S OWN NAMES: its benchmark, and every ticker in every segment.
+
+    `{"ok", "names", "benchmark", "n_segments", "reason"}`.
+
+    **WHY IT IS NOT THE SAMPLE.** `_sample_names` is the live hot list plus the dip screen plus
+    five named probes -- a screen of what looks good TODAY. A bound book holds what it HELD, so
+    a name that has since left the hot list is in the record and not in the sample; and the
+    BENCHMARK is in neither. That is why the `vs_recorded` leg reported UNMEASURED on every run:
+    `contract_row` could not price SPY.
+
+    **EVERY SEGMENT SINCE INCEPTION, not just the book in force.** The record is a chain of
+    rebalance events and a row dated inside an earlier segment is priced on THAT segment's
+    names. Pulling only the current segment would reproduce the same failure one rebalance
+    later, which is the kind of fix that looks right until the next event.
+
+    Returns `ok: False` with a reason rather than a partial list: a universe that is missing a
+    name the record needs is exactly what produced this, and the leg must refuse rather than
+    compare a different book (`C5` -- absent is not a measured zero).
+    """
+    out = {"ok": False, "names": [], "benchmark": None, "n_segments": 0, "reason": ""}
+    try:
+        from ..screener import index_mark as IM
+    except Exception as ex:                                             # noqa: BLE001
+        out["reason"] = "index_mark could not be imported: %r" % (ex,)
+        return out
+    try:
+        book = IM.load_book()
+    except Exception as ex:                                             # noqa: BLE001
+        out["reason"] = "the bound book could not be read: %r" % (ex,)
+        return out
+    if not book.get("ok"):
+        out["reason"] = ("the bound book could not be read (%s), so the record's own names are "
+                         "UNKNOWN here -- this leg can only be measured where the record lives"
+                         % (book.get("reason") or "no reason given"))
+        return out
+
+    names = set()
+    bench = str(book.get("benchmark") or "").strip().upper()
+    if bench:
+        names.add(bench)
+        out["benchmark"] = bench
+    for p in (book.get("positions") or []):
+        t = str((p or {}).get("ticker") or "").strip().upper()
+        if t:
+            names.add(t)
+    segs = book.get("rebalances") or []
+    out["n_segments"] = len(segs)
+    for ev in segs:
+        for p in ((ev or {}).get("positions") or []):
+            t = str((p or {}).get("ticker") or "").strip().upper()
+            if t:
+                names.add(t)
+    if not names:
+        out["reason"] = "the bound book carries no tickers and no benchmark"
+        return out
+    out.update(ok=True, names=sorted(names),
+               reason=("%d name(s) from the bound record: its benchmark %s plus every ticker in "
+                       "%d segment(s)" % (len(names), out["benchmark"] or "(none)", len(segs))))
+    return out
+
+
 def _sample_names(names, root):
     """The stated sample, or a string explaining why it could not be had."""
     if names is not None:
@@ -640,9 +837,22 @@ def _sample_names(names, root):
         if rd not in sys.path:
             sys.path.insert(0, rd)
         from scripts import fmp_seam as FS
-        return sorted(set(FS.sample()) | set(NAMED_GAPS))
+        wanted = set(FS.sample()) | set(NAMED_GAPS)
     except Exception as ex:                                             # noqa: BLE001
         return "the stated sample could not be built: %r" % (ex,)
+    # **PLUS THE BOUND RECORD'S OWN NAMES AND ITS BENCHMARK [item 68 part 1].** Without them
+    # the `vs_recorded` leg -- the only one that gates the Index switch -- cannot run at all:
+    # `contract_row` refused on *"the benchmark SPY could not be priced"* on every run. A book
+    # name that has left the hot list is in the record and not in the sample, which is the
+    # whole point of a bound book.
+    #
+    # The declared SAMPLE is unchanged and is still reported separately, so the daily-closes
+    # leg's bar is still measured on the population it was declared against. These names are
+    # ADDED to the pull, not substituted into the sample.
+    rec = recorded_universe(root)
+    if rec.get("ok"):
+        wanted |= set(rec["names"])
+    return sorted(wanted)
 
 
 def categories(root=None) -> dict:
@@ -723,6 +933,30 @@ def measure_vs_recorded(*, raw_by_symbol: dict, root: str = None, series=None,
                          "the record lives.")
         return out
 
+    # **DOES THE PULL EVEN CONTAIN THE RECORD'S NAMES? [item 68 part 1]** Asked once, here,
+    # rather than discovered 80 times by `contract_row` refusing per row. Don's run reported
+    # "the benchmark SPY could not be priced on the inception 2026-07-30" -- correct, and it
+    # does not say the thing a reader can act on, which is that the pull was built from a
+    # SCREEN of today's names and the record holds what it held.
+    have = {str(k).strip().upper() for k in (raw_by_symbol or {})}
+    uni = recorded_universe(root)
+    out["recorded_universe"] = {k: uni.get(k) for k in ("ok", "benchmark", "n_segments",
+                                                        "reason")}
+    if uni.get("ok"):
+        missing = sorted(set(uni["names"]) - have)
+        out["recorded_universe"]["n_names"] = len(uni["names"])
+        out["recorded_universe"]["missing_from_pull"] = missing
+        if missing:
+            out["reason"] = (
+                "the pull does not contain %d of the %d name(s) the bound record needs (%s%s), "
+                "so this leg is UNMEASURED rather than failed. The pull's sample is a SCREEN of "
+                "today's names; a bound book holds what it held, and its benchmark is in no "
+                "screen at all. `_sample_names` now adds the record's own universe, so a fresh "
+                "pull covers it."
+                % (len(missing), len(uni["names"]), ", ".join(missing[:8]),
+                   " and %d more" % (len(missing) - 8) if len(missing) > 8 else ""))
+            return out
+
     fetch = alpaca_fetch(raw_by_symbol, AD.ADJ_ALL)
     worst = 0.0
     for r in series:
@@ -751,13 +985,44 @@ def measure_vs_recorded(*, raw_by_symbol: dict, root: str = None, series=None,
             continue
         gap = max(p[3] for p in pairs)
         worst = max(worst, gap)
-        row.update(ok=True, gap_bps=gap, agree=bool(gap <= RECORDED_TOL_BPS),
+        # **THE SAME BOOK, OR NO AGREEMENT [item 68 part 1].** Both counts were already
+        # recorded here and neither was READ: `agree` came from the percentage gap alone, so a
+        # vendor pricing 60 of 86 names could report agreement in basis points on a book that
+        # is not the recorded one. `index_mark`'s own docstring names that failure -- *"only 78
+        # of 86 names have a 2026-07-31 close in this tape against a recorded n_priced of 86,
+        # so its book leg compares two different books."* A count recorded and not read is the
+        # same defect as a refusal not read, which is item 65's and item 67's family.
+        # **THREE STATES, NOT TWO.** Same book / different book / NOT KNOWN -- and an absent
+        # count is the third rather than either of the first two. `n_priced` is a required
+        # column of the recorded series (`index_mark.ROW_COLUMNS`), so in production absence
+        # means a schema gap; collapsing it into "different" would report a vendor seam that
+        # was never measured, and into "same" would be the vacuous pass this leg exists to
+        # avoid. `passed` below requires CONFIRMATION, which is the refusing direction for a
+        # gate on the one series that cannot be rebuilt.
+        na, nr = _f(mine.get("n_priced")), _f(r.get("n_priced"))
+        same_book = (None if (na is None or nr is None) else int(na) == int(nr))
+        row.update(ok=True, gap_bps=gap,
+                   agree=bool(gap <= RECORDED_TOL_BPS and same_book is True),
+                   same_book=same_book,
                    fields={p[0]: {"alpaca": p[1], "recorded": p[2], "gap_bps": p[3]}
                            for p in pairs},
                    n_priced_alpaca=mine.get("n_priced"), n_priced_recorded=r.get("n_priced"))
+        if same_book is False:
+            row["reason"] = ("this vendor priced %s of the book's names and the recorded row "
+                             "was marked on %s, so the two figures describe DIFFERENT BOOKS "
+                             "and the gap between them is not a vendor seam"
+                             % (mine.get("n_priced"), r.get("n_priced")))
+        elif same_book is None:
+            row["reason"] = ("whether the two figures describe the same book is NOT KNOWN: the "
+                             "recomputed row reports %r names priced and the recorded row %r. "
+                             "`n_priced` is a required column of the record, so this is a "
+                             "schema gap rather than a vendor seam."
+                             % (mine.get("n_priced"), r.get("n_priced")))
         out["rows"].append(row)
 
     done = [x for x in out["rows"] if x.get("ok")]
+    out["n_different_book"] = sum(1 for x in done if x.get("same_book") is False)
+    out["n_book_unknown"] = sum(1 for x in done if x.get("same_book") is None)
     out["n_compared"] = len(done)
     out["n_agree"] = sum(1 for x in done if x.get("agree"))
     out["worst_bps"] = (worst if done else None)
@@ -889,6 +1154,7 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
 
     # ---- the daily-close comparison, BAR-WEIGHTED -----------------------------------------
     per_name, n_bars, n_agree, n_names = {}, 0, 0, 0
+    by_cause, bars_by_cause, steps = {}, {}, []
     raw_bars, raw_agree = 0, 0
     for s in nm:
         a_all = (alp.get(s) or {}).get(AD.ADJ_ALL) or {}
@@ -897,6 +1163,10 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
         row = {}
         if a_all and (y.get("adj") or {}):
             row["all_vs_yf_adjusted"] = compare_closes(a_all, y["adj"])
+            # **WHY, NOT JUST HOW MUCH [item 68 part 2].** A corporate action one vendor
+            # restated for makes the ratio STEP; a dividend-basis difference makes it DRIFT.
+            # Both from the two series already in hand, so no third source to keep right.
+            row["cause"] = classify_disagreement(a_all, y["adj"])
         if a_raw and (y.get("asof") or {}):
             row["raw_vs_yf_as_traded"] = compare_closes(a_raw, y["asof"])
         if not row:
@@ -911,6 +1181,16 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
         if h.get("measured"):
             raw_bars += h["n"]
             raw_agree += h["n_agree"]
+        c = row.get("cause") or {}
+        if c.get("measured") and c.get("cause"):
+            by_cause.setdefault(c["cause"], []).append(s)
+            if c.get("cause") != CAUSE_NONE:
+                bars_by_cause[c["cause"]] = (bars_by_cause.get(c["cause"], 0)
+                                             + int(c.get("n_disagree") or 0))
+                if c.get("step_date"):
+                    steps.append({"ticker": s, "date": c["step_date"],
+                                  "rel": c.get("step_rel"),
+                                  "adjusted_by": c.get("which_vendor_adjusted")})
 
     # **BAR-WEIGHTED, NOT THE MEAN OF PER-NAME RATES.** A mean lets a one-bar name count as much
     # as a 250-bar one, which is how three single-bar names produced `agree_rate 1.000`.
@@ -922,6 +1202,24 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
         "aggregation": ("BAR-WEIGHTED. A mean of per-name rates lets a one-bar name count as "
                         "much as a 250-bar one, which is how item 59's three single-bar names "
                         "produced an agreement rate of 1.000."),
+        # ---- THE GAP, BY CAUSE [item 68 part 2] ------------------------------------------
+        "by_cause": {
+            "names": {k: sorted(v) for k, v in sorted(by_cause.items())},
+            "n_names": {k: len(v) for k, v in sorted(by_cause.items())},
+            "n_disagreeing_bars": dict(sorted(bars_by_cause.items())),
+            "steps": sorted(steps, key=lambda x: (x["date"], x["ticker"]))[:60],
+            "how": ("a corporate action one vendor restated the series for makes the ratio of "
+                    "the two series STEP on the event date; a dividend-basis difference "
+                    "ACCUMULATES and drifts. Both are read from the two series already "
+                    "compared, so there is no third source to keep right, and the step's DATE "
+                    "is what identifies the action."),
+            "read_it_in_NAMES": ("one corporate action poisons every bar BEFORE it for that "
+                                 "name, so the per-bar rate understates how concentrated this "
+                                 "is: on a 271-bar window, roughly 21 affected names of 215 "
+                                 "produce an agreement rate of 0.90."),
+            "unexplained_is_named": ("a bar this cannot explain is reported under "
+                                     "`unexplained` and is never folded into a cause"),
+        },
         "as_traded_leg": {"n_bars": raw_bars, "n_agree": raw_agree,
                           "agree_rate": ((raw_agree / float(raw_bars)) if raw_bars else None)},
         "worst": sorted(

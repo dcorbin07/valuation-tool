@@ -205,6 +205,33 @@ manager from Don's own words in chat.
   selling side), a stress gate for put selling judged forward, a census only for O-1's data,
   and the DTE question answered from the record. The alert-driven long-call entry is not
   re-opened: it loses to random days in every score band and at every threshold.
+- **2026-10-17 — THE ALPACA PRICE SEAM FAILED, AND IT IS CORPORATE ACTIONS ON BOTH SIDES. NO
+  SWITCH; ALPACA STAYS OFF THE INDEX PRICE PATH FOR THE 10-22 REBALANCE.** Don's run completed:
+  217 names, 58,318 bars, coverage 95.5%. **Daily closes on the declared `all` basis agree on
+  0.9020 against the declared 0.98, while the AS-TRADED leg agrees on 0.9915** — and that
+  asymmetry is the whole diagnosis, because the as-traded close is the same number on both sides.
+  The gap is **restatements for corporate actions that one vendor applied and the other did not,
+  in BOTH directions**: yfinance restated Corteva's Vylor spin-off (factor 6.665, encoded as a
+  "stock split") and AstraZeneca's ADS→0.5-ordinary listing change, which Alpaca did not; Alpaca
+  restated Aptiv's Versigent spin-off and Unilever's Magnum demerger, which **yfinance left in its
+  series as −10.6% and −7.0% cliffs.** The arithmetic closes on Don's own figure: yfinance's
+  restated CTVA close for 2025-12-03 is 9.732215, and ×6.665 that is **64.8652 against the 64.87
+  he measured**. **So neither vendor is consistent, and the one that is wrong on Aptiv and
+  Unilever is the incumbent** — the record is priced on yfinance. **0.9020 is about 21 affected
+  names of 215**, not a thin spread across 58,318 bars, because one action poisons every earlier
+  bar for that name. **The recorded-series leg never ran at all**: the pull's universe is a screen
+  of today's hot list, so SPY and any book name that has since left the screen were never pulled —
+  now fixed to include the benchmark and every bound-book segment since inception, with the
+  declared sample still reported separately. A second defect in that leg: it recorded both
+  `n_priced` counts and read neither, so a vendor pricing 60 of 86 names could report agreement in
+  basis points **on a different book**. **The declared 0.98 bar and the declared basis are
+  UNCHANGED.** What is recorded instead is that they were never two copies of one convention, and
+  that **the leg is answering a question the record does not ask**: the record is cumulative from
+  2026-07-30, four of the five worst rows' events are pre-inception, and only Corteva's falls after
+  it — where the incumbent is the one that got it right, so switching would have carried a 6.665×
+  error into that holding. **A narrow replacement is put to Don as a new, separately declared
+  measurement — agreement since inception on the book's names only — and is not run as a
+  substitute.** A January switch is not worth preparing for until that or `vs_recorded` passes.
 - **2026-10-17 — ITEM 67: SETTLEMENT, FRACTIONAL SHARES, AND THE AUDITOR'S THIRD BLOCKER.**
   Don: *"let's account for waiting for cash to settle now and try again to buy next day when it
   is settled. also the whole point of us switching to alpaca from tradier was because we could

@@ -248,11 +248,11 @@ class VsRecordedIsMeasuredAndRequiresEveryRow(unittest.TestCase):
     switch reported "available"."""
 
     RECORDED = [{"date": "2026-07-31", "valquo_pct": 0.776, "spy_pct": 1.2,
-                 "excess_pp": -0.424},
+                 "excess_pp": -0.424, "n_priced": 85},
                 {"date": "2026-08-06", "valquo_pct": 3.6228, "spy_pct": 3.6228,
-                 "excess_pp": 0.0},
+                 "excess_pp": 0.0, "n_priced": 85},
                 {"date": "2026-08-13", "valquo_pct": 4.25, "spy_pct": 4.88,
-                 "excess_pp": -0.63}]
+                 "excess_pp": -0.63, "n_priced": 85}]
     ALP = {"AAPL": {AD.ADJ_ALL: {"2026-07-31": 100.0, "2026-08-06": 101.0,
                                  "2026-08-13": 102.0}}}
 
