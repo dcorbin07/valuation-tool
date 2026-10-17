@@ -20753,3 +20753,246 @@ instant.
 handles. If it 403s again, the note now tells you whether the instant sent was in the past — and
 if it was, the cause is not the SIP delay.
 
+
+## ITEM 67 — settlement-aware rebalancing, fractional shares, and the auditor's third blocker
+
+Don, 2026-10-17: *"let's account for waiting for cash to settle now and try again to buy next day
+when it is settled. also the whole point of us switching to alpaca from tradier was because we
+could use fractional shares so lets check that now."* Plus the addendum: the auditor's third
+review (`AUDITOR_REREVIEW2_live_path_2026-10-17.md`), still **NOT YET**, 7 of 8 questions passing
+and question 6 failing for a third different reason.
+
+**ITEM 67 CHANGES THE LIVE PATH, SO THE AUDITOR REVIEWS IT BEFORE ANY PERCENTAGE ABOVE 0.**
+
+### PART 0 — a remainder must not stack on a resting order (the blocker)
+
+**REPRODUCED AT EXACTLY THE AUDITOR'S RATIO.** Against the pre-item-67 code, five in-session
+cycles through `run_cycle` with the real `AlpacaPaperBroker` send **30 shares of AAPL against a
+6-share target and 10 of MSFT against 2** — 5x, which is the auditor's 500-against-100 on this
+suite's own book. Three individually correct decisions compose into it: holdings count FILLS only
+(right), the wash-trade clearing cancels only the OPPOSITE side (right), and `order_plan` computes
+`target - filled`, which is the whole remainder again.
+
+**WHY IT WAS SAFE UNTIL ITEM 64.** A `day` order dies at the close, so with ONE cycle per session
+"re-send next cycle" really was a re-price. Item 64 added four backup crons after measuring
+GitHub's scheduler 3.45–7.48h late, and by that workflow's own table three of the five land inside
+the orders window — so two or three in-window cycles became the DESIGNED behaviour, and
+`cancel-in-progress: false` makes them queue and run in sequence. The stacking was deterministic.
+
+**THE FIX IS THE AUDITOR'S FIRST OPTION AND THE REASON IS THEIRS TOO:** `order_plan` subtracts
+this slot's own resting **SAME-SIDE** quantity, because that keeps a working order working — which
+is precisely why the same-side cancel was rejected in the first place. Cancel-and-replace would
+discard an order that may be about to fill and would put every name behind a second failure mode,
+since item 65's confirmed-cancel rule blocks a name whose cancel cannot be confirmed.
+
+**A DEFECT IN MY OWN FIX, AND IT IS WHY "SAME SIDE" IS LOAD-BEARING.** My first cut netted
+`filled + resting_buy - resting_sell`. An opposite-side order is **cancelled** immediately before
+the send, so a buy sized on the assumption that a resting SELL would fill is over-sized by exactly
+the quantity that was cancelled seconds later: held 6, resting sell 6, target 6 planned a buy of
+6, the cancel removed the sell, and the account ended at **12**. A stacking fix that stacks. Found
+by item 65's own cancel tests going red.
+
+**AND A RESTING ORDER OF UNKNOWN SIZE WITHHOLDS ITS NAME**, rather than planning the lot. My first
+cut reported the unknown and then planned the full remainder — failing OPEN in the one state the
+subtraction exists for. Granularity is the NAME, matching item 65's confirmed-cancel rule the
+auditor approved. It has never fired, because Alpaca sends `qty` on every order, which is exactly
+why it would have sat there failing open until it did.
+
+**THE RESIDUAL, BOUNDED AND STATED.** If a target SHRINKS while a buy rests, the resting buy still
+fills and overshoots — by at most the target authorised when that order was placed, and the next
+cycle sells it down. One previously-authorised order rather than five, and self-correcting.
+
+### PART 0 — real cursor pagination, and the fail-safe is kept
+
+`ORDERS_PAGE_LIMIT = 500` with no cursor, refusing a full page. Correct — and the auditor's own
+revision is why it now matters: item 64 measured **239 orders for ONE event**, so the page fills in
+about **two events**, not eighteen months. `paged_orders` walks ascending by `submitted_at`,
+dedupes by id (an overlap is harmless, a gap is not), and **refuses rather than skipping** when the
+page's last timestamp belongs to more than one order — `after` is exclusive, so advancing would
+skip the unread ones, and a skipped fill UNDER-counts a holding, which makes the planner buy it
+again. That is the direction the original refusal existed to avoid.
+
+**IT LIVES IN `settlement.py`, WHICH IS NEITHER CLIENT'S MODULE.** Both clients need it, so putting
+it in either makes the other import across the paper/live boundary. I tried `live_slots` first and
+**item 58's `B_Separation` caught it twice** — *"no paper book imports the live module"* and *"a
+live client is constructed in exactly one place"*. The test is right: *"shared, so one must import
+the other"* is how a boundary erodes.
+
+**AND `reconcile` DID NOT READ THE REFUSAL.** The paged reader reports `truncated` separately from
+`ok`, and `reconcile` read only `ok` — so a read that could not be proved complete arrived as
+**success with a short list**, and the old `len(orders) >= LIMIT` check could not see it because the
+pager had already deduped the page down. **A reader whose refusal the caller does not read is the
+defect item 65 found underneath the auditor's own fix**, committed again one item later.
+
+### PART 0 — sequencing, and every other pending workflow
+
+`pending_workflows/live-cycle.yml` now opens with **DO NOT INSTALL YET** and states a CONDITION
+rather than a date: the planner fix must be on `origin/main`. It is in the same commit, so if you
+are reading this on main the condition is met and it is safe to double-click
+`install_workflows.bat`. The installed copy carries the single 14:40Z cron and is safe meanwhile.
+
+**Censused: there is exactly ONE pending workflow, ONE workflow reaches the cycle door
+(`live-cycle.yml`), and the installed copy has ONE cron.** No other pending workflow carries this
+hazard because there is no other pending workflow.
+
+### PART 0 — the settlement/stacking interaction (the addendum's point 4)
+
+They compose correctly, and the reason is the opposite of what it looks like: a buy that was
+**SENT** and rests is subtracted, because it is in `reconcile`'s resting list; a buy that was
+**DEFERRED** was never transmitted, so it is in neither the resting list nor the recorded intent,
+and re-planning it is correct rather than a double-send. Both are driven, including across a day
+boundary, because the composition is the hazard rather than either half.
+
+### PART 1 — the buy budget, and which field
+
+**`non_marginable_buying_power`, and the reason is Alpaca's own wording.** Its `/v2/account`
+documents that field as *"Current available non-margin dollar buying power"*; `buying_power` as
+*"If multiplier = 1, buying_power = cash"* and levered above that; `regt_buying_power` as *"your
+buying power under Regulation T"*, which is levered by definition. `daytrading_buying_power` and
+`cash_withdrawable` are **not in that schema**. So: the no-borrow field where present, else
+`min(cash, buying_power)` — the cash term is what makes it safe at any multiplier, rather than a
+branch on a multiplier that might be wrong — else `cash`. **No figure at all is a broken input and
+sends no buys**, which is not a settlement wait, because nothing there establishes the funds are
+merely unsettled.
+
+**IT IS NOT A SETTLEMENT MODEL AND MUST NOT BECOME ONE.** Alpaca's IRAs run *"limited margin (1x
+margin)"*, which *"allows you to avoid certain Federal Reserve Board Regulation T settlement
+periods"* and *"permits the purchase of securities with the use of unsettled funds"*, while it
+*"does not allow for borrowing of funds, creating a margin debit, short selling, or selling naked
+options"*. So the code asks the broker what is spendable and sizes to it — **an account that does
+not need to wait does not wait.** The test that matters drives an account whose `buying_power` is
+**4x its cash** and proves nothing above the no-borrow figure is transmitted; an AST guard proves
+no other line in the live path reads any buying-power field.
+
+**WITHIN AN EVENT THE SELLS GO FIRST**, sorted in `order_plan` so one definition serves the cycle
+and the door. A sell raises cash and cannot create a debit, so no budget binds it.
+
+**A REFUSED OR OVER-BUDGET BUY IS A SETTLEMENT WAIT.** The sells stand, the event stays OPEN, the
+buys go on the next trading day's cycles, and Don is alerted only once the wait has outlasted T+1
+by a full trading day. Classified on a declared vocabulary rather than a loose substring, because
+"buying power" turns up in refusals that have nothing to do with settlement — and getting it
+backwards one way cancels a correct rebalance while the other hides a real fault behind a daily
+retry.
+
+**A DEFECT IN MY OWN FIRST CUT, caught by item 63's parity tests going from FAIL to ERROR.** The
+budget filtered `plan["orders"]` itself, and the very next block closes the event when that list is
+empty — so a rebalance whose buys were ALL deferred **recorded itself as finished**, dropped its
+counters and never re-sent. What the event still NEEDS and what this cycle may SEND are two
+different lists, and collapsing them did it.
+
+### PART 1 — the ceiling counts TRADING DAYS, which is item 64's own false alarm one turn later
+
+Item 64 fixed this counter to mean "consecutive cycles with no advance" and then added four backup
+schedules. Five scheduled cycles a day plus manual ones means **a five-CYCLE ceiling is spendable
+before lunch** by a rebalance behaving exactly as designed — the false alarm item 64 existed to
+remove, reintroduced by item 64. It counts **distinct dates**, which is a trading-day count by
+construction and needs no holiday calendar: a cycle only transmits inside the orders window, so
+every date recorded is a day the market was open, and a weekend or holiday contributes nothing
+because no cycle ran.
+
+**AND PROGRESS IS NOW A CHANGE RATHER THAN AN INCREASE.** The old test was `held_now > baseline`,
+which **a SELL can never satisfy** — and item 67 sends the sells first, so the sell leg of every
+rebalance would have registered as no progress and burned a day off the ceiling. A fingerprint of
+the whole holdings map also catches a sell and a buy that net to the same total.
+
+### PART 1 — AND NOTHING SOLD AN EXITED NAME BEFORE THIS
+
+**Found by item 67's own test, and it has never fired.** `run_slot` filtered the book to
+`status == "held"` and `LS.targets` drops a zero weight, so a name the book had dropped reached the
+planner in **neither** shape: it was held for ever and the event closed as "targets met" while the
+slot still held it. The live path has run exactly one event and nothing has left the book since;
+**the first book change in its life is the 2026-10-22 rebalance** — the one this item was written
+for. It also undercuts part 1 rather than sitting beside it: with no sell leg there is far less
+cash to wait for, so the settlement machinery would have looked like it worked while barely
+engaging.
+
+**TWO SHAPES, measured in `book_in_force` rather than assumed:** a mid-event exit stays in
+`positions` as `status: "exited"` with weight 0; a name dropped AT a rebalance belongs to a
+different event's book and is **absent entirely**. Both are now explicit zero targets.
+
+**AND THE FIX IS IN `run_slot`, NOT IN `order_plan`, because item 58 caught my first attempt.**
+`test_a_name_the_slot_did_not_buy_is_not_in_the_plan_at_all` passes a `DONS_OWN` holding and
+requires the planner to ignore it, *"enforced by what the planner is GIVEN rather than by a filter
+it could forget"* — and my union iterated the holdings, so it planned a sale of `DONS_OWN`. **A
+defensive contract I had argued was unnecessary caught a change that would have sold a holding the
+slot never bought.**
+
+### PART 2 — fractional shares
+
+**WHAT IS MEASURED TODAY:** `fractional_report` reads Alpaca's asset master — **one** request for
+the whole active US-equity list rather than one per name — and reports `fractionable` and
+`tradable` per book name. A name **absent from the master is reported absent, never as
+`fractionable: False`** (`C5`): one is a name Alpaca will not trade at all, the other trades in
+whole shares, and they have different fixes.
+
+**WHAT THE SLOT DOES TODAY WITH A NON-FRACTIONABLE NAME — BOTH HALVES, because the second is the
+one a reader would miss.** One cycle: the order is sent as a fractional quantity, Alpaca rejects
+it, **that one name does not trade and every other name does**. Over several days: the name's
+target is never met, so the event is retried, and the no-progress ceiling stops the **WHOLE** event
+after five trading days with `event_attempts_exhausted` — including the names that would have
+traded. Under day counting that is a week of trading rather than a single morning, which is a
+better failure than before and still a failure.
+
+**THE CHOICE IS DON'S AND IS NOT MADE HERE.** (a) Leave it — that name trades nothing and the event
+stops with a named alert after five trading days; costs nothing to build, costs a week of a
+rebalance. (b) Round that name to whole shares — it trades at a weight wrong by up to one share.
+(c) Skip it — the rest hold their own weights and the book is short by that name's share. **(b) and
+(c) are construction changes, not bug fixes**, and each needs its own register.
+
+**THE IRA'S OWN REPORT, AND WHY IT IS READ BY THE CYCLE RATHER THAN BY THE DOOR.** The brief asks
+`/admin/live-slots` to read `/v2/account` and `/v2/account/configurations`. **Two invariants pushed
+both reads out of that door and both are worth more than the convenience:** a live client is
+constructed in exactly ONE gated place (item 58), and the status door constructs **no client of any
+kind** (`test_item58b_doors.py`, asserted on its source). My first cut built a `_LiveClient` there
+for the IRA and an `AlpacaPaperBroker` for the asset master, and each test caught its own half. So
+the cycle does both reads where a client legitimately exists, and the door reads the records it
+already reads for parity and holdings. **The cost is stated rather than left blank: the IRA's own
+`fractional_trading` flag is UNMEASURED until one live-mode cycle has run with its keys in.** The
+fractionable census needs none of that, because the asset master is account-independent.
+
+`/v2/account/configurations` **does** document `fractional_trading` — *"If true, account is able to
+participate in fractional trading"* — so the report says **enabled / disabled / NOT REPORTED by the
+API**, with absence reported as absence rather than as disabled: item 65 is a fresh demonstration
+that the documentation and the wire can disagree. **The definitive test is a $1 buy placed by hand
+in Alpaca's own app, and no lane places one.**
+
+### NOT MEASURED, AND IT NEEDS DON
+
+**Which of the book's names are fractionable is UNMEASURED.** The paper keys live on Render only —
+`CONFIG.alpaca_paper_key_id` is empty locally and no `ALPACA_*` variable is in this machine's
+environment — so the asset master cannot be read from here. The census is recorded by the next
+cycle, and the census step was folded into the **already-pending** `live-cycle.yml` so Don installs
+once (items 64, 65 and 67 in one double-click). It prints the per-name summary and uploads the full
+body as an artifact.
+
+### DEFECTS OF MY OWN, EIGHT, AND FIVE ARE THE SAME TWO FAMILIES
+
+(1) the budget closing a fully-deferred event; (2) netting both sides of the resting subtraction;
+(3) failing OPEN on an unreadable resting quantity; (4) the exit fix in the wrong layer, selling
+`DONS_OWN`; (5) `slot_account` not bound per iteration, so a failed slot would have inherited the
+previous slot's balance — a `NameError` on the first iteration, which is the only reason it was not
+already a hazard; (6) `record_is_fresh` measured AFTER the account-id pin had stamped the record, so
+a brand-new slot looked as though it had acted and the check could never fire; (7) a patch script
+that cut from `def orders_result` to the next `@staticmethod` and **deleted six methods including
+`place_limit`** — an assertion that a slice is UNIQUE is not an assertion that it is the RIGHT
+slice, and the guard now compares the class's method inventory before and after; (8) three
+substring-ban variants, including an **AST** guard that counted a docstring, because `ast.Constant`
+covers them.
+
+**THE INCOMPLETE-RECORDING FAMILY IS THE OTHER ONE, AND IT APPEARED FIVE TIMES:** item 63's 22
+`run_slot` calls with no account at all; item 65's `_resting` with no `qty`, which Alpaca always
+sends; item 65's "generic rejection" fixture replaying `insufficient buying power`, the exact
+message that now means something else; item 58b's two stub accounts reporting `equity` alone; and
+item 58b's part-fill test **documenting the auditor's blocker as correct behaviour**. Each new
+reader finds the next missing field — which is the auditor's own question-7 lesson, from the other
+side.
+
+### WHAT IS NOT DONE
+
+- **The fractionable census has not run** — it needs a cycle on Render.
+- **The IRA reports nothing yet** — no keys, by design, until the auditor's yes.
+- **The 2026-10-22 rebalance has not been watched.** It is the first book change in the live path's
+  life and the first real exercise of the exits, the sells-first ordering and the settlement wait.
+- **No decision is taken on a non-fractionable name.** Reported, priced, and left to Don.
+- **Nothing is adopted and no percentage is set.** `?run=paper` throughout.
+

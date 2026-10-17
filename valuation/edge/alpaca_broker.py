@@ -237,6 +237,15 @@ class AlpacaPaperBroker:
             "equity": _f(d.get("equity")),
             "cash": _f(d.get("cash")),
             "buying_power": _f(d.get("buying_power")),
+            # **THE FIGURE A BUY IS SIZED FROM [item 67].** This normaliser dropped it, so the
+            # paper slot would have fallen back to `min(cash, buying_power)` and never
+            # exercised the primary branch of `settlement.spendable` -- a path tested only in
+            # fixtures while the one real account used the fallback. Alpaca's own words:
+            # "Current available non-margin dollar buying power".
+            "non_marginable_buying_power": _f(d.get("non_marginable_buying_power")),
+            # Reg T buying power is LEVERED by definition and is never sized against. Recorded
+            # so a reader can see what the account reports and what was refused.
+            "regt_buying_power": _f(d.get("regt_buying_power")),
             "status": d.get("status"),
             "trading_blocked": bool(d.get("trading_blocked")),
             "account_blocked": bool(d.get("account_blocked")),
@@ -253,6 +262,63 @@ class AlpacaPaperBroker:
             },
             "host": PAPER_HOST,
         }
+
+    def assets(self, symbols=None) -> dict:
+        """`fractionable` and `tradable` per symbol, read from Alpaca's own asset master.
+
+        **ONE REQUEST, NOT ONE PER NAME.** `GET /v2/assets` returns the whole active US equity
+        master, so an 85-name book costs a single call instead of 85 inside a web request. The
+        count comes back as `n_master` -- a truncated or filtered reply then shows up as a
+        number a reader can disbelieve, rather than as names silently reported absent.
+
+        A symbol MISSING from the master is reported as missing, never as `fractionable:
+        False`. Absent is not a measured False (`C5`), and the two have different fixes.
+        """
+        got = self._request("GET", "/v2/assets",
+                            params={"status": "active", "asset_class": "us_equity"})
+        if not got.get("ok"):
+            return {"ok": False, "reason": "the asset master could not be read",
+                    "detail": got, "assets": {}, "n_master": 0}
+        by = {}
+        for r in (got.get("data") or []):
+            if not isinstance(r, dict):
+                continue
+            sym = str(r.get("symbol") or "").strip().upper()
+            if sym:
+                by[sym] = {"fractionable": bool(r.get("fractionable")),
+                           "tradable": bool(r.get("tradable")),
+                           "exchange": r.get("exchange"), "status": r.get("status")}
+        want = ([str(x).strip().upper() for x in symbols if str(x).strip()]
+                if symbols is not None else sorted(by))
+        return {"ok": True, "n_master": len(by),
+                "assets": {k: by[k] for k in want if k in by},
+                "missing": [k for k in want if k not in by],
+                "reason": "read %d active US equities from the asset master" % len(by)}
+
+    def configurations(self) -> dict:
+        """`GET /v2/account/configurations`. Read-only; constructs no order.
+
+        Alpaca documents `fractional_trading` here -- *"If true, account is able to participate
+        in fractional trading"* -- which is the one authoritative answer to whether an account
+        may place a fractional order. Reported as not-reported when the key is absent, because
+        item 65 is a fresh demonstration that documentation and the wire can disagree.
+        """
+        got = self._request("GET", "/v2/account/configurations")
+        if not got.get("ok"):
+            return {"ok": False, "reason": "the account configuration could not be read",
+                    "detail": got}
+        d = got.get("data") or {}
+        has = "fractional_trading" in d
+        return {"ok": True, "reported": bool(has),
+                "fractional_trading": (bool(d.get("fractional_trading")) if has else None),
+                "max_options_trading_level": d.get("max_options_trading_level"),
+                "max_margin_multiplier": d.get("max_margin_multiplier"),
+                "no_shorting": d.get("no_shorting"),
+                "suspend_trade": d.get("suspend_trade"),
+                "reason": ("fractional trading: %s"
+                           % ("enabled" if (has and d.get("fractional_trading"))
+                              else "disabled" if has
+                              else "NOT REPORTED by this endpoint"))}
 
     def quotes(self, symbols) -> dict:
         """Latest quote per symbol, from the data host. `{SYM: {bid, ask, mid, feed}}`."""
@@ -330,13 +396,23 @@ class AlpacaPaperBroker:
         made `reconcile` report "ok" with an empty book, which derives an empty scope, which
         skips every broker position, which transmits a second full buy-in.
         """
-        got = self._request("GET", "/v2/orders",
-                            params={"status": status, "limit": int(limit)})
-        if not got.get("ok"):
-            return {"ok": False, "data": [],
-                    "reason": "the broker's orders could not be read (HTTP %s)"
-                              % got.get("status")}
-        return {"ok": True, "data": list(got.get("data") or []), "reason": ""}
+        # **PAGED [item 67 part 0], SHARING ONE PAGER WITH `_LiveClient`.** It lives in
+        # `settlement`, which is NEITHER client's module: both need it, so putting it in either
+        # one would make the other import across the paper/live boundary item 58 enforces --
+        # and the separation test caught exactly that when I tried `live_slots` first. Shared
+        # rather than copied because two implementations of "every order" is how the two
+        # clients came to disagree four times already (`B7`). One event produced 239 orders, so
+        # a single 500-order page fills in about two events, not the eighteen months previously
+        # assumed. `truncated` is a refusal the caller honours.
+        from .settlement import paged_orders
+
+        res = paged_orders(
+            lambda p: self._request("GET", "/v2/orders", params=p),
+            page_limit=int(limit), status=status)
+        return {"ok": bool(res.get("ok")), "data": list(res.get("data") or []),
+                "truncated": bool(res.get("truncated")), "pages": res.get("pages"),
+                "reason": ("" if (res.get("ok") and not res.get("truncated"))
+                           else res.get("reason") or "")}
 
     def positions(self) -> list:
         got = self._request("GET", "/v2/positions")

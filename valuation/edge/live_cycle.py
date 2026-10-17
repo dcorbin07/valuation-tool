@@ -59,6 +59,7 @@ import os
 from typing import Optional
 
 from . import live_slots as LS
+from . import settlement as SETTLE
 
 #: The scheduled minute, in UTC. See the module docstring for why.
 CYCLE_UTC = "14:40"
@@ -383,6 +384,19 @@ def reconcile(client, state: dict) -> dict:
                 out["reason"] = (res.get("reason")
                                  or "the broker's orders could not be read")
                 return out
+            # **AND `truncated` IS A REFUSAL TOO [item 67 part 0].** The reader is paged now,
+            # and it reports "I could not prove this is every order" separately from "I could
+            # not read them". Reading only `ok` turned that into SUCCESS WITH A SHORT LIST --
+            # and the length check below could not see it, because the pager had already
+            # deduped the page down. A reader whose refusal the caller does not read is the
+            # defect item 65 found underneath the auditor's own fix, one item later.
+            if res.get("truncated"):
+                out["truncated"] = True
+                out["order_read"] = "truncated"
+                out["reason"] = (res.get("reason")
+                                 or "this slot's order history could not be read in full")
+                return out
+            out["pages_read"] = res.get("pages")
             orders = list(res.get("data") or [])
         else:
             # A client without the honest reader -- a stub, or something older. Its `[]` is
@@ -434,8 +448,17 @@ def reconcile(client, state: dict) -> dict:
             # orders are listed, because the prefix filter above has already run -- the path
             # never cancels anything it did not place.
             if sym:
+                # **AND HOW MUCH OF IT IS STILL OPEN [item 67 part 0].** The quantity was not
+                # recorded, so the planner could not subtract it -- which is the auditor's
+                # third blocker: five cycles, five full orders, 500 shares against a 100-share
+                # target. `qty - filled_qty` is the part still working; a partial fill is
+                # already in `filled` below, so taking the whole `qty` would double-count it.
+                oq = LS._f((o or {}).get("qty"))
+                of = LS._f((o or {}).get("filled_qty")) or 0.0
                 out["resting"].append({"id": str((o or {}).get("id") or coid),
-                                       "ticker": sym, "side": side, "coid": coid})
+                                       "ticker": sym, "side": side, "coid": coid,
+                                       "qty_open": (max(0.0, oq - of)
+                                                    if oq is not None else None)})
         if fq and fq > 0 and sym:
             out["n_filled"] += 1
             filled[sym] = filled.get(sym, 0.0) + (fq if side == "buy" else -fq)
@@ -559,11 +582,169 @@ def _note_write(out: dict, res: dict, slot, what: str) -> bool:
     return False
 
 
+#: WHAT THE SLOT DOES TODAY WITH A NAME THAT IS NOT FRACTIONABLE. Measured from the shipped
+#: path rather than asserted, and it is **not** "the whole slot refuses": `order_plan` sizes
+#: every order as a fractional quantity (`abs(delta) / mark`, nine decimals), the send loop
+#: transmits them one at a time, and a per-order rejection appends a `broker_error` and moves
+#: on to the next name. So ONE non-fractionable name costs THAT NAME and nothing else --
+#: for a while.
+#:
+#: **AND THEN IT COSTS THE WHOLE EVENT, WHICH IS THE PART THAT WANTS DECIDING.** The name's
+#: target is never reached, so the event never closes, so it is retried -- and the no-progress
+#: ceiling stops the event after `MAX_EVENT_TRADING_DAYS` trading days with no change in the
+#: holdings. At that point the slot stops trying the event AT ALL, including the names that
+#: would have traded, and raises `event_attempts_exhausted`. Under item 67's day counting that
+#: is a week of trading rather than a single morning, which is a better failure than the one
+#: before it and is still a failure.
+#:
+#: **THE CHOICE IS DON'S AND IS NOT MADE HERE.** The three options, priced:
+#:   (a) leave it -- a non-fractionable name trades nothing, and after five trading days the
+#:       event stops with a named alert. Costs nothing to build; costs a week of a rebalance.
+#:   (b) round that name to whole shares -- it trades, at a weight that is wrong by up to one
+#:       share's worth. A construction change: the slot would hold something the book does not
+#:       describe.
+#:   (c) skip that name -- the slot holds the rest at their own weights and the book's total is
+#:       short by that name's share. Also a construction change, and it is silent unless
+#:       reported.
+#: Each needs its own register and none is a bug fix. **Reported, not decided.**
+NON_FRACTIONABLE_TODAY = {
+    "what_happens": ("the order is transmitted as a fractional quantity and Alpaca rejects "
+                     "it; that ONE name does not trade and every other name in the book "
+                     "does"),
+    "and_then": ("the event's targets are never met, so it is retried, and the no-progress "
+                 "ceiling stops the WHOLE event after %s trading days with an "
+                 "`event_attempts_exhausted` alert -- including the names that would trade"),
+    "the_choice_is_dons": ("leave it, round that name to whole shares, or skip that name. "
+                           "The last two are construction changes, not bug fixes, and each "
+                           "needs its own register."),
+}
+
+
+def fractional_report(client, tickers) -> dict:
+    """Which of these names Alpaca says may be traded fractionally. READ-ONLY, no order.
+
+    `fractionable` and `tradable` come from Alpaca's own asset master, one request for the
+    whole active US equity list rather than one per name.
+
+    **A NAME ABSENT FROM THE MASTER IS REPORTED ABSENT, NEVER AS `fractionable: False`.**
+    Absent is not a measured False (`C5`) and the two have different fixes: one is a name
+    Alpaca will not trade at all, the other is a name it will trade in whole shares.
+    """
+    want = sorted({str(t).strip().upper() for t in (tickers or []) if str(t).strip()})
+    out = {"n_asked": len(want), "asked": want,
+           "non_fractionable_today": dict(
+               NON_FRACTIONABLE_TODAY,
+               and_then=NON_FRACTIONABLE_TODAY["and_then"]
+               % SETTLE.MAX_EVENT_TRADING_DAYS)}
+    if client is None or not hasattr(client, "assets"):
+        out["ok"] = False
+        out["reason"] = ("no client able to read the asset master was supplied, so this is "
+                         "UNMEASURED -- not a report that these names are whole-share only")
+        return out
+    try:
+        got = client.assets(want) or {}
+    except Exception as e:                                              # noqa: BLE001
+        out["ok"] = False
+        out["reason"] = "the asset master could not be read (%s: %s)" % (type(e).__name__, e)
+        return out
+    if not got.get("ok"):
+        out["ok"] = False
+        out["reason"] = got.get("reason") or "the asset master could not be read"
+        return out
+
+    rows = got.get("assets") or {}
+    frac = sorted(k for k, v in rows.items() if v.get("fractionable"))
+    whole = sorted(k for k, v in rows.items() if not v.get("fractionable"))
+    untradable = sorted(k for k, v in rows.items() if not v.get("tradable"))
+    out.update({
+        "ok": True, "n_master": got.get("n_master"),
+        "per_name": {k: {"fractionable": bool(v.get("fractionable")),
+                         "tradable": bool(v.get("tradable"))}
+                     for k, v in sorted(rows.items())},
+        "n_fractionable": len(frac), "n_whole_share_only": len(whole),
+        "whole_share_only": whole, "not_tradable": untradable,
+        # NOT folded into either count. A name the master does not carry is unmeasured here.
+        "missing_from_master": list(got.get("missing") or []),
+        "reason": ("%d of %d names are fractionable; %d are whole-share only%s"
+                   % (len(frac), len(want), len(whole),
+                      ("; %d are not in Alpaca's active US equity master at all"
+                       % len(got.get("missing") or []))
+                      if got.get("missing") else "")),
+    })
+    return out
+
+
+def account_settlement_report(client) -> dict:
+    """What an account says about settlement and fractional trading. READ-ONLY, no order.
+
+    Item 67 part 2's IRA question. Three reads, all GET: the account's own fields, its
+    configuration, and the no-borrow figure a buy would actually be sized from.
+
+    **"THE API DOES NOT REPORT IT" IS AN ANSWER AND IS GIVEN AS ONE.** Alpaca documents
+    `fractional_trading` on `/v2/account/configurations`, and item 65 is a fresh demonstration
+    that the documentation and the wire can disagree -- so absence is reported as absence
+    rather than as disabled. The definitive test is a $1 buy placed by hand in Alpaca's own
+    app, which is Don's to make or not; **no lane places it.**
+    """
+    out = {"ok": False, "reason": "no client was supplied", "constructs_an_order": False}
+    if client is None:
+        return out
+    acct = None
+    try:
+        if hasattr(client, "account_report"):
+            acct = client.account_report()
+        elif hasattr(client, "account"):
+            acct = client.account()
+    except Exception as e:                                              # noqa: BLE001
+        return dict(out, reason="the account could not be read (%s: %s)"
+                    % (type(e).__name__, e))
+    cfg = None
+    try:
+        if hasattr(client, "configurations"):
+            cfg = client.configurations()
+    except Exception as e:                                              # noqa: BLE001
+        cfg = {"ok": False, "reason": "%s: %s" % (type(e).__name__, e)}
+
+    budget = SETTLE.spendable(acct)
+    frac = (cfg or {}).get("fractional_trading") if (cfg or {}).get("ok") else None
+    reported = bool((cfg or {}).get("reported")) if (cfg or {}).get("ok") else False
+    return {
+        "ok": bool((acct or {}).get("ok")), "constructs_an_order": False,
+        "account": {k: (acct or {}).get(k) for k in
+                    ("status", "multiplier", "cash", "buying_power",
+                     "non_marginable_buying_power", "regt_buying_power",
+                     "trading_blocked", "account_blocked", "account_number_shape")},
+        "spendable_without_borrowing": budget,
+        "fractional_trading": ("enabled" if (reported and frac) else
+                               "disabled" if reported else
+                               "NOT REPORTED by the API"),
+        "fractional_trading_note": (
+            "Alpaca documents `fractional_trading` on /v2/account/configurations. Where it is "
+            "absent this says so rather than guessing: the definitive test is a $1 buy placed "
+            "by hand in Alpaca's own app, and no lane places one."),
+        "max_options_trading_level": (cfg or {}).get("max_options_trading_level"),
+        "configurations_read": bool((cfg or {}).get("ok")),
+        "configurations_reason": (cfg or {}).get("reason"),
+        "limited_margin_expected": (
+            "Alpaca's IRAs are set up with limited margin (1x), so `multiplier` is expected to "
+            "read 1 and `buying_power` to equal the cash. Limited margin permits spending "
+            "UNSETTLED proceeds and does NOT permit borrowing or a margin debit -- which is "
+            "why a rebalance here may never wait for settlement at all, and why the buy "
+            "budget asks the broker rather than modelling it."),
+    }
+
+
 def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
              marks: dict, root: str = None, session_ok: bool = True,
              paper_targets: dict = None, paper_value: float = None,
-             account_id=None, send: bool = True, sess_reason: str = "") -> dict:
+             account_id=None, account=None, settlement_report=None,
+             fractional=None, send: bool = True, sess_reason: str = "") -> dict:
     """One slot's cycle. Returns what it did and why. NEVER RAISES.
+
+    `account` is the broker's whole account reply, not only its equity: item 67 sizes buys
+    from what the broker reports as spendable WITHOUT BORROWING, and that figure
+    (`non_marginable_buying_power`) lives in the same reply the equity came from. Absent, no
+    buy is sized and none is sent -- the refusing direction.
 
     `send=False` is what 0% and an out-of-session cycle use: everything is computed and logged
     and nothing is transmitted. It is not a "dry run flag" a caller could forget to set — the
@@ -575,6 +756,19 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
            "preflight": None, "parity": None, "reason": "", "session_ok": bool(session_ok)}
     st = read_state(slot, root)
     st["slot"] = str(slot)
+    # **MEASURED ON THE RECORD AS READ, BEFORE ANYTHING IS WRITTEN TO IT [item 67].** My first
+    # cut computed this further down, AFTER the account-id pin had stamped `st["account_id"]`
+    # -- so the id written by THIS cycle made a brand-new record look as though it had acted
+    # before, and the check could never fire on a real first cycle. Caught by its own test
+    # transmitting a full buy-in on top of a held account.
+    record_is_fresh = not ((st.get("holdings") or {}) or (st.get("processed") or [])
+                           or str(st.get("account_id") or "").strip()
+                           or (st.get("intent") or {})
+                           # **AND "I ALREADY ASKED" COUNTS AS HAVING ACTED**, or the refusal
+                           # below repeats for ever and bricks a slot whose record was lost --
+                           # which also blocks the self-healing route `reconcile` provides.
+                           # The auditor's wording is "refusing ONCE".
+                           or (st.get("fresh_record_refusal") or {}))
     try:
         # WHICH ACCOUNT DID THESE KEYS RESOLVE TO? [item 63, auditor's strengthening to Q3]
         #
@@ -616,6 +810,20 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                 "this cycle recorded no account id, so the slot is NOT pinned to an account: "
                 "the broker's reply carried no `id`, or no id was supplied to this call. A "
                 "swapped key pair would not be caught while that is true.")
+        # **THE ACCOUNT'S OWN SETTLEMENT AND FRACTIONAL REPORT, RECORDED [item 67 part 2].**
+        # Written here because `run_slot` is what writes this slot's record, and read by
+        # `/admin/live-slots` -- which must not construct a live client of its own, because
+        # item 58 pins that there is exactly one construction site and it is gated.
+        if settlement_report:
+            st["settlement_report"] = dict(settlement_report, read_at=_stamp())
+            out["settlement_report"] = st["settlement_report"]
+        # **AND THE BOOK'S FRACTIONABLE CENSUS, on whichever slot read it.** Recorded for the
+        # same reason: `/admin/live-slots` must construct no client, so what it shows has to
+        # have been written by something that legitimately holds one.
+        if fractional:
+            st["fractional_report"] = dict(fractional, read_at=_stamp())
+            out["fractional_report"] = st["fractional_report"]
+
         held = [q for q in ((book or {}).get("positions") or [])
                 if q.get("status") == "held"]
 
@@ -766,9 +974,15 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                      "name IS a finding about the free IEX feed's coverage of this book"),
         }
 
+        # **BRAND NEW MEANS ALL FOUR MARKERS ABSENT [item 67, the auditor's recommendation
+        # 2]**, and it was measured at the top of this function from the record as READ. Any
+        # one marker present means this slot has acted before, so the ambiguity the check
+        # exists for cannot be the explanation and it never fires again.
+        out["record_is_fresh"] = bool(record_is_fresh)
         pf = LS.preflight(book=book, equity=equity, marks=marks,
                           slot_record=st.get("holdings") or {}, pct=pct,
-                          broker_positions=bpos, slot_symbols=slot_symbols)
+                          broker_positions=bpos, slot_symbols=slot_symbols,
+                          record_is_fresh=record_is_fresh)
         out["preflight"] = pf
         if not pf["ok"]:
             # NO ORDERS, PLUS AN ALERT. An error never causes a sale and never changes
@@ -776,6 +990,24 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             out["alerts"].append({"kind": "preflight_failed", "slot": str(slot),
                                   "reason": pf["reason"]})
             out["reason"] = pf["reason"]
+            # **A FRESH-RECORD REFUSAL IS RECORDED SO IT HAPPENS ONCE [item 67].** Writing
+            # nothing left the record brand new, so the next cycle refused identically and the
+            # slot was bricked -- and the route that heals a lost record, `reconcile` rebuilding
+            # holdings from this slot's own fills, was blocked along with it. The marker says
+            # "I asked", NOT "those positions are mine": the ambiguity is recorded rather than
+            # resolved, and the next cycle runs the machinery that was already correct.
+            if record_is_fresh and "brand new" in (pf.get("reason") or ""):
+                st["fresh_record_refusal"] = {
+                    "at": _stamp(),
+                    "reason": pf["reason"],
+                    "what_it_means": ("this slot refused ONE cycle because its record was "
+                                      "brand new and the account was not empty. It does not "
+                                      "claim those positions; it records that the question "
+                                      "was asked, so the next cycle proceeds normally."),
+                }
+                _note_write(out, write_state(slot, st, root), slot,
+                            "recording the one-off fresh-record refusal")
+                out["fresh_record_refusal_recorded"] = True
             return out
 
         tg = LS.targets(pct, equity, held)
@@ -784,9 +1016,52 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                                   "reason": tg["reason"]})
             out["reason"] = tg["reason"]
             return out
-        plan = LS.order_plan(tg["targets"], st.get("holdings") or {}, marks)
+        # **THIS SLOT'S OWN RESTING ORDERS ARE PASSED IN [item 67 part 0].** Without them
+        # the planner re-plans the whole remainder every cycle and the orders STACK -- the
+        # auditor's third blocker. `rec["resting"]` is already filtered to this slot's own
+        # `valquo-<slot>-` prefix by `reconcile`, so nothing here can reach Don's own orders.
+        # ---- EXITS: A HELD NAME THE BOOK NO LONGER WANTS GETS A TARGET OF ZERO --------
+        #
+        # **NOTHING SOLD AN EXITED NAME BEFORE THIS [item 67], and it has never fired because
+        # the live path has run exactly ONE event.** `held` above filters the book to
+        # `status == "held"` and `LS.targets` drops a zero weight, so an exited name reached
+        # the planner in neither shape and was held for ever -- the event closing as "targets
+        # met" while the slot still held it. The first book change in the live path's life is
+        # the 2026-10-22 rebalance.
+        #
+        # **TWO SHAPES, because `book_in_force` produces two.** A mid-event exit stays in
+        # `positions` as `status: "exited"` with weight 0; a name dropped at a REBALANCE
+        # belongs to a different event's book and is absent from `positions` entirely. Both are
+        # exits and only the first is visible in the book's own rows.
+        #
+        # The second shape reads this slot's OWN recorded holdings, which `reconcile` builds
+        # from `valquo-<slot>-` prefixed orders and nothing else -- so it can never name a
+        # position the slot did not buy. `order_plan` is deliberately NOT given this power:
+        # item 58 pins that a name absent from its targets is not in its plan at all.
+        exits, book_names = {}, set()
+        for q in ((book or {}).get("positions") or []):
+            nm = str((q or {}).get("ticker") or "").strip().upper()
+            if not nm:
+                continue
+            book_names.add(nm)
+            if q.get("status") != "held" or (LS._f(q.get("weight")) or 0.0) <= 0:
+                exits[nm] = 0.0
+        for nm, qty in (st.get("holdings") or {}).items():
+            nm = str(nm).strip().upper()
+            if nm and nm not in book_names and (LS._f(qty) or 0.0) > 0:
+                exits[nm] = 0.0
+        exits = {nm: 0.0 for nm in exits
+                 if (LS._f((st.get("holdings") or {}).get(nm)) or 0.0) > 0}
+        out["exits_planned"] = sorted(exits)
+        tg["targets"] = dict(tg["targets"])
+        for nm in exits:
+            tg["targets"].setdefault(nm, 0.0)
+
+        plan = LS.order_plan(tg["targets"], st.get("holdings") or {}, marks,
+                             resting=(rec.get("resting") or []))
         out["orders"] = plan["orders"]
         out["skipped"] = plan["skipped"]
+        out["deferred"] = []
         out["slot_value"] = tg["slot_value"]
         out["targets"] = tg["targets"]
 
@@ -801,7 +1076,11 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             # AND ITS COUNTERS GO WITH IT [item 64]. A closed event's attempt count is not
             # evidence about the next one, and leaving it behind means a slot that needed four
             # cycles once starts the following rebalance with four attempts already spent.
-            for bag in ("event_attempts", "event_progress", "send_seq"):
+            # `event_fingerprint`, `event_attempt_days` and `awaiting_settlement` are item
+            # 67's and belong on this list for the same reason as the rest: a finished event's
+            # wait is not evidence about the next one, and a stale wait record would alert.
+            for bag in ("event_attempts", "event_progress", "send_seq",
+                        "event_fingerprint", "event_attempt_days", "awaiting_settlement"):
                 if isinstance(st.get(bag), dict):
                     st[bag] = {k: v for k, v in st[bag].items() if k != key}
             st["last_event_date"] = (book or {}).get("formed_on")
@@ -868,35 +1147,60 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # because `reconcile` builds holdings from FILLS -- so it cannot be fooled by orders
         # that are accepted and never fill, which is exactly what an unfillable limit or a
         # permanent rejection produces.
-        tries = dict(st.get("event_attempts") or {})
-        held_now = round(sum(float(v or 0) for v in (st.get("holdings") or {}).values()), 6)
-        marks_seen = dict(st.get("event_progress") or {})
-        if marks_seen.get(key) is None:
-            # **NO BASELINE MEANS THIS EVENT HAS NEVER BEEN MEASURED BY THIS RULE, so any count
-            # it carries was written under the OLD one and is not evidence [item 64].** The
-            # counter used to mean "cycles that acted" and now means "consecutive cycles with no
-            # advance". The fourth real cycle read 5 of 5 while holdings advanced 72 -> 77 -- a
-            # healthy rebalance one cycle from stopping itself on a number that meant something
-            # else when it was written. A changed definition does not inherit its old values.
-            tries[key] = 0
-        elif held_now > float(marks_seen[key]) + 1e-9:
-            tries[key] = 0                      # it advanced: the retry is working
-        marks_seen[key] = held_now
-        st["event_progress"] = marks_seen
-        n_tried = int(tries.get(key) or 0)
-        if n_tried >= MAX_EVENT_ATTEMPTS:
+        # **THE CEILING COUNTS TRADING DAYS, NOT CYCLES [item 67, and it is item 64's own
+        # false-alarm family one turn later].** Item 64 fixed this counter to mean "consecutive
+        # cycles with no advance" -- and then added four backup schedules, so there are now up
+        # to five scheduled cycles a day plus any manual ones. A five-CYCLE ceiling can be spent
+        # inside a single morning by a rebalance behaving exactly as designed, which is the
+        # false alarm item 64 existed to remove, reintroduced by item 64. Counting DISTINCT
+        # DATES makes the ceiling mean what its own message says, and every date here is a
+        # trading day by construction because a cycle only transmits inside the orders window.
+        #
+        # **AND PROGRESS IS A CHANGE IN THE HOLDINGS, NOT AN INCREASE.** The old test was
+        # `held_now > baseline`, which a SELL can never satisfy -- so the sell leg of a
+        # rebalance registered as no progress, and under item 67 the sells go first. A
+        # fingerprint of the whole holdings map also catches a sell and a buy that happen to
+        # net to the same total.
+        held_map = st.get("holdings") or {}
+        fp = "|".join("%s:%.6f" % (t, float(held_map.get(t) or 0))
+                      for t in sorted(held_map))
+        prints_seen = dict(st.get("event_fingerprint") or {})
+        day_map = dict(st.get("event_attempt_days") or {})
+        days = list(day_map.get(key) or [])
+        if prints_seen.get(key) is None:
+            # **A CHANGED DEFINITION DOES NOT INHERIT ITS OLD VALUES [item 64's rule, twice
+            # over].** `event_attempts` counted cycles and `event_progress` stored a float
+            # total; both were written under rules this one replaces, so neither is evidence
+            # about trading days and neither is read. Item 64's fourth real cycle read 5 of 5
+            # while the book advanced 72 -> 77, one cycle from stopping a healthy rebalance on a
+            # number that meant something else when it was written.
+            days = []
+        elif fp != prints_seen[key]:
+            days = []                           # it advanced: the retry is working
+        prints_seen[key] = fp
+        st["event_fingerprint"] = prints_seen
+        days = SETTLE.note_trading_day(days, _stamp())
+        if len(days) > SETTLE.MAX_EVENT_TRADING_DAYS:
             out["alerts"].append({
                 "kind": "event_attempts_exhausted", "slot": str(slot),
-                "reason": ("this slot has attempted %s on %d consecutive cycles with NO "
-                           "advance in what it holds, and stops trying; something is "
+                "reason": ("this slot has attempted %s on %d separate TRADING DAYS (%s onward) "
+                           "with NO change in what it holds, and stops trying; something is "
                            "rejecting these orders or leaving them unfillable, and a daily "
-                           "retry would be deduped into silence" % (key, n_tried))})
+                           "retry would be deduped into silence"
+                           % (key, len(days), days[0]))})
             out["reason"] = out["alerts"][-1]["reason"]
             out["attempts_exhausted"] = True
+            # The day is recorded even on the refusing branch, or the count would stop rising
+            # and the alert would re-fire identically for ever instead of once.
+            day_map[key] = days
+            st["event_attempt_days"] = day_map
+            _note_write(out, write_state(slot, st, root), slot, "recording the stopped event")
             return out
-        tries[key] = n_tried + 1
-        st["event_attempts"] = tries
-        out["attempts_without_progress"] = tries[key]
+        day_map[key] = days
+        st["event_attempt_days"] = day_map
+        out["attempts_without_progress"] = len(days)
+        out["attempt_days"] = list(days)
+        out["attempts_counted_in"] = "trading days"
 
         # **A SEPARATE, MONOTONE COUNTER FOR THE ORDER ID [item 64].** The attempt counter was
         # doing both jobs and they have OPPOSITE requirements: the ceiling must RESET when the
@@ -910,6 +1214,67 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         send_seq = seqs[key]
         out["send_seq"] = send_seq
 
+        # ---- SIZE THE BUYS TO WHAT CAN BE SPENT WITHOUT BORROWING [item 67 part 1] -------
+        #
+        # The orders arrive sells-first from `order_plan`. Buys are then taken in that order
+        # until the broker's own no-borrow figure is used up, and the rest are DEFERRED -- not
+        # cancelled, not retried harder. A deferred buy is a SETTLEMENT WAIT: the sells stand,
+        # the event stays OPEN, and the next trading day's cycles send the remainder once the
+        # proceeds are spendable.
+        #
+        # **`to_send` IS A DIFFERENT LIST FROM `plan["orders"]`, AND THAT IS THE WHOLE POINT.**
+        # `plan["orders"]` is what the event still needs and is what decides whether the
+        # targets are met; this is what this cycle may transmit. My first cut filtered the plan
+        # itself, and a fully-deferred rebalance then recorded itself as FINISHED.
+        #
+        # **IT IS NOT A SETTLEMENT MODEL AND MUST NOT BECOME ONE.** It asks the broker what is
+        # available and sizes to that, so an account whose proceeds are immediately spendable --
+        # which Alpaca says a limited-margin IRA's are -- never waits at all.
+        budget = SETTLE.spendable(account) if account is not None else {
+            "ok": False, "amount": None, "field": None,
+            "reason": ("no account reply was supplied to this cycle, so nothing bounds a buy "
+                       "and none is sized")}
+        out["budget"] = budget
+        to_send, deferred, spent = [], [], 0.0
+        for o in plan["orders"]:
+            if str(o["side"]).lower() == "sell":
+                to_send.append(o)               # a sell RAISES cash; no budget binds it
+                continue
+            cost = float(o["qty"]) * float(o["limit_price"])
+            if not budget.get("ok"):
+                deferred.append(dict(o, why="no spendable figure was reported"))
+            elif spent + cost > float(budget["amount"]) + 1e-9:
+                deferred.append(dict(o, why=("would spend %.2f of the %.2f available without "
+                                             "borrowing" % (spent + cost, budget["amount"]))))
+            else:
+                spent += cost
+                to_send.append(o)
+        out["deferred"] = deferred
+        out["buy_cost_planned"] = round(spent, 2)
+        out["will_send"] = [dict(o) for o in to_send]
+
+        if not to_send:
+            # **NOTHING IS SPENDABLE, SO NOTHING IS TRANSMITTED AND THE EVENT STAYS OPEN.**
+            # The intent is deliberately NOT overwritten: it is one of the three sources
+            # `preflight` derives its scope from, and replacing a real intent with an empty one
+            # narrows that scope -- the unsafe direction, and the shape of item 63's blocker 2.
+            waits = dict(st.get("awaiting_settlement") or {})
+            w = SETTLE.wait_state(list((waits.get(key) or {}).get("days") or []),
+                                  on_date=_stamp())
+            waits[key] = {"days": w["days"], "since": w["since"],
+                          "n_orders": len(deferred)}
+            st["awaiting_settlement"] = waits
+            out["awaiting_settlement"] = dict(w, n_orders=len(deferred))
+            if w["alert"]:
+                out["alerts"].append({"kind": "settlement_wait_overdue", "slot": str(slot),
+                                      "reason": w["reason"]})
+            _note_write(out, write_state(slot, st, root), slot, "recording the wait")
+            out["reason"] = ("%d buy(s) for %s await cash that can be spent without "
+                             "borrowing (%s); the event stays open and the next trading day's "
+                             "cycles re-send them" % (len(deferred), key,
+                                                      budget.get("reason")))
+            return out
+
         # ---- THE INTENT IS WRITTEN BEFORE ANYTHING IS SENT [item 63, blocker 2] ----------
         #
         # The third fact in the auditor's duplicate buy-in: `write_state`'s result was
@@ -920,7 +1285,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # whatever happens next.
         st["intent"] = {"event": key, "at": _stamp(),
                         "orders": [{"ticker": o["ticker"], "side": o["side"], "qty": o["qty"],
-                                    "limit_price": o["limit_price"]} for o in plan["orders"]]}
+                                    "limit_price": o["limit_price"]} for o in to_send]}
         w = write_state(slot, st, root)
         if not w.get("ok"):
             out["alerts"].append({
@@ -934,7 +1299,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # ---- the only place an order is transmitted -------------------------------------
         resting = list((rec.get("resting") or []))
         out["cancelled"], out["blocked_by_cancel"] = [], []
-        for o in plan["orders"]:
+        for o in to_send:
             # **CLEAR A RESTING ORDER ON THE OPPOSITE SIDE FIRST, OR ALPACA REFUSES THIS ONE.**
             # [item 65] *"Potential wash trade detected. Use complex orders."* -- and complex
             # orders are forbidden here, so the obstruction is cleared instead. Only this slot's
@@ -988,7 +1353,15 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                    "detail": why if not res.get("ok") else None}
             out["sent"].append(rec)
             st["attempts"].append(dict(rec, event=key, at=_stamp()))
-            if not res.get("ok"):
+            if not res.get("ok") and SETTLE.is_settlement_wait(why, res.get("detail")):
+                # **REFUSED FOR WANT OF SETTLED CASH IS NOT A BROKER FAULT [item 67].** The
+                # broker's spendable figure can be stale by the time the order lands, so the
+                # budget above is necessary and not sufficient. Recorded as a deferral so the
+                # sells stand and the next trading day re-sends; a `broker_error` here would
+                # read as a fault and, under the dedupe, drown the real ones.
+                out["deferred"].append(dict(o, why="the broker refused it: %s" % why))
+                out["sent"][-1]["awaiting_settlement"] = True
+            elif not res.get("ok"):
                 out["alerts"].append({"kind": "broker_error", "slot": str(slot),
                                       "reason": "order for %s was rejected: %s"
                                                 % (o["ticker"], why)})
@@ -1008,8 +1381,34 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         st["open_event"] = key
         st["last_event_date"] = (book or {}).get("formed_on")
         st["last_pct"] = pct
+
+        # ---- THE SETTLEMENT WAIT, ON THE EVENT [item 67 part 1] --------------------------
+        #
+        # A deferral is NORMAL on a rebalance whose buys are funded by its own sells, so it is
+        # recorded rather than alerted. The alert waits until the wait has been seen on more
+        # trading days than T+1 can explain -- `wait_state`'s arithmetic, counted on the dates
+        # cycles actually ran, which are trading days by construction.
+        waits = dict(st.get("awaiting_settlement") or {})
+        if out["deferred"]:
+            w = SETTLE.wait_state(list((waits.get(key) or {}).get("days") or []),
+                                  on_date=_stamp())
+            waits[key] = {"days": w["days"], "since": w["since"],
+                          "n_orders": len(out["deferred"])}
+            out["awaiting_settlement"] = dict(w, n_orders=len(out["deferred"]))
+            if w["alert"]:
+                out["alerts"].append({"kind": "settlement_wait_overdue", "slot": str(slot),
+                                      "reason": w["reason"]})
+        elif key in waits:
+            # It cleared. Removed so a later wait on the same event starts its own count, and
+            # reported so a reader can see the wait ended rather than inferring it from silence.
+            out["settlement_wait_cleared"] = dict(waits.pop(key), event=key)
+        st["awaiting_settlement"] = waits
+
         _note_write(out, write_state(slot, st, root), slot, "recording what was sent")
-        out["reason"] = "sent %d order(s) for %s" % (len(out["sent"]), key)
+        out["reason"] = ("sent %d order(s) for %s%s"
+                         % (len(out["sent"]), key,
+                            ("; %d buy(s) await settled cash" % len(out["deferred"]))
+                            if out["deferred"] else ""))
         return out
     except Exception as e:                                              # noqa: BLE001
         # A SLOT'S FAILURE IS ITS OWN. The caller continues with the others.
@@ -1241,7 +1640,31 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
         bk = book if book is not None else IF.attach_returns(IF.book_in_force())
         held = [q for q in ((bk or {}).get("positions") or [])
                 if q.get("status") == "held"]
+        # **EVERY NAME THAT MIGHT BE TRADED, WHICH IS THE BOOK'S PLUS WHAT THE SLOTS HOLD
+        # [item 67].** This was the book's held names alone -- and an EXITED name is by
+        # definition not among them, so no quote was requested for it, so `order_plan` skipped
+        # it for want of a mark and the exit never happened. The exit targets added in this
+        # same item would have been silently skipped on every cycle, and the test I wrote for
+        # them passed because it supplied the price by hand.
+        #
+        # A name is read from a slot's OWN record (`reconcile` builds those from
+        # `valquo-<slot>-` prefixed orders and nothing else), so this can only ever ask for a
+        # quote on something a slot bought. Asking for a quote trades nothing.
         tickers = [str(q.get("ticker") or "").upper() for q in held]
+        _slots_to_price = [PAPER_SLOT] + [str(n) for n in LS.discover_slots(e)]
+        for _s in _slots_to_price:
+            for _nm in (read_state(_s, root).get("holdings") or {}):
+                _nm = str(_nm).strip().upper()
+                if _nm and _nm not in tickers:
+                    tickers.append(_nm)
+        out["priced_names"] = {
+            "n": len(tickers), "book_held": len(held),
+            "held_by_a_slot_and_not_in_the_book": sorted(
+                set(tickers) - {str(q.get("ticker") or "").upper() for q in held}),
+            "why": ("an exited name must be priced or it cannot be sold -- `order_plan` skips a "
+                    "name with no usable mark, which is right, and would have skipped every "
+                    "exit"),
+        }
 
         # ---- the paper slot, on the paper client ----------------------------------------
         #
@@ -1297,11 +1720,20 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                                "will send" % ptg.get("reason"))})
             # THE PAPER SLOT IS ARMED BY CONSTRUCTION -- it is paper money on a host that
             # cannot be anything else, which is the whole point of proving the path here.
-            res = run_slot(PAPER_SLOT, pct=PAPER_PCT,
+            # **THE FRACTIONABLE CENSUS, READ WHERE A CLIENT ALREADY EXISTS [item 67
+            # part 2].** One GET of Alpaca's asset master, which is ACCOUNT-INDEPENDENT -- so
+            # the paper keys answer the question for the live slots too. Guarded: a census is a
+            # report, and a report must never cost the cycle its orders.
+            try:
+                frac = fractional_report(pc, tickers)
+            except Exception:                                           # noqa: BLE001
+                frac = None
+            res = run_slot(PAPER_SLOT, pct=PAPER_PCT, fractional=frac,
                            armed_state={"armed": True,
                                         "reason": "the paper slot is always armed: it is "
                                                   "paper money on the paper host"},
-                           book=bk, client=pc, equity=eq, marks=marks, root=root,
+                           book=bk, client=pc, equity=eq, account=acct,
+                           marks=marks, root=root,
                            session_ok=session_ok, send=paper_sends,
                            account_id=paper_account_id,
                            sess_reason=sess.get("reason") or "")
@@ -1317,6 +1749,10 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
             p = LS.slot_pct(n, e)
             pct = p.get("pct")
             client, eq, marks, live_account_id = None, None, {}, None
+            slot_report = None
+            # **PER ITERATION, BESIDE `client`, OR A FAILED SLOT INHERITS THE LAST ONE'S
+            # ACCOUNT [item 67].** Every path that clears `client` clears this too.
+            slot_account = None
             # THE ONLY PLACE A LIVE CLIENT IS BUILT, AND `live_sends` IS THE WHOLE GATE ON
             # TOP OF `armed`. In PAPER mode this is False, so `run=paper` cannot construct a
             # live client even for a fully armed slot -- which is the property 2b asks to be
@@ -1333,6 +1769,18 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                             (e.get("ALPACA_ACCOUNT_%d_SECRET_KEY" % n) or ""))
                     acct = client.account()
                     eq = ((acct or {}).get("data") or {}).get("equity")
+                    # **THE BUY BUDGET COMES OUT OF THIS SAME REPLY [item 67].** Sizing a buy
+                    # from one read and the equity from another is the wrong-object family, and
+                    # on a live account the object is money.
+                    slot_account = acct
+                    # **READ HERE, AT THE ONE PLACE A LIVE CLIENT EXISTS [item 67 part 2].**
+                    # Three GETs, no order constructed on any path. It answers Don's question
+                    # about the IRA -- limited margin, what is spendable without borrowing, and
+                    # whether Alpaca reports fractional trading as enabled.
+                    try:
+                        slot_report = account_settlement_report(client)
+                    except Exception:                                   # noqa: BLE001
+                        slot_report = None
                     live_account_id = str(((acct or {}).get("data")
                                            or {}).get("id") or "") or None
                     # THE LIVE SLOT MUST NOT BE THE PAPER ACCOUNT. The host check cannot see
@@ -1349,10 +1797,12 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                                        "paper broker (%s); it sends nothing and is treated as "
                                        "having no client" % (n, live_account_id))})
                         client, eq, live_account_id = None, None, None
+                        slot_account = None
                 except Exception as ex:                                 # noqa: BLE001
                     out["alerts"].append({"kind": "broker_error", "slot": str(n),
                                           "reason": "the live client failed: %s" % ex})
                     client, eq, live_account_id = None, None, None
+                    slot_account = None
             if client is None:
                 # AT 0%, PAUSED, OR UNAUTHORIZED: price from the PAPER client so the dry run
                 # has marks, and read equity from the live account ONLY if one was built.
@@ -1361,6 +1811,11 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                 # none, so it uses the PAPER account's -- and says so, because a dry run
                 # sized on another account's equity is a shape check, not a dollar check.
                 try:
+                    # A DRY RUN HAS NO LIVE ACCOUNT, so no buy is sized from one --
+                    # `slot_account` is already None from the initialisation above and is
+                    # deliberately NOT set to the paper account's reply. It transmits nothing
+                    # either way (`send=False`), and the budget it reports then says plainly
+                    # that nothing bounded it rather than quoting another account's figure.
                     eq = ((pc.account() or {}).get("equity") if pc is not None else None)
                 except Exception:                                       # noqa: BLE001
                     eq = None   # the dry run then refuses at preflight, which is correct
@@ -1368,6 +1823,7 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                 marks = _marks_for(client, tickers) if hasattr(client, "quotes") else (
                     _marks_for(pc, tickers) if pc is not None else {})
             res = run_slot(n, pct=pct, armed_state=a, book=bk, client=client, equity=eq,
+                           account=slot_account, settlement_report=slot_report,
                            marks=marks, root=root, session_ok=session_ok,
                            paper_targets=paper_targets, paper_value=paper_value,
                            account_id=live_account_id,
