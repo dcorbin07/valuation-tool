@@ -189,6 +189,45 @@ manager from Don's own words in chat.
   SEC's free feed counts insiders differently because the licensed file has names only, no IDs.
   So the rule is re-measured on the SEC's insider ID numbers on the 2009–2019 build data only,
   with stage 1's bar. F-23 moves to that rule only if it clears.
+- **2026-10-16 — F-4 AND F-10 ARE NOT RE-DECLARED YET.** Both avoid scheduled earnings, and the
+  event spine holds no forward dates, so they could not enter. They are revisited once a free
+  forward earnings calendar is measured. Next for options: Don adds the fleet's second Alpaca
+  paper account, which lets F-21, F-22 and F-8 trade; EARNINGS-CSP's free kill; the
+  forward-calendar measurement; and F-21b's rule frozen before F-21's first fill. MB2's single
+  cell and the cap-3 sizing test wait for Don.
+- **2026-10-16 — THE OPTIONS PAPER FLEET HAS NEVER TRADED, AND FIXING THAT COMES FIRST.** Its
+  broker is still the Tradier sandbox, and Tradier closed on 10-08. In the last fleet backup
+  (10-04) no book had recorded a single order, only self-checks. Since a forward paper book is
+  the last rung for every options strategy, the options lane moves the fleet onto Alpaca paper
+  before any new options test. Don asked for an options edge "as long as it isn't super
+  expensive". The scout drafts the remaining candidates and ranks them: earnings-spanning
+  cash-secured puts (O7 found earnings options rich, and that has never been tested from the
+  selling side), a stress gate for put selling judged forward, a census only for O-1's data,
+  and the DTE question answered from the record. The alert-driven long-call entry is not
+  re-opened: it loses to random days in every score band and at every threshold.
+- **2026-10-16 — AUDITOR RE-REVIEW: STILL NOT YET** (`4eb4fa6`). 7 of 8 questions pass. One
+  route to a duplicate buy-in survives: state lost, the order list unreadable, the position list
+  readable. The fix is to refuse on a failed order read (item 65). Item 64 landed: IEX priced 85
+  of 85 names during market hours, so no $99/month plan is needed. The paper slot placed and
+  filled real paper orders (81 of 85 names held after five cycles). Two order-id defects were
+  fixed, and Alpaca's wash-trade refusal surfaced (item 65). The auditor reviews a third time
+  after item 65, and live keys stay out until then.
+- **2026-10-16 — ITEM 63 LANDED; THE FIRST REAL PAPER CYCLE RAN.** On the service, the paper
+  keys authenticate, the Index book is readable, and the paper order path works. The cycle,
+  dispatched after hours, refused because 26 names had no two-sided IEX quote. Whether IEX can
+  quote the book during market hours is item 64's first question. If it can't, Don chooses
+  between the $99/month data plan and a different mark rule; no fallback mark is invented. Also
+  measured: GitHub ran PT-WRITER about five hours late on Oct 15 and 16, and the live-cycle
+  schedule had not fired by 17:19Z on Oct 16, so item 64 adds backup schedules. The auditor
+  re-reviews item 63 before any live key goes in.
+- **2026-10-15 — AUDITOR: NO LIVE KEY YET** (branch `worktree-auditor-live-path-review`, not
+  yet landed). There are two blockers. First, the paper slot cannot place an order, because of a
+  method-name mismatch that every stub-based test missed. Second, a duplicate buy-in is reachable
+  through an empty record and a discarded state write. Parity and the unreadable-positions case
+  also fail. Item 63 fixes all of them; the auditor re-reviews before any live key goes in.
+- **2026-10-15 — F23-JOIN: THE REPAIRED JOIN STILL DOES NOT CLEAR.** The join was broken, and
+  repairing it moved the arm from +0.16 to +0.87 points, but the halves still disagree in sign.
+  F-23 stays declared and unfilled, and no variant is searched for.
 - **2026-10-15 — F23-SECID DID NOT CLEAR, BUT IT RAN ON A BROKEN TICKER JOIN** (`f712be2`).
   Counting insiders by SEC ID instead of by name changed almost nothing (Jaccard 0.987). The
   SEC-sourced cell, though, covered 608 tickers against SF2's 1,344, because of a join defect
