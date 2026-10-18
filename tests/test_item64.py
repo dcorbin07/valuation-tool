@@ -864,15 +864,30 @@ class TheOrderIdCounterIsNotTheCeilingsCounter(unittest.TestCase):
         self.assertNotIn("attempt=tries", call)
 
     def test_closing_the_event_clears_the_send_sequence_too(self):
+        """**REPOINTED AT THE CONSTANT [item 72].** This used to slice the first
+        `for bag in (` in the file -- a guard keyed to a LOCATION, which is what its own
+        comment said had already made it rot once. Item 72 added a second such loop (clearing a
+        STALE event's bags) with four of the six names, and this guard found the divergence by
+        landing on the new loop. The list is now `EVENT_SCOPED_STATE`, declared once, and this
+        asserts the names against that declaration AND that no site hand-writes its own."""
+        import ast
         from valuation.edge import live_cycle as LC
-        src = open(LC.__file__, encoding="utf-8").read()
-        # Item 67 added three bags to the same list, so the assertion is on each NAME being
-        # cleared rather than on the tuple's exact text -- which is what made this rot.
-        block = src[src.index("for bag in ("):]
-        block = block[:block.index(")")]
         for bag in ("event_attempts", "event_progress", "send_seq",
                     "event_fingerprint", "event_attempt_days", "awaiting_settlement"):
-            self.assertIn('"%s"' % bag, block, "a closed event would keep %s" % bag)
+            self.assertIn(bag, LC.EVENT_SCOPED_STATE,
+                          "a closed event would keep %s" % bag)
+        # EVERY `for bag in ...` MUST ITERATE THE CONSTANT. Read from the syntax tree, so a
+        # comment quoting a tuple cannot satisfy it.
+        src = open(LC.__file__, encoding="utf-8").read()
+        loops = [n for n in ast.walk(ast.parse(src))
+                 if isinstance(n, ast.For) and isinstance(n.target, ast.Name)
+                 and n.target.id == "bag"]
+        self.assertGreaterEqual(len(loops), 2, "expected the close and the stale-event sites")
+        for n in loops:
+            self.assertTrue(isinstance(n.iter, ast.Name)
+                            and n.iter.id == "EVENT_SCOPED_STATE",
+                            "a `for bag in` site hand-writes its own list: %s"
+                            % ast.unparse(n.iter)[:80])
 
 
 class TheWashTradeRejectionIsSurfacedInWords(unittest.TestCase):

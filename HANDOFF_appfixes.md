@@ -21914,3 +21914,169 @@ the CYCLE and now has its own name, and the two are cross-checked against the re
   this path means.
 - **No live key is entered and no percentage is raised.** The auditor reviews this before either.
 
+
+## ITEM 72 — the auditor's seventh-review leftovers. Nothing here can move a share.
+
+The auditor cleared live keys at 0% and Don has entered them. These are the two findings that
+review recorded, plus the five table combinations nobody had checked.
+
+### 1. A STALE `open_event` CLAIMED ORDERS WERE WORKING WHEN NONE WERE — my own defect from item 71
+
+That item made the close require `open_event == key`, which is right, and wrote **one reason for
+two different states**:
+
+* another event is open **and this slot has orders resting for it** — the sentence is true;
+* another event is open **and nothing is resting** — the sentence is false, and this is the state
+  every real event is in the morning after its `day` orders expired unfilled.
+
+`open_remainder: False` sat in the same payload as a reason asserting that orders ARE working at
+the broker. **The eighth message on this path to claim a property the code does not have, written
+by the item fixing the seventh.** And the branch returned before the no-progress ceiling, so it
+could not escalate — breaking item 70's own rule that *"a branch that keeps an event open and
+cannot reach the ceiling has swapped a silent close for a SILENT HOLD."*
+
+**THE PAPER SLOT IS IN THIS STATE TODAY**: `open_event: rebalance:2026-07-30` with that key
+already in `processed_events`.
+
+**THE TWO SUB-CASES ARE DIFFERENT FACTS, and only one of the three branches that set
+`open_event` also appends to `processed`.** The SEND path appends first, so a stale key **in**
+`processed` is residue from orders that expired — bookkeeping, and exactly the paper slot's
+shape. `PLAN_BLOCKED` and `PLAN_RESTING` set it **without** appending, so a stale key **not** in
+`processed` is an event that was planned and never finished. Both are cleared, because the
+arriving event's plan is empty and its targets are therefore met; the second **alerts**, because
+it is a fact Don should hear.
+
+**AND A REAL OPEN EVENT NOW REACHES THE CEILING**, like the resting and blocked branches — one
+trading day per in-session cycle, so a genuinely stuck remainder escalates instead of holding
+silently.
+
+### TWO MORE OF MY OWN, BOTH FROM ITEM 71
+
+- **`intent` and `open_event` are two facts and item 71 made them one.** Before item 71 both were
+  cleared unconditionally; item 71 put both behind `open_event == key`, which is right for the
+  remainder marker and wrong for `intent` — `intent` carries the event it belongs to, so a close
+  with `open_event` already cleared (reachable via the new stale path) left it behind. Residue
+  rather than a hazard: its tickers only ever widen `slot_symbols`, so preflight checks MORE
+  names. Now cleared by its own event key.
+- **Two lists of "the state scoped to one event".** My stale-clearing listed four bags and the
+  close branch six, and **item 64's own guard caught the divergence** by slicing the first
+  `for bag in (` in the file — which was mine. One `EVENT_SCOPED_STATE` now, used by both sites,
+  and item 64's guard is repointed at the constant plus an AST check that no site hand-writes its
+  own list. The two bags I had omitted are item 64's retired counters, read nowhere, so nothing
+  moved today — and two lists that differ is the drift the constant exists to prevent.
+
+### WHY THE PAPER SLOT HOLDS 82 NAMES AND NOT THE BOOK'S 86
+
+**THE RECORD IS A FILL COUNT, NOT A SELECTION COUNT.** `reconcile` builds `holdings` from this
+slot's own FILLED orders, deliberately — a record built from submissions is what made the
+duplicate buy-in reachable (item 63) — so a name whose `day` limit at the mid never filled is
+simply absent, and there is no "intended but unfilled" column by design.
+
+**I could not measure the 82 from this repository, and that is worth saying plainly.** The bound
+book lives on the service; the local `data/valquo_index.json` is a stale 2026-07-31 copy with no
+`status` field at all; and the slot's record is in gitignored `data/`. So rather than give one
+answer from a payload I cannot read, **the cycle now answers it every time**.
+
+Five things can leave a held book name out of the record, and **two were reported nowhere**:
+
+| | reported before? |
+|---|---|
+| no two-sided quote this cycle | yes — `marks_coverage.missing`, `plan["skipped"]` |
+| a resting order whose open quantity the broker did not report | yes — `plan["skipped"]` |
+| an order is being placed for it right now | yes — `plan["orders"]` |
+| **the gap is under `min_order_value` (dust)** | **NO — a bare `continue`** |
+| **ordered before and never filled, or never accepted** | **NO — no column at all** |
+
+`order_plan` now reports its dust (still not an order — the broker refuses one that small — and
+still not a `skipped`, because `skipped` drives a refusal while this is "correctly nothing to
+do"), and `run_slot` ships a **`book_vs_record`** census naming every held book name the record
+does not hold, with **exactly one reason each**, tested most-specific first. Read-only, and a
+failure inside it cannot cost the cycle its orders.
+
+**THE RESIDUAL CLASS IS NAMED AND SAYS IT IS TWO THINGS.** An order the broker rejected outright
+leaves nothing in the orders list, so the cycle cannot tell it from a limit that never filled.
+`unfilled_or_rejected` says both; calling it one would be a guess.
+
+**For the record, from `DECISIONS.md` rather than from a measurement of mine:** the book is 86
+names, the paper account accepted **85** of them on 10-16, and **81 of 85** were held after five
+cycles. 82 is one more of those four having filled since. Which four, and which of the five
+causes each is, is what the next cycle's census will say.
+
+### 2. THE FIVE COMBINATIONS NOBODY HAD CHECKED — the table grows to 5,632 rows
+
+The auditor checked the table's **omissions** rather than sampling its rows, and listed five
+shapes it could not reach. All five are axes now, and one more besides:
+
+| added | why it could not be reached |
+|---|---|
+| **exhausted** event | the ceiling already spent — crossed with nothing |
+| **quiet** cycle | the table had no row where the slot must do NOTHING |
+| **upward** resize | every resize went DOWN, so every one planned sells |
+| **brand-new** record | no record file at all, which is not an empty one |
+| **new book over an open pct event** | blocker B from the other direction |
+| **stale `open_event`** | item 72's own subject: named, with nothing resting |
+| **brand-new against a NON-EMPTY account** | see below |
+
+**THE LAST ONE CLOSES A GAP THE AUDITOR COULD ONLY CHECK BY HAND.** My test asserted that a
+brand-new record refuses one cycle on item 67's fresh-record check, and it bought in instead —
+because the fixture **derives the broker's positions from the slot's own record**, so a
+brand-new row always had an empty account. That derivation is the auditor's own noted gap: *"no
+foreign position appears in any of the 2,240 rows, and `positions="empty"` only tests the broker
+holding LESS. The dangerous direction — the broker holding MORE — is item 63's blocker."* A
+`broker_extra` axis now puts a position in the account the record does not know about, so both
+the fresh-record refusal and the foreign-position direction are rows rather than one hand-check.
+
+**7 × 5 state/event pairs → 11 × 8. 2,240 rows → 5,632**, all matching the declaration. The MET
+table grows from 35 to 80 declared entries, generated from §8a's own target formula to avoid a
+typo and written out as literals so any one of them can be checked by eye.
+
+**AND THE 36-WAY READ CONTROL HAS A POSITIVE DIRECTION** (the review's third request). It
+asserted only that forbidden things do not happen, so a tree that did nothing at all would have
+satisfied all 36 — the vacuous pass, in the one test whose job is to measure an interaction.
+
+### FOUR CORRECTIONS TO MY OWN DECLARATION, all exposed by the new rows
+
+- **`_key_for` did not know the two new events.** A `quiet` cycle has no event of its own, so the
+  key it acts on is whatever `open_event` holds; and `book_over_pct` IS a rebalance, so its key
+  is the rebalance's. Mine returned a `pct:` key for both.
+- **A `quiet` row must not carry the positive control.** With no event and no remainder the cycle
+  returns early doing nothing, which is `event_for`'s own *"the whole point"*.
+- **Nor must an `exhausted` row** — the ceiling has been spent, so stopping is the machinery
+  working rather than a cycle failing to act.
+- **A stale `open_event` no longer blocks the close**, which is item 72's own fix, and my
+  declaration still treated any foreign `open_event` as blocking.
+
+Plus three in my own test file: the UPWARD resize asserted buys on `on_target`, whose record
+already **is** the 5% target; the brand-new refusal needed a non-empty account; and a row-count
+literal said 5,120 after the eleventh state made it 5,632.
+
+### 3. THE 2026-10-22 REBALANCE WATCH — NOT DONE, AND IT CANNOT BE
+
+The brief asks for the paper slot's first real book change to be watched *"on the first in-hours
+cycles after the event is appended on the evening of 10-23"*. **Today is 2026-10-18.** The book
+has not moved, the event does not exist, and no cycle has run on it. Reporting on it would be
+fabrication.
+
+**What a lane can do before then is make sure the four things the brief asks to be read are
+readable on that cycle, and they are** — each has a field, and each is asserted by test rather
+than promised: sells first (`plan["sells_first"]`, and the orders are sorted sells-first),
+settlement waits (`awaiting_settlement`, `settlement_wait_overdue`), exits priced and sold
+(`exits_planned`, `marks_coverage.missing_exits`), and whether the event closes only when the
+holdings match (`event_closed`, now beside `book_vs_record`). The observation is the week after.
+
+### THE NUMBERS
+
+- `tests/test_item72.py`: **33 tests.**
+- `tests/test_item71_table.py`: **5,632 rows**, all matching, ~220 s.
+- No new pending workflow. Nothing in `.github/`. No key or percentage touched.
+
+### NOT DONE
+
+- The review's carried items: `note_no_progress` records `_stamp()` rather than the cycle's
+  `now`, so the ceiling reads the wall clock; `HOLDERS` is hard-coded; `orders_window` treats a
+  caller-supplied `now` as ET. All three still open, none taken — the first changes what every
+  dated record on this path means.
+- **The wind-down is still all-or-nothing on pricing**, which the review recorded as a limit
+  rather than a defect: one bid-only name refuses the whole exit. It is §8's own rule and it
+  alerts. **Operationally: set 0% during market hours.**
+

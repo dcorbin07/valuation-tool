@@ -793,6 +793,24 @@ def account_settlement_report(client) -> dict:
     }
 
 
+#: **THE SLOT STATE THAT BELONGS TO ONE EVENT AND MUST NOT OUTLIVE IT. [item 72]**
+#:
+#: Every one of these is keyed by event, so leaving an entry behind attributes one event's
+#: residue to the next -- which is item 64's own subject: its fourth real cycle read 5 of 5
+#: attempts while the book advanced 72 -> 77, one cycle from stopping a healthy rebalance on a
+#: counter that meant something else when it was written.
+#:
+#: **ONE LIST, TWO SITES** (`B7`): the close branch and item 72's stale-event clearing. My first
+#: cut of the second listed four of these, and item 64's own guard caught the divergence by
+#: slicing the first `for bag in (` in the file -- which was the new one.
+#:
+#: `event_attempts` and `event_progress` are item 64's RETIRED counters, read nowhere. They stay
+#: on the list because a bag that is cleared in one place and not the other is the drift this
+#: constant exists to prevent, and clearing something nothing reads costs nothing.
+EVENT_SCOPED_STATE = ("event_attempts", "event_progress", "send_seq",
+                      "event_fingerprint", "event_attempt_days", "awaiting_settlement")
+
+
 #: WHAT THE PLANNER CONCLUDED, AS A VALUE RATHER THAN AS AN EMPTY LIST.  [item 69]
 #:
 #: **ONLY `PLAN_TARGETS_MET` CLOSES AN EVENT.** The close branch used to test `not
@@ -941,6 +959,80 @@ def note_no_progress(st: dict, out: dict, key, *, counts_a_day: bool,
                         "rejecting these orders or leaving them unfillable, and a daily retry "
                         "would be deduped into silence" % (key, len(days), days[0]))
                        if done else "")}
+
+
+def book_vs_record(book: dict, held_by_slot: dict, plan: dict, resting=None,
+                   marks: dict = None) -> dict:
+    """Which of the book's HELD names this slot does not hold, and why. [item 72]
+
+    Read-only, and it answers the auditor's question -- *"why does the paper slot hold 82 names
+    and not the book's full count?"* -- on every cycle instead of once.
+
+    **THE RECORD IS A FILL COUNT.** `reconcile` builds `holdings` from this slot's own FILLED
+    orders, deliberately: a record built from submissions is what made the duplicate buy-in
+    reachable (item 63). So "the book holds it and the record does not" has five possible
+    causes, and before this two of them were reported nowhere.
+
+    Each name gets EXACTLY ONE reason, tested most-specific first:
+
+      planned_this_cycle   an order for it is in this cycle's plan
+      resting              one of this slot's orders for it is working at the broker
+      skipped              the planner could not plan it (no usable mark; unknown resting qty)
+      dust                 the gap is under `min_order_value`, so no order is worth sending
+      unfilled_or_rejected ordered before and never filled, OR never accepted by the account
+
+    **THE LAST CLASS IS TWO THINGS AND SAYS SO.** An order the broker rejected outright leaves
+    nothing in the orders list, so this cycle cannot tell it from a limit that never filled.
+    Naming one of them would be a guess; `fractional_report` and the `attempts` log are where a
+    reader separates them.
+    """
+    held = [str((q or {}).get("ticker") or "").strip().upper()
+            for q in ((book or {}).get("positions") or [])
+            if (q or {}).get("status") == "held"
+            and (LS._f((q or {}).get("weight")) or 0.0) > 0]
+    held = [t for t in held if t]
+    have = {str(k).upper() for k, v in (held_by_slot or {}).items()
+            if (LS._f(v) or 0.0) > 0}
+    planned = {str(o.get("ticker") or "").upper() for o in ((plan or {}).get("orders") or [])}
+    skipped = {str(x.get("ticker") or "").upper(): str(x.get("reason") or "")
+               for x in ((plan or {}).get("skipped") or [])}
+    dusty = {str(x.get("ticker") or "").upper(): x
+             for x in ((plan or {}).get("dust") or [])}
+    rest = {str((r or {}).get("ticker") or "").upper() for r in (resting or [])}
+    rows = []
+    for t in sorted(set(held) - have):
+        if t in planned:
+            rows.append({"ticker": t, "why": "planned_this_cycle"})
+        elif t in rest:
+            rows.append({"ticker": t, "why": "resting",
+                         "detail": "an order of this slot's is working at the broker"})
+        elif t in skipped:
+            rows.append({"ticker": t, "why": "skipped", "detail": skipped[t]})
+        elif t in dusty:
+            rows.append({"ticker": t, "why": "dust",
+                         "detail": ("the gap is %.4f, under the %.2f minimum order value, so "
+                                    "no order is worth sending"
+                                    % (dusty[t].get("gap_value") or 0.0,
+                                       dusty[t].get("min_order_value") or 0.0))})
+        else:
+            rows.append({"ticker": t, "why": "unfilled_or_rejected",
+                         "detail": ("this slot ordered it on an earlier cycle and the order "
+                                    "never filled, OR the broker never accepted it -- a "
+                                    "rejected order leaves nothing in the orders list, so this "
+                                    "cycle cannot tell the two apart. `fractional_report` and "
+                                    "the `attempts` log separate them.")})
+    from collections import Counter
+    return {
+        "n_book_held": len(set(held)),
+        "n_recorded": len(have),
+        "n_not_held": len(rows),
+        "not_held": rows[:60],
+        "by_reason": dict(Counter(r["why"] for r in rows)),
+        "note": ("the record is a FILL count, not a selection count: `reconcile` builds it "
+                 "from this slot's own FILLED orders, so a name whose limit never filled is "
+                 "simply absent. This names every held book name the record does not have, "
+                 "with the reason this cycle actually has."),
+    }
 
 
 def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
@@ -1340,6 +1432,16 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # branch reports the targets as met. It is deleted rather than softened, because the
         # auditor records nearly trusting it, and because six blockers on this path have been a
         # docstring asserting a property the code had lost.
+        # **THE CENSUS THAT ANSWERS "WHY 82 OF 86" [item 72], computed where the plan and the
+        # resting list both exist. Read-only: it decides nothing.
+        try:
+            out["book_vs_record"] = book_vs_record(
+                book, st.get("holdings") or {}, plan,
+                resting=(rec.get("resting") or []), marks=marks)
+        except Exception as _ex:                                        # noqa: BLE001
+            # A DIAGNOSTIC MUST NEVER COST THE CYCLE ITS ORDERS [item 67's rule for the
+            # fractional report, applied again].
+            out["book_vs_record"] = {"error": "%s: %s" % (type(_ex).__name__, _ex)}
         rest_mine = resting_for_event(rec.get("resting") or [], slot, key)
         out["resting_this_event"] = [dict(r) for r in rest_mine]
         # **`open_remainder` IS NOW READ [item 70, the auditor's non-blocking item 5].** It was
@@ -1460,17 +1562,72 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             # "targets met" was empty only because the OTHER event's resting orders had been
             # subtracted from it. "Something else is on its way to meeting my targets" is not
             # "my targets are met".
-            _other = st.get("open_event") not in (None, "", key)
-            out["event_closed"] = bool(_w["ok"] and not _other)
-            if _w["ok"] and _other:
+            # **AND "ANOTHER EVENT IS OPEN" IS TWO STATES, WHICH IS MY OWN DEFECT FROM ITEM
+            # 71 [item 72, the auditor's seventh review].** That item wrote one reason for
+            # both: *"...is still open with orders of this slot's working at the broker"*. It
+            # is true when something IS resting for that event and false when nothing is --
+            # which is the state every real event is in the morning after its `day` orders
+            # expired. `open_remainder: False` sat in the same payload as that sentence, and
+            # the branch returned before the ceiling so it could not escalate. The paper slot
+            # is in this state today.
+            _open = str(st.get("open_event") or "")
+            _other = _open not in ("", key)
+            _other_resting = (resting_for_event(rec.get("resting") or [], slot, _open)
+                              if _other else [])
+            _stale = bool(_other and not _other_resting)
+            out["open_event_of_record"] = _open or None
+            out["open_event_is_stale"] = _stale
+            out["event_closed"] = bool(_w["ok"] and not (_other and not _stale))
+            if _w["ok"] and _other and not _stale:
+                # GENUINELY OUTSTANDING: orders of this slot's really are working for that
+                # event, so the empty plan means they cover the gap. The sentence is true here.
                 out["reason"] = (
-                    "this event's plan is empty, but %s is still open with orders of this "
+                    "this event's plan is empty, but %s is still open with %d order(s) of this "
                     "slot's working at the broker -- so the empty plan means that event's "
                     "orders cover the gap rather than that THIS event is finished. Nothing is "
                     "sent and nothing is recorded as complete; the open event resolves first."
-                    % st.get("open_event"))
-                out["blocked_by_open_event"] = st.get("open_event")
+                    % (_open, len(_other_resting)))
+                out["blocked_by_open_event"] = _open
+                # **AND IT REACHES THE CEILING NOW**, like the resting and blocked branches.
+                # A branch that holds an event open and cannot escalate is item 70's own
+                # silent hold. A day is counted only in session, because
+                # `note_trading_day`'s precondition is that every date reaching it is one the
+                # orders window was open on.
+                _blk = note_no_progress(st, out, key, counts_a_day=bool(session_ok))
+                if _blk["exhausted"]:
+                    out["alerts"].append({"kind": "event_attempts_exhausted",
+                                          "slot": str(slot), "reason": _blk["reason"]})
+                    out["attempts_exhausted"] = True
+                    st["open_event"] = None
+                _note_write(out, _write(), slot, "recording a blocked event")
                 return out
+            if _w["ok"] and _stale:
+                # **STALE: CLEARED RATHER THAN REFUSED ON FOR EVER.** Nothing of this slot's is
+                # working for that event, and this event's plan is empty -- the holdings already
+                # meet its targets -- so the old key is moot and the next reader would trust it.
+                #
+                # **AND WHETHER IT WAS EVER COMPLETED IS A DIFFERENT FACT.** Only the SEND path
+                # appends to `processed` before setting `open_event`, so a stale key IN
+                # `processed` is residue from orders that expired, and one NOT in `processed`
+                # was left by `PLAN_BLOCKED` or `PLAN_RESTING` and never completed at all. The
+                # second is worth telling Don about; the first is bookkeeping.
+                _was_processed = _open in (st.get("processed") or [])
+                st["open_event"] = None
+                for bag in EVENT_SCOPED_STATE:
+                    if isinstance(st.get(bag), dict):
+                        st[bag] = {k: v for k, v in st[bag].items() if k != _open}
+                if (st.get("intent") or {}).get("event") == _open:
+                    st["intent"] = None
+                out["cleared_stale_open_event"] = {
+                    "event": _open, "was_recorded_complete": _was_processed}
+                if not _was_processed:
+                    out["alerts"].append({
+                        "kind": "stale_open_event_never_completed", "slot": str(slot),
+                        "reason": ("%s was left open and has NO order of this slot's working "
+                                   "at the broker, and it was never recorded complete -- so it "
+                                   "was planned and never finished. It is cleared, because this "
+                                   "slot's holdings now meet %s's targets and the old key would "
+                                   "otherwise be refused on for ever." % (_open, key))})
             if not _w["ok"]:
                 # The branch reached here and changed nothing. Saying so is the whole point:
                 # the old text read "the event is closed", which would have been the EIGHTH
@@ -1493,6 +1650,14 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             # and before item 71's wind-down that slot could then never sell.
             if st.get("open_event") == key:
                 st["open_event"] = None
+            # **`intent` IS CLEARED BY ITS OWN EVENT KEY [item 72], which is a different
+            # condition from `open_event`'s and item 71 made them one.** Before item 71 both
+            # were unconditional; item 71 put both behind `open_event == key`, which is right
+            # for the remainder marker and wrong for `intent` -- `intent` carries the event it
+            # belongs to, and a close with `open_event` already cleared (reachable via the
+            # stale-event path) left it behind. Residue rather than a hazard, since its tickers
+            # only ever widen `slot_symbols` and so make preflight check MORE names.
+            if (st.get("intent") or {}).get("event") == key:
                 st["intent"] = None      # the event is finished; nothing is outstanding
             # AND ITS COUNTERS GO WITH IT [item 64]. A closed event's attempt count is not
             # evidence about the next one, and leaving it behind means a slot that needed four
@@ -1500,8 +1665,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             # `event_fingerprint`, `event_attempt_days` and `awaiting_settlement` are item
             # 67's and belong on this list for the same reason as the rest: a finished event's
             # wait is not evidence about the next one, and a stale wait record would alert.
-            for bag in ("event_attempts", "event_progress", "send_seq",
-                        "event_fingerprint", "event_attempt_days", "awaiting_settlement"):
+            for bag in EVENT_SCOPED_STATE:
                 if isinstance(st.get(bag), dict):
                     st[bag] = {k: v for k, v in st[bag].items() if k != key}
             st["last_event_date"] = (book or {}).get("formed_on")
