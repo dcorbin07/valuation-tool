@@ -289,6 +289,26 @@ def parity(live_targets: dict, paper_targets: dict, *, live_value: float,
     out = {"ok": False, "n_names": 0, "n_mismatch": 0, "worst": None, "mismatches": [],
            "tolerance": tolerance, "compares": "target weights", "reason": ""}
     lv, pv = LS._f(live_value), LS._f(paper_value)
+    # **EVERY TARGET ZERO IS VACUOUS, NOT FAILED [item 71, proposed by item 70].** This
+    # function compares each name's target as a SHARE of the slot's own value, and a wind-down
+    # has a slot value of zero and a zero target for every name -- so there is no weight to
+    # diff and nothing for a mismatch to mean. Refusing it blocked the X->0 sell-out at the
+    # third of four gates, which `C5` running in the unusual direction: absent evidence was
+    # being read as adverse evidence.
+    #
+    # **IT CANNOT WIDEN TO ANYTHING ELSE**, and that is structural rather than careful: a
+    # positive percentage with a positive equity always yields a positive slot value, and
+    # `targets` REFUSES a non-positive equity before this is ever called -- so "every target is
+    # zero" is reachable only from a zero percentage. The `targets` dict must also be non-empty,
+    # or a book that failed to load would read as a wind-down.
+    _lt = [LS._f(v) or 0.0 for v in (live_targets or {}).values()]
+    if _lt and all(abs(v) <= 0 for v in _lt) and (lv or 0.0) <= 0:
+        out.update(ok=True, measured=False, n_names=len(_lt),
+                   reason=("every target is zero, so there are no weights to diff: this is the "
+                           "X->0 wind-down and parity is VACUOUS rather than passed. The sales "
+                           "are of what this slot's own record holds, which no weight "
+                           "comparison could check."))
+        return out
     if not lv or not pv or lv <= 0 or pv <= 0:
         out["reason"] = ("parity needs a positive value on both sides; live=%r paper=%r"
                          % (live_value, paper_value))
@@ -563,6 +583,38 @@ def _rejection_reason(res) -> str:
                                     "were %s" % sorted(res))
 
 
+def writes_allowed(rec: dict, *, may_write: bool) -> dict:
+    """May this cycle persist anything about this slot? ONE definition. [item 71, blocker C]
+
+    `{"ok", "reason"}`. Two conditions and both are evidence rather than intention:
+
+    1. **THE ORDER READ MUST HAVE SUCCEEDED.** `order_read == "ok"` is the only state in which
+       this slot knows what it holds and what is working. `truncated` and `failed` already
+       refused the cycle outright; `not_attempted` did not, and that is the blocker -- a cycle
+       with no client closed the event that a cycle with a client holds open, and WROTE it.
+    2. **THE CALLER MUST PERMIT A WRITE.** A GET of `/admin/live-cycle` ran a dry cycle, and a
+       dry cycle still wrote state. A side-effecting GET is reachable by a retry, a prefetch, a
+       proxy or a pasted link -- the same reasoning `/admin/track-row` already applies to its
+       own write, where a GET asking to write returns 405.
+
+    **IT IS A PRECONDITION, NOT AN OPTION**, and the default is the permissive one only because
+    every production caller passes it explicitly; the test suite pins both directions.
+    """
+    read = str((rec or {}).get("order_read") or "")
+    if not may_write:
+        return {"ok": False, "reason": ("this is a READ-ONLY cycle, so nothing about this slot "
+                                        "is persisted -- the plan is computed and reported and "
+                                        "the record is left exactly as it was")}
+    if read != "ok":
+        return {"ok": False, "reason": (
+            "this slot's own orders were not read on this cycle (order_read=%r), so it does "
+            "not know what is working at the broker and persists NOTHING. A cycle that could "
+            "not look must not record a conclusion -- a paper or dry cycle builds no live "
+            "client, and closing an event here would discard a remainder that a cycle which "
+            "CAN look is holding open." % (read or "unknown"))}
+    return {"ok": True, "reason": ""}
+
+
 def _note_write(out: dict, res: dict, slot, what: str) -> bool:
     """EVERY `write_state` RESULT IS READ. [item 63, blocker 2]
 
@@ -574,6 +626,13 @@ def _note_write(out: dict, res: dict, slot, what: str) -> bool:
     """
     if (res or {}).get("ok"):
         return True
+    if (res or {}).get("withheld"):
+        # **NOT A FAILURE AND NOT AN ALERT [item 71].** A read-only cycle, or one that could
+        # not read its own orders, is SUPPOSED to persist nothing -- alerting on it would fire
+        # on five scheduled cycles a day and on every GET, which is how a real alert stops
+        # being read (`MA21`).
+        out["state_write_withheld"] = (res or {}).get("reason")
+        return False
     out.setdefault("alerts", []).append({
         "kind": "state_write_failed", "slot": str(slot),
         "reason": ("this slot could not write its own record while %s: %s. Its next cycle may "
@@ -888,7 +947,8 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
              marks: dict, root: str = None, session_ok: bool = True,
              paper_targets: dict = None, paper_value: float = None,
              account_id=None, account=None, settlement_report=None,
-             fractional=None, send: bool = True, sess_reason: str = "") -> dict:
+             fractional=None, send: bool = True, sess_reason: str = "",
+             may_write: bool = True, sell_only: bool = False) -> dict:
     """One slot's cycle. Returns what it did and why. NEVER RAISES.
 
     `account` is the broker's whole account reply, not only its equity: item 67 sizes buys
@@ -900,10 +960,22 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
     and nothing is transmitted. It is not a "dry run flag" a caller could forget to set — the
     caller that would arm a slot has to pass `send=True` AND hold a live client, and `armed`
     is the only function that licenses either.
+
+    `may_write=False` is what a GET uses: the plan is computed and reported and **the record is
+    left exactly as it was** [item 71, blocker C]. Separate from `send` because they are
+    separate permissions -- a dry POST may write what it learned and must transmit nothing.
+
+    `sell_only=True` is the X->0 WIND-DOWN [item 71, blocker A]. Every buy is withheld and
+    reported; the sales are of what this slot's own record holds, which is the only thing a 0%
+    target can license. It comes from `armed`, which is the only function that may say yes.
     """
     out = {"slot": str(slot), "pct": pct, "armed": bool(armed_state.get("armed")),
            "event": "none", "acted": False, "orders": [], "sent": [], "alerts": [],
-           "preflight": None, "parity": None, "reason": "", "session_ok": bool(session_ok)}
+           "preflight": None, "parity": None, "reason": "",
+           # DECLARED ON EVERY CYCLE [item 71], so a reader never has to tell `False`
+           # from "the key is absent" -- the distinction this path has paid for six times.
+           "event_closed": False, "sell_only": bool(sell_only), "writes_allowed": None,
+           "session_ok": bool(session_ok)}
     st = read_state(slot, root)
     st["slot"] = str(slot)
     # **MEASURED ON THE RECORD AS READ, BEFORE ANYTHING IS WRITTEN TO IT [item 67].** My first
@@ -982,6 +1054,24 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # buy-in on every cycle -- which is exactly what my own second-cycle test caught.
         rec = reconcile(client, st)
         out["reconcile"] = rec
+        # **ONE GATE, READ ONCE, REPORTED ON EVERY CYCLE [item 71, blocker C].** Eight write
+        # sites follow; a condition per branch would be eight chances to miss one.
+        _w = writes_allowed(rec, may_write=may_write)
+        out["writes_allowed"] = bool(_w["ok"])
+        if not _w["ok"]:
+            out["writes_withheld_reason"] = _w["reason"]
+
+        def _write():
+            """THE ONLY PATH FROM `run_slot` TO `write_state` [item 71, blocker C].
+
+            A gate per branch would be one chance per branch to miss it, and there are eight.
+            A `withheld` result is NOT a failure: `_note_write` reports it and does not alert,
+            because a read-only cycle persisting nothing is the correct behaviour rather than a
+            fault. A test asserts no second path to `write_state` exists in this function.
+            """
+            if not _w["ok"]:
+                return {"ok": False, "withheld": True, "reason": _w["reason"]}
+            return write_state(slot, st, root)
         if rec.get("order_read") in ("truncated", "failed"):
             # **"I DO NOT KNOW WHAT I HOLD" IS ONE STATE WITH TWO CAUSES, AND BOTH REFUSE.**
             # [item 65 -- the auditor's last blocker; item 63 refused only the truncated half]
@@ -1204,7 +1294,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                                       "claim those positions; it records that the question "
                                       "was asked, so the next cycle proceeds normally."),
                 }
-                _note_write(out, write_state(slot, st, root), slot,
+                _note_write(out, _write(), slot,
                             "recording the one-off fresh-record refusal")
                 out["fresh_record_refusal_recorded"] = True
             return out
@@ -1318,7 +1408,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                 # silent close with a silent hold, and every later rebalance would queue behind
                 # it. Don is told, which is the point of the ceiling.
                 st["open_event"] = None
-            _note_write(out, write_state(slot, st, root), slot,
+            _note_write(out, _write(), slot,
                         "recording an incomplete plan")
             return out
         if outcome == PLAN_RESTING:
@@ -1353,14 +1443,57 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                 out["attempts_exhausted"] = True
                 out["reason"] = rst["reason"]
                 st["open_event"] = None
-            _note_write(out, write_state(slot, st, root), slot,
+            _note_write(out, _write(), slot,
                         "recording that this slot's own orders are still working")
             return out
         if outcome == PLAN_TARGETS_MET:
+            # **THE CLOSE IS A DECISION AND IT NOW HAS A NAME [item 71].** `plan_outcome` is a
+            # property of the PLAN; whether the event CLOSED is a property of the cycle, and a
+            # reader -- or a table -- asking "did this close?" had to infer it from the state
+            # file. It is also the honest answer in the one case blocker C created: a paper or
+            # dry cycle for a live slot computes TARGETS_MET, persists nothing, and the event
+            # stays open.
+            # **AND THE OPEN REMAINDER MUST BE THIS EVENT'S [item 71, found by the
+            # transition table].** The auditor's third condition in full. Blocker B stopped the
+            # close from DISCARDING another event's remainder; it left the close free to record
+            # ITSELF complete while that remainder was outstanding -- and the plan it read as
+            # "targets met" was empty only because the OTHER event's resting orders had been
+            # subtracted from it. "Something else is on its way to meeting my targets" is not
+            # "my targets are met".
+            _other = st.get("open_event") not in (None, "", key)
+            out["event_closed"] = bool(_w["ok"] and not _other)
+            if _w["ok"] and _other:
+                out["reason"] = (
+                    "this event's plan is empty, but %s is still open with orders of this "
+                    "slot's working at the broker -- so the empty plan means that event's "
+                    "orders cover the gap rather than that THIS event is finished. Nothing is "
+                    "sent and nothing is recorded as complete; the open event resolves first."
+                    % st.get("open_event"))
+                out["blocked_by_open_event"] = st.get("open_event")
+                return out
+            if not _w["ok"]:
+                # The branch reached here and changed nothing. Saying so is the whole point:
+                # the old text read "the event is closed", which would have been the EIGHTH
+                # message on this path claiming a property the code does not have -- written by
+                # the item fixing the other seven.
+                out["reason"] = ("this event's targets are met in this slot's record and "
+                                 "NOTHING is recorded: %s" % _w["reason"])
+                return out
             if key and key != "none" and key not in st["processed"]:
                 st["processed"].append(key)
-            st["open_event"] = None
-            st["intent"] = None          # the event is finished; nothing is outstanding
+            # **ONLY IF IT IS THIS EVENT'S [item 71, the auditor's blocker B].** This ran
+            # unconditionally, and `open_event` can belong to a DIFFERENT event: the buy-in is
+            # sent and unfilled, Don sets 0% in the same session, and the sell-out's targets
+            # genuinely ARE met at that instant -- the record holds nothing yet -- so it closed
+            # and took the REBALANCE's remainder with it. The resting buys then filled and the
+            # account was fully invested at a declared 0%, both events recorded complete, no
+            # alert, and the slot's own record wrong as well as its position.
+            #
+            # It fires on a live slot too, because this branch sits BEFORE the parity gate --
+            # and before item 71's wind-down that slot could then never sell.
+            if st.get("open_event") == key:
+                st["open_event"] = None
+                st["intent"] = None      # the event is finished; nothing is outstanding
             # AND ITS COUNTERS GO WITH IT [item 64]. A closed event's attempt count is not
             # evidence about the next one, and leaving it behind means a slot that needed four
             # cycles once starts the following rebalance with four attempts already spent.
@@ -1373,10 +1506,12 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                     st[bag] = {k: v for k, v in st[bag].items() if k != key}
             st["last_event_date"] = (book or {}).get("formed_on")
             st["last_pct"] = pct
-            _note_write(out, write_state(slot, st, root), slot, "closing the event")
+            _note_write(out, _write(), slot, "closing the event")
             out["reason"] = ("this event's targets are already met, so there is nothing to "
                              "send and the event is closed")
             return out
+        # Every other outcome leaves it open, stated once rather than per branch so a new
+        # outcome cannot default to "closed" by omission.
 
         # ---- PARITY, AND FOR A LIVE SLOT IT BLOCKS [item 63, auditor question 2] ---------
         #
@@ -1398,9 +1533,29 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                                      "book's, so it sends NOTHING this cycle: %s"
                                      % out["parity"]["reason"])
                     return out
+        elif is_live_slot and sell_only:
+            # **THE WIND-DOWN NEEDS NO COMPARISON, SO AN ABSENT ONE CANNOT BLOCK IT [item 71].**
+            # This is the FOURTH gate on the sell-out and nobody had named it: fixing `armed`
+            # and parity's zero-target case still left a live slot unable to get out on any day
+            # the paper book was unavailable.
+            #
+            # It is not a weakening of `C5`. The comparison exists to show that a live slot's
+            # TARGET WEIGHTS reproduce the paper book's, and a wind-down has no weights -- every
+            # target is zero and the orders are sales of what this slot's own record holds.
+            # **The paper slot runs at `PAPER_PCT = 100`, so its targets are never zero**: the
+            # evidence this branch waits for cannot exist for this event, and waiting for
+            # evidence that cannot exist is a refusal with no condition that lifts it.
+            out["parity"] = {"ok": True, "measured": False,
+                             "reason": ("this slot is winding down at 0%, so there are no "
+                                        "target weights to diff against the paper book and "
+                                        "parity is VACUOUS. The sales are of what this slot's "
+                                        "own record holds, which no comparison could check.")}
+            out["alerts"].append({"kind": "parity_vacuous_wind_down", "slot": str(slot),
+                                  "reason": out["parity"]["reason"]})
         elif is_live_slot:
             # ABSENT IS NOT A PASS (`C5`). A live slot with no paper comparison available does
-            # not send -- it is §8's precondition, not a nice-to-have.
+            # not send -- it is §8's precondition, not a nice-to-have. **Unchanged for every
+            # event that HAS weights**, which is every event but the wind-down above.
             out["parity"] = {"ok": False, "measured": False,
                              "reason": ("no paper book was available to diff against this "
                                         "cycle, so parity is UNMEASURED")}
@@ -1463,7 +1618,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             # The day is recorded even on the refusing branch, or the count would stop rising
             # and the alert would re-fire identically for ever instead of once. `note_no_progress`
             # has already written it into `st`.
-            _note_write(out, write_state(slot, st, root), slot, "recording the stopped event")
+            _note_write(out, _write(), slot, "recording the stopped event")
             return out
 
         # **A SEPARATE, MONOTONE COUNTER FOR THE ORDER ID [item 64].** The attempt counter was
@@ -1500,6 +1655,35 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                        "and none is sized")}
         out["budget"] = budget
         to_send, deferred, spent = [], [], 0.0
+        # **A WIND-DOWN TRANSMITS NO BUY [item 71, blocker A].** `sell_only` comes from
+        # `armed`, the only function that may say yes, and it is set only when the percentage
+        # is zero AND this slot's own record still holds something. Every target is therefore
+        # zero and `order_plan` should produce sales alone -- "should" is not a safety property
+        # when the thing being prevented is spending real money in an account its owner has
+        # just told to hold nothing.
+        withheld_buys = []
+        if sell_only:
+            keep = []
+            for o in plan["orders"]:
+                if str(o["side"]).lower() == "buy":
+                    withheld_buys.append(dict(o, why=("this slot is winding down at 0%, so no "
+                                                      "buy is transmitted")))
+                else:
+                    keep.append(o)
+            plan = dict(plan, orders=keep)
+            out["orders"] = keep
+            if withheld_buys:
+                # It should be unreachable, so if it fires a reader needs to know rather than
+                # find a quiet list in a 35KB body.
+                out["alerts"].append({
+                    "kind": "buy_withheld_in_wind_down", "slot": str(slot),
+                    "reason": ("%d buy order(s) were planned for a slot at 0%% and are NOT "
+                               "transmitted: %s. A 0%% target licenses sales only, so this is "
+                               "a defect in the planner rather than a decision."
+                               % (len(withheld_buys),
+                                  ", ".join(str(o.get("ticker")) for o in withheld_buys)))})
+        out["withheld_buys"] = withheld_buys
+        out["sell_only"] = bool(sell_only)
         for o in plan["orders"]:
             if str(o["side"]).lower() == "sell":
                 to_send.append(o)               # a sell RAISES cash; no budget binds it
@@ -1532,7 +1716,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             if w["alert"]:
                 out["alerts"].append({"kind": "settlement_wait_overdue", "slot": str(slot),
                                       "reason": w["reason"]})
-            _note_write(out, write_state(slot, st, root), slot, "recording the wait")
+            _note_write(out, _write(), slot, "recording the wait")
             out["reason"] = ("%d buy(s) for %s await cash that can be spent without "
                              "borrowing (%s); the event stays open and the next trading day's "
                              "cycles re-send them" % (len(deferred), key,
@@ -1550,7 +1734,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         st["intent"] = {"event": key, "at": _stamp(),
                         "orders": [{"ticker": o["ticker"], "side": o["side"], "qty": o["qty"],
                                     "limit_price": o["limit_price"]} for o in to_send]}
-        w = write_state(slot, st, root)
+        w = _write()
         if not w.get("ok"):
             out["alerts"].append({
                 "kind": "state_write_failed", "slot": str(slot),
@@ -1598,6 +1782,18 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                                    "wash trade" % (o["ticker"], rst["side"],
                                                    _rejection_reason(res), o["ticker"]))})
             if blocked:
+                continue
+            if sell_only and str(o["side"]).lower() != "sell":
+                # **UNREACHABLE, AND CHECKED AT THE DOOR ANYWAY [item 71].** The filter above
+                # removed every buy; this is the same property asserted at the last line before
+                # a real order leaves, because the two places a reader would look for "can a
+                # wind-down buy?" are the planner and the sender, and only one of them is the
+                # one that matters.
+                out["alerts"].append({
+                    "kind": "buy_blocked_at_the_broker_door", "slot": str(slot),
+                    "reason": ("a BUY for %s reached the sender on a slot winding down at 0%% "
+                               "and was blocked. The plan filter should have removed it, so "
+                               "this is a defect." % o["ticker"])})
                 continue
             try:
                 res = client.place_limit(
@@ -1668,7 +1864,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             out["settlement_wait_cleared"] = dict(waits.pop(key), event=key)
         st["awaiting_settlement"] = waits
 
-        _note_write(out, write_state(slot, st, root), slot, "recording what was sent")
+        _note_write(out, _write(), slot, "recording what was sent")
         out["reason"] = ("sent %d order(s) for %s%s"
                          % (len(out["sent"]), key,
                             ("; %d buy(s) await settled cash" % len(out["deferred"]))
@@ -1857,7 +2053,7 @@ def feed_gap_report(root: str = None) -> dict:
 
 def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
               book=None, now=None, paper_client=None, live_client_factory=None,
-              notify_send=None, send=None) -> dict:
+              notify_send=None, send=None, may_write: bool = True) -> dict:
     """ONE CYCLE over the paper slot and every live slot. Never raises.
 
     THE PAPER SLOT RUNS FIRST AND DELIBERATELY SO: its order plan is what every live slot's
@@ -1993,6 +2189,7 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
             except Exception:                                           # noqa: BLE001
                 frac = None
             res = run_slot(PAPER_SLOT, pct=PAPER_PCT, fractional=frac,
+                           may_write=bool(may_write),
                            armed_state={"armed": True,
                                         "reason": "the paper slot is always armed: it is "
                                                   "paper money on the paper host"},
@@ -2009,7 +2206,16 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
         for n in LS.discover_slots(e):
             if only is not None and str(only) != str(n):
                 continue
-            a = LS.armed(n, e)
+            # **`holds` IS DERIVED FROM THE SLOT'S OWN RECORD, BEFORE ARMING [item 71,
+            # blocker A].** This is what lets `armed` tell "0% and flat" from "0% and still
+            # holding" -- the two states that shared one value and made the X->0 sell-out
+            # unreachable. The record is this slot's own holdings, built by `reconcile` from
+            # this slot's own fills, so a wind-down can only ever sell what this path bought;
+            # Don's other positions in the same account are not in it and cannot be.
+            _rec_st = read_state(n, root)
+            _holds = any((LS._f(q) or 0.0) > 0
+                         for q in (_rec_st.get("holdings") or {}).values())
+            a = LS.armed(n, e, holds=_holds)
             p = LS.slot_pct(n, e)
             pct = p.get("pct")
             client, eq, marks, live_account_id = None, None, {}, None
@@ -2092,6 +2298,8 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                            paper_targets=paper_targets, paper_value=paper_value,
                            account_id=live_account_id,
                            send=bool(live_sends and a["armed"]),
+                           may_write=bool(may_write),
+                           sell_only=bool(a.get("sell_only")),
                            sess_reason=sess.get("reason") or "")
             res["mode"] = mode
             if mode == PAPER:
@@ -2102,7 +2310,17 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                                else "the PAPER account's equity, because this slot has no "
                                     "live client -- so the diff is a shape check rather than "
                                     "a dollar check")
-            if res.get("parity") is not None:
+            if res.get("parity") is not None and res.get("writes_allowed"):
+                # **GATED ON THE SLOT'S OWN ANSWER [item 71], and my first cut of this gated it
+                # on `may_write` alone.** The transition table found that on its first run: a
+                # PAPER cycle, a DRY cycle and a PAUSED slot all still wrote here, because this
+                # write sits outside `run_slot` where the gate lives -- the same blocker C in
+                # the one place the gate could not see it. Blocker C was reported against the
+                # close branch; the property is about EVERY write.
+                #
+                # It reads `writes_allowed` off the slot's result rather than recomputing the
+                # condition, so there is one definition of "may this cycle persist anything"
+                # (`B7`). A slot result without the key is treated as NO.
                 st = read_state(n, root)
                 st["last_parity"] = res["parity"]
                 write_state(n, st, root)

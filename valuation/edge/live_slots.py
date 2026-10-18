@@ -229,15 +229,36 @@ def isolation(env=None) -> dict:
                        "names: %s" % clashes)}
 
 
-def armed(n: int, env=None, contract_text: str = None) -> dict:
+def armed(n: int, env=None, contract_text: str = None, *, holds: bool = False) -> dict:
     """Is this slot allowed to send a real order? Four conditions, all required.
 
     **THIS IS THE ONLY FUNCTION THAT MAY SAY YES**, and nothing constructs a live client without
     it. The conditions are evaluated in the order that reveals the most useful reason first.
+
+    **`holds` IS THE WIND-DOWN STATE, AND WITHOUT IT THE SELL-OUT WAS UNREACHABLE [item 71].**
+    `pct == 0` means two different things -- *"never traded, holds nothing"* and *"still
+    holding, must get out"* -- and this function refused both, so `X -> 0` could not build a
+    live client and could not transmit. Measured: a live slot taken 5% -> 0% placed nothing
+    while the same slot resized 5% -> 2% placed both sells, so the sell-out was the only one of
+    the three authorised events that could not happen. `DECISIONS.md` says *"X to 0 sells out"*,
+    and pausing is not an exit, so Don's documented way out did not exist.
+
+    The caller derives `holds` from **the slot's own record** -- `reconcile`'s holdings, built
+    from this slot's own fills -- so a wind-down can only ever sell what this path bought. It is
+    a parameter rather than a read inside here because this module must not know where state
+    lives, and because a caller that cannot read the record gets the refusing default.
+
+    **`sell_only` IS ON EVERY RETURN**, not only the wind-down one, so a caller reading it
+    cannot get `None` from a path that forgot to set it and treat that as a decision.
+
+    **THE PAUSE IS CHECKED FIRST AND THE WIND-DOWN CANNOT OVERRIDE IT.** `LIVE_PILOT_ENABLED=0`
+    is documented as pausing *without* selling, which is a different instruction from 0%, and
+    the order of these conditions is what keeps them different.
     """
     e = env if env is not None else os.environ
-    out = {"slot": int(n), "armed": False, "reason": "", "holder": holder(n, e),
-           "pct": None, "pilot_enabled": pilot_enabled(e)}
+    out = {"slot": int(n), "armed": False, "sell_only": False, "reason": "",
+           "holder": holder(n, e), "pct": None, "pilot_enabled": pilot_enabled(e),
+           "holds": bool(holds)}
     if int(n) not in discover_slots(e):
         out["reason"] = "slot %d has no key pair configured" % n
         return out
@@ -251,8 +272,33 @@ def armed(n: int, env=None, contract_text: str = None) -> dict:
         out["reason"] = p["reason"]
         return out
     if (p["pct"] or 0.0) <= 0.0:
-        out["reason"] = ("slot %d is at 0%%, so it holds nothing. At 0%% the cycle computes "
-                         "and logs the orders it would place and sends none." % n)
+        if not holds:
+            # **0% AND FLAT. The old text said "so it holds nothing" unconditionally**, which
+            # was true here and false of the only slot that needs a sell-out -- and it reached
+            # the cycle's own `reason`, which is where a reader would most reasonably trust it.
+            out["reason"] = ("slot %d is at 0%% and its own record holds nothing, so there is "
+                             "nothing to sell and a 0%% target licenses no buy. The cycle "
+                             "computes and logs the orders it would place and sends none."
+                             % n)
+            return out
+        # **0% AND STILL HOLDING: A WIND-DOWN.** Armed to SELL ONLY -- see `run_slot`, which
+        # withholds every buy in this state and alerts if one was planned. A 0% target is an
+        # instruction to hold nothing, so the orders it licenses are exactly the sales of what
+        # this slot's own record says it bought.
+        auth0 = holder_authorized(n, contract_text)
+        if not auth0["authorized"]:
+            out["reason"] = auth0["reason"]
+            return out
+        iso0 = isolation(e)
+        if not iso0["ok"]:
+            out["reason"] = iso0["reason"]
+            return out
+        out["armed"], out["sell_only"] = True, True
+        out["reason"] = ("slot %d is at 0%% and its own record still holds position(s), so it "
+                         "is armed to SELL ONLY: it sells exactly what its record holds and "
+                         "transmits no buy. This is the X->0 wind-down; %s=0 is the separate "
+                         "instruction that PAUSES without selling."
+                         % (n, ENABLED_VAR))
         return out
     auth = holder_authorized(n, contract_text)
     if not auth["authorized"]:

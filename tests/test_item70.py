@@ -391,30 +391,97 @@ class TheSellOutIsNotLeftHalfDone(unittest.TestCase):
 # ----------------------------------------------------------------------------------------- #
 # A NEW DEFECT, FOUND BY THIS SUITE'S OWN FIXTURE AND REPORTED RATHER THAN FIXED
 # ----------------------------------------------------------------------------------------- #
-class ALiveSlotAtZeroCannotPassParity(unittest.TestCase):
-    """**REPORTED, NOT FIXED [item 70]. A LIVE slot told to hold nothing can never send the
-    sells**, and this is a different defect from the blocker this item closes.
+class TheLiveSellOutWasUnreachableAndIsNowFixed(unittest.TestCase):
+    """**ITEM 70 REPORTED THIS AND DECLINED TO FIX IT; ITEM 71 FIXED IT -- and the auditor
+    corrected item 70's diagnosis on the way, which is the part worth keeping.**
 
-    `targets(0.0, equity, held)` gives a slot value of **0**, and `parity` refuses any
-    comparison where either side is non-positive -- *"parity needs a positive value on both
-    sides"* -- which for a live slot RETURNS before anything is sent. Supplying no paper
-    targets does not help: the `parity_absent` branch returns too. **Both doors are shut, so
-    the sell-out -- the one action Don would take in a hurry -- is unreachable on a live slot.**
+    Item 70's own note read: *"Pinned here as a TEST OF CURRENT BEHAVIOUR so it cannot be
+    lost... The shape of a fix, for whoever takes it: when every target is zero there are no
+    weights to diff, so parity is VACUOUS rather than FAILED."* That fix was **necessary and
+    not sufficient**: the auditor applied exactly it and nothing transmitted, because
+    **parity is the THIRD of four gates**. In order: `armed()` refuses at `pct <= 0`; no live
+    client is built for an unarmed slot; parity refuses a non-positive side; and the send gate
+    requires both `armed` and a client.
 
-    Pinned here as a TEST OF CURRENT BEHAVIOUR so it cannot be lost, and deliberately not
-    repaired: parity is a §8 precondition on the live path, the auditor reviews that gate, and
-    changing what licenses a live order is not something to do as a side effect of another fix.
-    **The shape of a fix, for whoever takes it:** when every target is zero there are no weights
-    to diff, so parity is VACUOUS rather than FAILED -- `C5`'s distinction, in the other
-    direction from usual.
+    **Item 70's suite could see only the third because its fixture passed
+    `armed_state={"armed": True}` and a client -- the two things production withholds at 0%.**
+    That is item 65's lesson one level up, and item 71's tests derive `armed_state` from the
+    environment for exactly this reason.
+
+    A FOURTH gate turned up when the auditor's question was asked again of the fix:
+    `parity_absent` would have blocked the wind-down on any day the paper book was
+    unavailable. See `test_an_ABSENT_paper_book_does_not_block_a_wind_down`.
     """
 
-    def test_parity_refuses_a_zero_live_value(self):
+    def test_parity_is_VACUOUS_when_every_target_is_zero(self):
+        """Item 70's own proposed shape, now shipped."""
         got = LC.parity({"AAPL": 0.0}, {"AAPL": 0.0}, live_value=0.0, paper_value=1000.0)
-        self.assertFalse(got["ok"])
-        self.assertIn("positive value on both sides", got["reason"])
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertFalse(got["measured"], "a vacuous parity must not claim to be MEASURED")
+        self.assertIn("no weights to diff", got["reason"])
 
-    def test_and_a_live_slot_therefore_sends_NOTHING_at_zero(self):
+    def test_and_it_did_NOT_widen_to_any_other_case(self):
+        """The reason the change is safe, and it is structural rather than careful: a positive
+        percentage with a positive equity always gives a positive slot value, and `targets`
+        refuses a non-positive equity before parity is called -- so "every target is zero" is
+        reachable only from a zero percentage."""
+        # a zero value with REAL targets still refuses
+        g = LC.parity({"AAPL": 500.0}, {"AAPL": 500.0}, live_value=0.0, paper_value=1000.0)
+        self.assertFalse(g["ok"], g["reason"])
+        # an EMPTY target map is not a wind-down -- it is a book that failed to load
+        g = LC.parity({}, {"AAPL": 500.0}, live_value=0.0, paper_value=1000.0)
+        self.assertFalse(g["ok"], g["reason"])
+        # and a real mismatch still fails
+        g = LC.parity({"AAPL": 900.0, "BBB": 100.0}, {"AAPL": 500.0, "BBB": 500.0},
+                      live_value=1000.0, paper_value=1000.0)
+        self.assertFalse(g["ok"], g["reason"])
+
+    def test_a_live_slot_at_zero_WITH_HOLDINGS_now_SELLS(self):
+        """**THE PROPERTY, and it is measured through the production arming path in
+        `tests/test_item71.py` rather than here** -- this suite's harness supplies
+        `armed_state`, which is precisely why it could not see the defect. Kept here as the
+        narrow statement that `armed` itself now distinguishes the two states, with the
+        end-to-end version next door."""
+        e = {"LIVE_PILOT_ENABLED": "1", "ALPACA_ACCOUNT_1_KEY_ID": "k",
+             "ALPACA_ACCOUNT_1_SECRET_KEY": "s", "ALPACA_ACCOUNT_1_LIVE_PCT": "0"}
+        flat = LS.armed(1, e, holds=False)
+        self.assertFalse(flat["armed"], flat["reason"])
+        self.assertFalse(flat["sell_only"])
+        held = LS.armed(1, e, holds=True)
+        self.assertTrue(held["armed"], held["reason"])
+        self.assertTrue(held["sell_only"])
+
+    def test_the_refusal_NO_LONGER_asserts_that_it_holds_nothing(self):
+        """*"slot 1 is at 0%, so it holds nothing"* was false of the only slot that needs a
+        sell-out, and it reached the cycle's own `reason`."""
+        e = {"LIVE_PILOT_ENABLED": "1", "ALPACA_ACCOUNT_1_KEY_ID": "k",
+             "ALPACA_ACCOUNT_1_SECRET_KEY": "s", "ALPACA_ACCOUNT_1_LIVE_PCT": "0"}
+        self.assertNotIn("so it holds nothing", LS.armed(1, e, holds=True)["reason"])
+        self.assertNotIn("so it holds nothing", LS.armed(1, e, holds=False)["reason"])
+
+    def test_the_PAUSE_still_pauses_WITHOUT_selling(self):
+        """`LIVE_PILOT_ENABLED=0` is a different instruction from 0% and must stay one. The
+        order of `armed`'s conditions is what keeps them different."""
+        e = {"LIVE_PILOT_ENABLED": "0", "ALPACA_ACCOUNT_1_KEY_ID": "k",
+             "ALPACA_ACCOUNT_1_SECRET_KEY": "s", "ALPACA_ACCOUNT_1_LIVE_PCT": "0"}
+        a = LS.armed(1, e, holds=True)
+        self.assertFalse(a["armed"], a["reason"])
+        self.assertFalse(a["sell_only"])
+        self.assertIn("PAUSED", a["reason"])
+
+    def test_an_ABSENT_paper_book_does_not_block_a_wind_down(self):
+        """**THE FOURTH GATE, which nobody had named.** Fixing `armed` and parity's zero-target
+        case still left `parity_absent` refusing a live slot with no paper comparison -- and the
+        paper slot runs at 100%, so the comparison this branch waits for cannot exist for a
+        wind-down. Waiting for evidence that cannot exist is a refusal with no condition that
+        lifts it."""
+        src = io.open(LC.__file__, encoding="utf-8").read()
+        self.assertIn("elif is_live_slot and sell_only:", src)
+        self.assertIn("parity_vacuous_wind_down", src)
+        # and the ordinary absent case is untouched for every event that HAS weights
+        self.assertIn("parity_absent", src)
+
+    def test_a_WIND_DOWN_with_a_paper_comparison_SELLS(self):
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
         st = {"slot": "1", "account_id": "acct-paper-1", "last_pct": 100.0,
@@ -433,15 +500,20 @@ class ALiveSlotAtZeroCannotPassParity(unittest.TestCase):
             marks={t: {"mid": 100.0} for t in ("AAPL", "BBB")}, root=root,
             session_ok=True, send=True,
             paper_targets={"AAPL": 0.0, "BBB": 0.0}, paper_value=1000.0,
-            account_id="acct-paper-1")
-        # It PLANS both sells and transmits neither.
+            account_id="acct-paper-1", sell_only=True)
+        # It plans both sells AND transmits them. Before item 71 it planned both and sent
+        # neither, with the reason naming parity.
         self.assertEqual(sorted(o["ticker"] for o in got["orders"]), ["AAPL", "BBB"])
-        self.assertEqual(sess.placed, [])
-        self.assertIn("parity", (got.get("reason") or ""))
+        self.assertEqual(sorted((o["symbol"], o["side"]) for o in sess.placed),
+                         [("AAPL", "sell"), ("BBB", "sell")])
+        self.assertTrue(got["parity"]["ok"])
+        self.assertFalse(got["parity"]["measured"], "vacuous must not claim to be measured")
 
-    def test_the_OTHER_door_is_shut_too(self):
-        """So it is not a matter of supplying the comparison: with no paper targets at all a
-        live slot refuses on `parity_absent`, which is `C5` and correct in general."""
+    def test_a_WIND_DOWN_with_NO_paper_comparison_STILL_SELLS(self):
+        """**THE FOURTH GATE, end to end.** With no paper targets at all a live slot used to
+        refuse on `parity_absent` -- correct for any event that HAS weights, and a refusal with
+        no condition that lifts it for a wind-down, because the paper slot runs at 100% and so
+        the comparison can never exist for this event."""
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
         st = {"slot": "1", "account_id": "acct-paper-1", "last_pct": 100.0,
@@ -457,7 +529,30 @@ class ALiveSlotAtZeroCannotPassParity(unittest.TestCase):
             book=BOOK_TWO, client=broker(sess), equity=1000.0, account=dict(ACCOUNT),
             marks={t: {"mid": 100.0} for t in ("AAPL", "BBB")}, root=root,
             session_ok=True, send=True, paper_targets=None, paper_value=None,
-            account_id="acct-paper-1")
+            account_id="acct-paper-1", sell_only=True)
+        self.assertEqual(sorted((o["symbol"], o["side"]) for o in sess.placed),
+                         [("AAPL", "sell"), ("BBB", "sell")])
+        self.assertIn("vacuous", (got["parity"]["reason"] or "").lower())
+
+    def test_and_a_NON_wind_down_with_no_paper_comparison_STILL_REFUSES(self):
+        """The control that stops the above being a hole: `C5` is intact for every event that
+        has weights to compare."""
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        st = {"slot": "1", "account_id": "acct-paper-1", "last_pct": 100.0,
+              "last_event_date": "2026-11-01", "processed": ["rebalance:2026-11-01"],
+              "holdings": {"AAPL": 5.0, "BBB": 5.0}}
+        p = LC.state_path("1", root)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with io.open(p, "w", encoding="utf-8") as fh:
+            json.dump(st, fh)
+        sess = Recorded(holdings={"AAPL": 5.0, "BBB": 5.0})
+        got = LC.run_slot(
+            "1", pct=50.0, armed_state={"armed": True, "reason": "fixture"},
+            book=BOOK_TWO, client=broker(sess), equity=1000.0, account=dict(ACCOUNT),
+            marks={t: {"mid": 100.0} for t in ("AAPL", "BBB")}, root=root,
+            session_ok=True, send=True, paper_targets=None, paper_value=None,
+            account_id="acct-paper-1", sell_only=False)
         self.assertEqual(sess.placed, [])
         self.assertIn("parity", (got.get("reason") or ""))
 
