@@ -21751,3 +21751,166 @@ two installed schedules, and a body drift beyond the cron all fire.
 - **Worth one line to whoever owns the installer:** a `.bat` that writes to `main` outside the
   gate can red-light every lane, and did. Not this lane's to change.
 
+
+## ITEM 71 — the auditor's SIXTH review: three blockers, two more the table found, and a 2,240-row transition table
+
+**All five fixed.** Every blocker was reproduced first, through `run_cycle`, with `armed_state`
+**derived from the environment** rather than supplied — which is the one thing item 70's suite
+got wrong and the whole reason it could see only one of four gates.
+
+### THE MEASURED BEFORE-STATE
+
+| | reproduced |
+|---|---|
+| **A** | `pct 5 → 0` on a live slot: `armed=False`, **nothing placed on the live host**, while the same slot resized `5 → 2` placed both sells. `armed()` said *"slot 1 is at 0%, so it holds nothing"* of a slot holding AAPL 5 and BBB 5. |
+| **B** | `open_event` `rebalance:2026-11-01` → `None`, `processed` gaining `pct:5.0->0.0`: the rebalance's remainder discarded. |
+| **C** | Same state, three modes: `live` → event open; `paper` and `dry` → **closed**, `processed` written. |
+
+### A — THE SELL-OUT NOW EXECUTES, AND IT TOOK A WIND-DOWN STATE
+
+`pct == 0` meant two things — *"never traded, holds nothing"* and *"still holding, must get
+out"* — and `armed` could not tell them apart, so it refused both. Since it is the only function
+that may say yes and no live client is built without it, **the X→0 sell-out was structurally
+unreachable.** `DECISIONS.md` says *"X to 0 sells out"* and `LIVE_PILOT_ENABLED=0` pauses
+*without* selling, so Don's documented way out did not exist.
+
+`armed(n, env, holds=…)` now returns `sell_only` on **every** path, and `run_cycle` derives
+`holds` from **the slot's own record** before arming — so a wind-down can only ever sell what
+this path bought. Measured with 999 TSLA held by hand in the same account: it sells AAPL and
+does not touch TSLA.
+
+**THE PAUSE STILL WINS, and the order of `armed`'s conditions is the whole of what keeps the two
+instructions different.** `LIVE_PILOT_ENABLED=0` with holdings reads `armed=False,
+sell_only=False`.
+
+**A WIND-DOWN TRANSMITS NO BUY**, and that is enforced twice rather than inferred: the plan is
+filtered and a buy is blocked again at the broker's door. Every target is zero so the planner
+should produce sales alone — and *"should"* is not a safety property when the thing prevented is
+spending real money in an account its owner has just told to hold nothing.
+
+**AND THE FALSE REFUSAL IS GONE.** *"slot N is at 0%, so it holds nothing"* was true of a new
+slot and false of the only slot that needs a sell-out, and it reached the cycle's own `reason` —
+the seventh message on this path to assert a property the code did not have.
+
+**A FOURTH GATE NOBODY HAD NAMED.** Item 70 found the parity gate and the auditor showed its fix
+was necessary and insufficient; fixing `armed` (first) and parity's zero-target case (third)
+still left **`parity_absent`** (fourth) refusing a live slot with no paper comparison. The paper
+slot runs at `PAPER_PCT = 100`, **so the comparison that branch waits for can never exist for a
+wind-down** — waiting for evidence that cannot exist is a refusal with no condition that lifts
+it. Found by re-asking the auditor's own question of my own fix. `C5` is intact for every event
+that has weights: a non-wind-down with no comparison still refuses.
+
+### B — ONE LINE, AND IT IS NOT THE WHOLE OF THE AUDITOR'S THIRD CONDITION
+
+`st["open_event"] = None` now runs only `if st.get("open_event") == key`.
+
+### C — ONE WRITE GATE, BECAUSE THERE ARE EIGHT WRITE SITES
+
+`reconcile` has four states so *"I did not ask"* is distinguishable from *"nothing is there"*.
+`run_slot` refused on `truncated` and `failed` and exempted `not_attempted` because such a cycle
+*"must still compute a plan and cannot send in any case"* — both true, and **neither covers the
+third thing that branch does, which is WRITE.** The installed workflow POSTs `?run=paper` five
+times a day, so for a live slot every scheduled cycle was a no-client cycle.
+
+`writes_allowed(rec, may_write=…)` is one definition: the orders read must have succeeded **and**
+the caller must permit a write. A local `_write()` is the only path from `run_slot` to
+`write_state` — pinned by test, so a write site added later is covered by construction rather
+than by whoever adds it remembering. **A withheld write is not an alert**: it is the correct
+behaviour, and alerting would fire on five scheduled cycles a day and on every GET (`MA21`).
+
+**AND A GET WRITES NOTHING, FOR ANY SLOT.** `/admin/live-cycle` already refused a GET that asks
+to SEND, with the right reasoning in its own docstring — *"reachable by a retry, a prefetch, a
+proxy or a pasted link, and none of those is a decision to trade"* — and **every word of that
+applies to a write.** The door now passes `may_write=(request.method == "POST")`.
+
+### THE TRANSITION TABLE — 2,240 ROWS, AND IT FOUND TWO DEFECTS MY OWN FIXES HAD MISSED
+
+`tests/test_item71_table.py`. **7 slot states × 5 events × 8 read states × 4 modes × 2 pilot
+settings**, every row through the real `run_cycle` with the real client classes over recorded
+HTTP, asserting the four facts the brief names: what is sent, what is written (the record
+compared **byte-for-byte**), whether the event closes, and whether Don is alerted.
+
+**1,641 of the 2,240 rows were wrong before this item** — `python scripts/i71_table_before.py`
+reproduces it, with the breakdown by defect kind.
+
+**THE TWO IT FOUND, neither of which was in the review:**
+
+1. **`run_cycle`'s `last_parity` write was gated on `may_write` and not on the read**, so a
+   paper cycle, a dry cycle and a **paused** slot all still wrote to a live slot's record. It
+   sits outside `run_slot` where the gate lives — blocker C in the one place the gate could not
+   see. Found on row one of 2,240.
+2. **The close needed `open_event == key` as well.** The auditor's third condition in full;
+   blocker B's one line stopped the close from *discarding* another event's remainder and left
+   it free to record **itself** complete while that remainder was outstanding. The plan it read
+   as "targets met" was empty only because the other event's resting orders had been subtracted
+   from it, and *"something else is on its way to meeting my targets"* is not *"my targets are
+   met"*. Three state/event pairs.
+
+**THE DECLARATION IS WRITTEN FROM THE REQUIREMENTS AND THE CONTROL PROVES IT.** A declaration
+read off the implementation agrees with it everywhere, bugs included — so the table proves
+nothing until it disagrees with a tree that has them. 1,641 is that proof. It also asserts the
+**safety** direction (what must never happen) plus a **positive control** (a clean cycle must
+send, write and close), because without the control code that did nothing whatever would satisfy
+every must-not row.
+
+**WHAT IS PRUNED, AND IT IS STATED IN THE FILE RATHER THAN IMPLIED.** The brief's axes cross to
+**10,080** rows at ~27 ms each — about 4.5 minutes. The three READ axes are crossed
+**marginally** (8 states rather than 36), which carries the assumption that they do not
+interact — so the assumption is **measured**: all 36 are crossed on a representative cell.
+
+### SEVEN DEFECTS IN MY OWN TABLE AND SUITE, EVERY ONE FOUND BY RUNNING THEM
+
+The first run reported 1,343 of 2,240 disagreements and **most were mine**, which is what a
+table is for:
+
+- **`not_attempted` is the ABSENCE of a client, not a reply a broker can give.** As a session
+  behaviour it left a client built in `live` mode, the read succeeded, and the row transmitted
+  two buys against a declaration expecting silence.
+- **A live slot's quotes come from the PAPER client** — `_LiveClient` has no `quotes`,
+  deliberately, because Alpaca's market data is on a different host. So varying the live
+  session's quotes varied nothing: **a whole axis was inert.**
+- **`targets_met` is a property of (state, event), not of the state.** `on_target` holds 2.5
+  shares of each name, which IS the 5% target and is NOT the 2% one.
+- **An `overlap` row reports its SECOND cycle**, so its percentage, its key and its measurements
+  are all the second cycle's. Cycle one's legitimate buy-in was reading as *"transmitted when
+  nothing may be sent"*.
+- **A PAUSED slot is not winding down.** My declaration left the pilot out, and every paused row
+  disagreed — in the safe direction, which is why only the table found it.
+- **"Finished" needs `processed` AND no outstanding remainder.** The SEND path also appends to
+  `processed`; `processed` alone says *"acted on"*, not *"complete"*. Found by the
+  self-report-versus-record cross-check, which is now a permanent assertion.
+- **The before-count first read "2,240 of 2,240 wrong", and that was a `TypeError`** — the old
+  `run_cycle` has no `may_write`. Counting an API mismatch as 2,240 defects would have been a
+  flattering number from a broken harness. One kind is still excluded as an artefact
+  (`event_closed` is new, so it reads `False` on the old tree); only **2** rows are
+  artefact-only.
+
+Plus three fixtures in `tests/test_item71.py` that reached a different refusal than the one they
+named — an empty book refuses at **preflight**, not at parity; the blocker-B route is now
+stopped by blocker C's gate as well, so the fifth defect needs a different state to reach it;
+and one fixture had no event at all, so there was no plan to inspect.
+
+### `event_closed` IS A FIELD, because the alternative was an eighth false message
+
+With C fixed, a paper cycle computes `targets_met`, persists nothing and leaves the event open —
+and the reason still read *"the event is closed"*. That would have been **the eighth message on
+this path asserting a property the code does not have, written by the item fixing the other
+seven.** `plan_outcome` stays a property of the PLAN; whether the event closed is a property of
+the CYCLE and now has its own name, and the two are cross-checked against the record.
+
+### THE NUMBERS
+
+- `tests/test_item71.py`: **23 tests**, of which **22 fail on the pre-item-71 tree** restored
+  from git (sources restored byte-for-byte, restore verified).
+- `tests/test_item71_table.py`: **8 tests over 2,240 rows**, ~95 s.
+- Twelve live-path suites: **570 tests, all green.**
+- No new pending workflow. Nothing in `.github/` changed.
+
+### NOT DONE
+
+- The auditor's non-blocking items 5–7: `note_no_progress` reads `_stamp()` rather than the
+  cycle's `now`; `HOLDERS` is hard-coded; `orders_window(now)` treats a caller-supplied `now`
+  as ET. All three carried forward, none taken — the first changes what every dated record on
+  this path means.
+- **No live key is entered and no percentage is raised.** The auditor reviews this before either.
+

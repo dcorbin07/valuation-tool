@@ -1540,6 +1540,12 @@ def create_saas_app(cfg=CONFIG):
 
         **A PAPER CYCLE CANNOT CONSTRUCT A LIVE CLIENT AT ALL**, for a fully armed slot
         included — the one construction site is behind the live gate, and a test asserts it.
+
+        **AND A GET WRITES NOTHING, FOR ANY SLOT [item 71].** It computes the plan, diffs it
+        and reports it, and leaves every slot's record exactly as it was. The GET used to
+        persist `processed`, `open_event` and `last_event_date` through the close branch — so
+        reloading this page could close a live slot's event. Reported per slot as
+        `writes_allowed: false` with the reason, rather than silently.
         """
         if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
@@ -1566,7 +1572,16 @@ def create_saas_app(cfg=CONFIG):
                 }), 405
 
             only = request.args.get("slot") or body.get("slot")
-            res = LC.run_cycle(mode=picked["mode"], only=(str(only) if only else None))
+            # **THE VERB CARRIES THE WRITE AS WELL AS THE SEND [item 71, blocker C].** The
+            # refusal above stops a GET SENDING; the GET was still WRITING -- the close branch
+            # persisted `processed`, `open_event` and `last_event_date` for every slot on a
+            # door a reader can hit by reloading a tab. This door's own reasoning for the send
+            # refusal applies word for word: "a side-effecting GET is reachable by a retry, a
+            # prefetch, a proxy or a pasted link". A GET here is legitimate -- it is how a
+            # reader sees what the cycle WOULD do -- so it computes everything and persists
+            # nothing, and says so in `writes_allowed` on every slot.
+            res = LC.run_cycle(mode=picked["mode"], only=(str(only) if only else None),
+                               may_write=(request.method == "POST"))
             res["mode_reason"] = picked["reason"]
             res["run_token_seen"] = picked["token"]
             return jsonify(res), (200 if res.get("ok") else 500)
