@@ -1,76 +1,112 @@
 {
   "books": {
     "f10_clean_csp": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f11_dip_reject_puts": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f12_postevent_reversal": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f13_second_event": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f14_fda_nohump": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f15_insider_cluster": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f17_vrp_percentile_sells": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f18_boring_book": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f19_density_gate": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f1_fill_ab": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f20_married_put_storm": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
+    },
+    "f21_v6opt_dip_csp": {
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 7,
+      "reanchors": [
+        {
+          "archive": "f21_v6opt_dip_csp.1.superseded.csv",
+          "archive_max_seq": 6,
+          "at": "2026-10-17T12:31:29",
+          "mark_at_reanchor": 6,
+          "new_anchor": "6bc1588d4945a9051060efee57b1e95305c41845eb063e5a6ce4a4ff532aad5e",
+          "old_anchor": "c9b88537bce4be7ef35ccd7c5af8f54cab2ff1a19c4b9d30aebea15877cbd8ba"
+        }
+      ]
+    },
+    "f22_dip_csp_random_twin": {
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 7,
+      "reanchors": [
+        {
+          "archive": "f22_dip_csp_random_twin.1.superseded.csv",
+          "archive_max_seq": 6,
+          "at": "2026-10-17T12:31:29",
+          "mark_at_reanchor": 6,
+          "new_anchor": "ef7d947e7d4c6f5f8a2735390383a076c4d530741133272d602415fe7496083f",
+          "old_anchor": "a5481c37d740b6d033c40d3bcfb7358b0e11e2e47045389b479963e10d9de2fd"
+        }
+      ]
+    },
+    "f23_insider_cluster_shares": {
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 3
     },
     "f2_menu_gate": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f3_bear_puts": {
-      "last_seen": "2026-10-03T01:12:16",
-      "max_seq": 78
+      "last_seen": "2026-10-17T12:31:32",
+      "max_seq": 432
     },
     "f4_eventfree_premium": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
+    },
+    "f4b_eventfree_25d": {
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 1
     },
     "f5_ivcheap": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f6_collar_ledger": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "f8_csp_entry_financing": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 6
+      "last_seen": "2026-10-17T12:31:29",
+      "max_seq": 14
     },
     "testbook": {
-      "last_seen": "2026-09-15T23:26:01",
-      "max_seq": 20
+      "last_seen": "2026-10-17T12:31:33",
+      "max_seq": 67
     }
   },
   "ok": true,
