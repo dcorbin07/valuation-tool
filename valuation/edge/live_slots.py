@@ -380,7 +380,7 @@ def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
     the next cycle sells it down. One previously-authorised order, not five, and
     self-correcting.
     """
-    orders, skipped = [], []
+    orders, skipped, dust = [], [], []
     # **PER TICKER AND PER SIDE, from this slot's own orders only.** `reconcile` has already
     # filtered by the `valquo-<slot>-` prefix; an entry whose open quantity could not be read
     # is counted as ZERO rather than skipped silently, and reported, because a resting order of
@@ -441,6 +441,18 @@ def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
         qty = qty - already
         if qty * mark < float(min_order_value):
             # Already committed to within a dollar, or a move too small to be worth an order.
+            #
+            # **AND IT IS REPORTED NOW RATHER THAN BEING A BARE `continue` [item 72].** This
+            # was the one way a held book name could get no order and appear in no list: not
+            # in `orders`, not in `skipped`, just absent -- so a reader asking "why does the
+            # slot hold 82 of 86" had nothing to read. The auditor named it as the residual;
+            # it is still deliberately NOT an order (the broker refuses one that small) and
+            # still NOT a `skipped` entry, because `skipped` means "could not be planned" and
+            # drives a refusal, while this is "correctly nothing to do".
+            dust.append({"ticker": tkr, "gap_value": round(qty * mark, 4),
+                         "min_order_value": float(min_order_value),
+                         "side": side, "held_value": round(have_val, 2),
+                         "target_value": round(tgt, 2)})
             continue
         if side == "sell":
             qty = min(qty, have_qty)      # NEVER sell more than this slot bought
@@ -461,6 +473,9 @@ def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
     # was about to raise. Ticker is the tie-break so the plan is deterministic.
     orders.sort(key=lambda o: (0 if str(o["side"]).lower() == "sell" else 1, o["ticker"]))
     return {"orders": orders, "skipped": skipped,
+            # **NEITHER AN ORDER NOR A SKIP [item 72].** A gap under `min_order_value` is
+            # correctly left alone, and until now it was left alone SILENTLY.
+            "dust": dust,
             "sells_first": True,
             # Named so a reader can see the exits were planned rather than inferring it from a
             # count. A held name whose whole value is under `min_order_value` is dust and is

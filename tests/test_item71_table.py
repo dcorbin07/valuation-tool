@@ -17,7 +17,9 @@ nested and nobody had ever written down what the whole space is:
 So this file declares the space and the expected outcome for every point in it, and asserts the
 code agrees. **A row where the code differs from the declaration is a defect.**
 
-**2,240 rows. 1,641 of them were wrong before item 71** -- measured by running this same
+**5,632 rows** since item 72 added the four states and three events the auditor's seventh
+review found unreachable. **1,641 of the original 2,240 were wrong before item 71** -- measured
+by running this same
 declaration against the pre-item-71 sources restored from git, which is the control that stops
 the table being a mirror of the implementation. Reproduce with:
 
@@ -113,8 +115,16 @@ class Rec:
     FULL_PAGE = 500          # what `reconcile` treats as "there may be more"
 
     def __init__(self, *, holdings, resting=(), account=None, slot="1",
-                 orders_read="ok", positions_read="ok", quotes_read="ok"):
+                 orders_read="ok", positions_read="ok", quotes_read="ok",
+                 broker_extra=None):
         self.holdings, self.resting = dict(holdings), list(resting)
+        # **A POSITION IN THE ACCOUNT THAT THIS SLOT'S RECORD DOES NOT KNOW ABOUT [item 72].**
+        # The auditor's own noted gap: this fixture otherwise DERIVES the broker's positions
+        # from the record, so no foreign position appears in any row and `positions="empty"`
+        # only ever tests the broker holding LESS. The dangerous direction -- the broker
+        # holding MORE -- is item 63's blocker, and it is also what makes item 67's
+        # fresh-record check fire.
+        self.broker_extra = dict(broker_extra or {})
         self.acct = dict(account or ACCOUNT)
         self.slot = slot
         self.orders_read = orders_read
@@ -162,6 +172,8 @@ class Rec:
                 if float(fq or 0):
                     eff[t] = eff.get(t, 0.0) + (float(fq) if side == "buy"
                                                 else -float(fq))
+            for t, q in self.broker_extra.items():
+                eff[t] = eff.get(t, 0.0) + float(q)
             return T63.Reply([{"symbol": t, "qty": str(q), "avg_entry_price": "100",
                                "side": "long"} for t, q in sorted(eff.items())
                               if float(q) > 0])
@@ -228,6 +240,31 @@ STATES = {
                              resting=(("AAPL", "buy", ON_TARGET, 0.0, "rebalance:" + FORMED),
                                       ("BBB", "buy", ON_TARGET, 0.0, "rebalance:" + FORMED)),
                              holds=False),
+    # ---- ADDED BY ITEM 72, the three slot states the auditor found missing -------------
+    #
+    # **BRAND NEW: no record at all.** Not the same as an empty one -- item 67's fresh-record
+    # check refuses ONE cycle when the record is new and the account is not empty, and that
+    # refusal was reachable in no row of the table.
+    "brand_new":        dict(record={}, resting=(), open_ev=None, holds=False, fresh=True),
+    # **AND THE SAME AGAINST AN ACCOUNT THAT IS NOT EMPTY [item 72].** Item 67's fresh-record
+    # check refuses ONE cycle in exactly this state, and it was reachable in no row -- because
+    # the fixture derives the broker's positions from the record, so a brand-new record always
+    # had an empty account. `broker_extra` is a position the record does not know about, which
+    # is also the direction the auditor could only check by hand.
+    "brand_new_dirty":  dict(record={}, resting=(), open_ev=None, holds=False, fresh=True,
+                             broker_extra={"AAPL": 2.5}),
+    # **EXHAUSTED: the no-progress ceiling has already been spent.** Six trading days recorded
+    # against this event with the holdings unchanged, which is the state the ceiling exists to
+    # produce -- and the table crossed it with nothing.
+    "exhausted":        dict(record={"AAPL": 1.0}, resting=(),
+                             open_ev="rebalance:" + FORMED, holds=True,
+                             attempt_days=("2026-10-26", "2026-10-27", "2026-10-28",
+                                           "2026-10-29", "2026-10-30", "2026-11-02")),
+    # **A STALE `open_event`: named, with NOTHING resting for it.** Item 72's own subject, and
+    # the state every real event is in the morning after its `day` orders expired. Every other
+    # `open_ev` state in this table pairs it with live resting orders.
+    "stale_open":       dict(record={"AAPL": ON_TARGET, "BBB": ON_TARGET}, resting=(),
+                             open_ev="rebalance:2026-08-01", holds=True),
 }
 
 #: EVENT. `last_*` is what the record says it last acted on; `pct` is the environment now.
@@ -239,6 +276,20 @@ EVENTS = {
     #: TWO EVENTS IN ONE SESSION: a rebalance cycle, then a percentage change, same session.
     "overlap":   dict(last_pct=5.0, last_event="2026-08-01", pct=5.0, book=BOOK,
                       then_pct=0.0),
+    # ---- ADDED BY ITEM 72 --------------------------------------------------------------
+    #: **A QUIET CYCLE: no event at all.** The book has not moved and the percentage has not
+    #: moved, which is the ordinary case and -- in `event_for`'s own words -- *"the whole
+    #: point"*. The table had no row in which the slot was supposed to do NOTHING.
+    "quiet":     dict(last_pct=5.0, last_event=FORMED, pct=5.0, book=BOOK),
+    #: **AN UPWARD RESIZE.** Every resize in the table went DOWN (5% -> 2%), so every one
+    #: planned sells; an upward move plans BUYS, which is the side that spends money and the
+    #: side the budget bounds.
+    "resize_up": dict(last_pct=2.0, last_event=FORMED, pct=5.0, book=BOOK),
+    #: **A NEW BOOK SUPERSEDING AN OPEN PERCENTAGE EVENT.** `event_for` prefers the rebalance,
+    #: so a pct event left open is overtaken -- and whether its remainder survives that is the
+    #: blocker-B question from the other direction.
+    "book_over_pct": dict(last_pct=2.0, last_event="2026-08-01", pct=5.0, book=BOOK,
+                          open_pct_event="pct:2.0->5.0"),
 }
 
 #: READ OUTCOMES, crossed MARGINALLY -- vary one, hold the others at `ok`. See the module
@@ -266,28 +317,118 @@ PILOTS = ("1", "0")
 #: read as "met" for a 5% buy-in as well.
 #:
 #: The deciding percentage for `overlap` is its SECOND cycle's, which is 0%.
+#: **DOES THIS SLOT'S RECORD ALREADY MEET THIS EVENT'S TARGETS?** Declared per (state, event)
+#: because it is NOT a property of the state: the targets move with the percentage. `on_target`
+#: holds 2.5 shares of each name, which IS the 5% target ($250 at a $100 mid) and is NOT the 2%
+#: one ($100).
+#:
+#: **THE RULE IS SECTION 8a's, NOT THE IMPLEMENTATION'S**: `target_i = pct/100 x equity x w_i`,
+#: so at $10,000 equity with two names at weight 0.5 and a $100 mid the per-name target is 2.5
+#: shares at 5%, 1.0 at 2% and nothing at 0%; "met" is the record EQUALLING that. The entries
+#: are written out so a reader can check any one of them against the record in `STATES` without
+#: running anything -- the generator exists only to keep 80 of them free of typos.
+#:
+#: The deciding percentage for `overlap` is its SECOND cycle's, which is 0%.
 MET = {
-    ("fresh", "rebalance"): False, ("fresh", "buy_in"): False,
-    ("fresh", "resize"): False, ("fresh", "sell_out"): True,
+    # brand_new         record {}
+    ("brand_new", "book_over_pct"): False,
+    ("brand_new", "buy_in"): False,
+    ("brand_new", "overlap"): True,
+    ("brand_new", "quiet"): False,
+    ("brand_new", "rebalance"): False,
+    ("brand_new", "resize"): False,
+    ("brand_new", "resize_up"): False,
+    ("brand_new", "sell_out"): True,
+    # brand_new_dirty   record {} -- and a FOREIGN position in the account
+    ("brand_new_dirty", "book_over_pct"): False,
+    ("brand_new_dirty", "buy_in"): False,
+    ("brand_new_dirty", "overlap"): True,
+    ("brand_new_dirty", "quiet"): False,
+    ("brand_new_dirty", "rebalance"): False,
+    ("brand_new_dirty", "resize"): False,
+    ("brand_new_dirty", "resize_up"): False,
+    ("brand_new_dirty", "sell_out"): True,
+    # exhausted         record {'AAPL': 1.0}
+    ("exhausted", "book_over_pct"): False,
+    ("exhausted", "buy_in"): False,
+    ("exhausted", "overlap"): False,
+    ("exhausted", "quiet"): False,
+    ("exhausted", "rebalance"): False,
+    ("exhausted", "resize"): False,
+    ("exhausted", "resize_up"): False,
+    ("exhausted", "sell_out"): False,
+    # fresh             record {}
+    ("fresh", "book_over_pct"): False,
+    ("fresh", "buy_in"): False,
     ("fresh", "overlap"): True,
-    ("on_target", "rebalance"): True, ("on_target", "buy_in"): True,
-    ("on_target", "resize"): False, ("on_target", "sell_out"): False,
-    ("on_target", "overlap"): False,
-    ("off_target", "rebalance"): False, ("off_target", "buy_in"): False,
-    ("off_target", "resize"): False, ("off_target", "sell_out"): False,
-    ("off_target", "overlap"): False,
-    ("resting_same", "rebalance"): False, ("resting_same", "buy_in"): False,
-    ("resting_same", "resize"): False, ("resting_same", "sell_out"): False,
-    ("resting_same", "overlap"): False,
-    ("resting_opposite", "rebalance"): True, ("resting_opposite", "buy_in"): True,
-    ("resting_opposite", "resize"): False, ("resting_opposite", "sell_out"): False,
-    ("resting_opposite", "overlap"): False,
-    ("resting_partial", "rebalance"): False, ("resting_partial", "buy_in"): False,
-    ("resting_partial", "resize"): False, ("resting_partial", "sell_out"): False,
-    ("resting_partial", "overlap"): False,
-    ("mid_event", "rebalance"): False, ("mid_event", "buy_in"): False,
-    ("mid_event", "resize"): False, ("mid_event", "sell_out"): True,
+    ("fresh", "quiet"): False,
+    ("fresh", "rebalance"): False,
+    ("fresh", "resize"): False,
+    ("fresh", "resize_up"): False,
+    ("fresh", "sell_out"): True,
+    # mid_event         record {}
+    ("mid_event", "book_over_pct"): False,
+    ("mid_event", "buy_in"): False,
     ("mid_event", "overlap"): True,
+    ("mid_event", "quiet"): False,
+    ("mid_event", "rebalance"): False,
+    ("mid_event", "resize"): False,
+    ("mid_event", "resize_up"): False,
+    ("mid_event", "sell_out"): True,
+    # off_target        record {'AAPL': 1.0}
+    ("off_target", "book_over_pct"): False,
+    ("off_target", "buy_in"): False,
+    ("off_target", "overlap"): False,
+    ("off_target", "quiet"): False,
+    ("off_target", "rebalance"): False,
+    ("off_target", "resize"): False,
+    ("off_target", "resize_up"): False,
+    ("off_target", "sell_out"): False,
+    # on_target         record {'AAPL': 2.5, 'BBB': 2.5}
+    ("on_target", "book_over_pct"): True,
+    ("on_target", "buy_in"): True,
+    ("on_target", "overlap"): False,
+    ("on_target", "quiet"): True,
+    ("on_target", "rebalance"): True,
+    ("on_target", "resize"): False,
+    ("on_target", "resize_up"): True,
+    ("on_target", "sell_out"): False,
+    # resting_opposite  record {'AAPL': 2.5, 'BBB': 2.5}
+    ("resting_opposite", "book_over_pct"): True,
+    ("resting_opposite", "buy_in"): True,
+    ("resting_opposite", "overlap"): False,
+    ("resting_opposite", "quiet"): True,
+    ("resting_opposite", "rebalance"): True,
+    ("resting_opposite", "resize"): False,
+    ("resting_opposite", "resize_up"): True,
+    ("resting_opposite", "sell_out"): False,
+    # resting_partial   record {'AAPL': 2.5, 'BBB': 1.0}
+    ("resting_partial", "book_over_pct"): False,
+    ("resting_partial", "buy_in"): False,
+    ("resting_partial", "overlap"): False,
+    ("resting_partial", "quiet"): False,
+    ("resting_partial", "rebalance"): False,
+    ("resting_partial", "resize"): False,
+    ("resting_partial", "resize_up"): False,
+    ("resting_partial", "sell_out"): False,
+    # resting_same      record {'AAPL': 2.5}
+    ("resting_same", "book_over_pct"): False,
+    ("resting_same", "buy_in"): False,
+    ("resting_same", "overlap"): False,
+    ("resting_same", "quiet"): False,
+    ("resting_same", "rebalance"): False,
+    ("resting_same", "resize"): False,
+    ("resting_same", "resize_up"): False,
+    ("resting_same", "sell_out"): False,
+    # stale_open        record {'AAPL': 2.5, 'BBB': 2.5}
+    ("stale_open", "book_over_pct"): True,
+    ("stale_open", "buy_in"): True,
+    ("stale_open", "overlap"): False,
+    ("stale_open", "quiet"): True,
+    ("stale_open", "rebalance"): True,
+    ("stale_open", "resize"): False,
+    ("stale_open", "resize_up"): True,
+    ("stale_open", "sell_out"): False,
 }
 
 
@@ -367,9 +508,22 @@ def expected(state, event, read, mode, pilot):
     #     FOR THIS EVENT, and the open remainder belongs to THIS event. [items 69, 70, 71]
     this_key = _key_for(state, event)
     resting_this_event = any(r[4] == this_key for r in st["resting"])
-    open_is_mine = (st["open_ev"] in (None, this_key))
+    # **A STALE `open_event` DOES NOT BLOCK [item 72].** The auditor: *"a stale `open_event`
+    # with nothing resting is also a condition worth clearing rather than refusing on for
+    # ever."* So a foreign open event blocks the close only while something of this slot's is
+    # actually working for it -- which is the requirement, not a detail read off the code.
+    _open_ev = st["open_ev"]
+    _open_has_resting = any(r[4] == _open_ev for r in st["resting"]) if _open_ev else False
+    open_is_mine = (_open_ev in (None, this_key)) or not _open_has_resting
     met = MET[(state, event)]
-    if event == "overlap":
+    if (event in ("overlap", "book_over_pct", "quiet")
+            or state in ("brand_new", "brand_new_dirty", "exhausted")):
+        # **NOT ASSERTED ON THESE [item 72], and each for its own reason.** `overlap` and
+        # `book_over_pct` depend on what an earlier cycle or an overtaken event did;
+        # `brand_new` may spend its one cycle on item 67's fresh-record refusal; and an
+        # `exhausted` event's close depends on whether the ceiling fires first, which is the
+        # thing under test rather than something to declare. The SAFETY direction is still
+        # asserted on every one of these rows.
         # **NOT ASSERTED, DELIBERATELY.** Whether the first cycle left a remainder open depends
         # on what the first cycle did, and declaring that would mean modelling the
         # implementation here -- which is the one thing this declaration must not do. The
@@ -394,9 +548,15 @@ def expected(state, event, read, mode, pilot):
     # must-not row above -- which is the shape of vacuous pass this project keeps paying for.
     # The positive control is not applied to `overlap`, whose outcome depends on the first
     # cycle -- see `may_close` above.
+    # **EXCLUDED FROM THE POSITIVE CONTROL [item 72]:** `overlap` and `book_over_pct` depend
+    # on an earlier or overtaken event; a `quiet` cycle's correct behaviour is to do NOTHING,
+    # which is `event_for`'s own "the whole point"; an `exhausted` event is stopped by the
+    # ceiling, which is the machinery working; and a `brand_new` record may spend its one cycle
+    # on item 67's fresh-record refusal.
     clean = bool(read_ok and read["positions"] == "ok" and read["quotes"] == "ok"
                  and not (read["positions"] == "empty" and st["holds"])
-                 and event != "overlap")
+                 and event not in ("overlap", "book_over_pct", "quiet")
+                 and state not in ("exhausted", "brand_new", "brand_new_dirty"))
     return {"sent": sent, "may_write": may_write, "may_close": may_close,
             "alerted": alerted, "wind_down": wind_down, "armed": armed, "clean": clean,
             "targets_met": met, "resting_this_event": resting_this_event,
@@ -406,6 +566,14 @@ def expected(state, event, read, mode, pilot):
 def _key_for(state, event):
     """The event key this cycle will act on, from the writer's own generator."""
     ev = EVENTS[event]
+    if event == "quiet":
+        # **NO EVENT OF ITS OWN [item 72].** `event_for` returns nothing, so the cycle acts on
+        # whatever `open_event` holds -- the remainder path -- and with none there is no key.
+        return STATES[state]["open_ev"] or "none"
+    if event == "book_over_pct":
+        # **IT IS A REBALANCE.** The book moved, and `event_for` prefers the rebalance over the
+        # open percentage event, so the key is the rebalance's. Mine returned a `pct:` key.
+        return "rebalance:%s" % ev["book"]["formed_on"]
     if event == "overlap":
         # **THE SECOND CYCLE'S KEY, not the first's.** An overlap row is measured on its second
         # cycle, which acts on the percentage change -- cycle one wrote `last_pct` as the
@@ -444,13 +612,32 @@ def run_row(state, event, read, mode, pilot, *, root=None):
                "last_event_date": ev["last_event"]}
         if st["open_ev"]:
             rec["open_event"] = st["open_ev"]
+        # **AN OPEN *PERCENTAGE* EVENT, for `book_over_pct` [item 72].** A rebalance arriving
+        # while a pct event is open: `event_for` prefers the rebalance, so the pct event is
+        # overtaken, and whether its remainder survives is blocker B from the other direction.
+        if ev.get("open_pct_event"):
+            rec["open_event"] = ev["open_pct_event"]
+        # **AN EXHAUSTED EVENT, seeded with the days and the fingerprint the ceiling reads
+        # [item 72].** Both are needed: the day list alone resets on the first cycle, because
+        # `note_no_progress` treats an absent fingerprint as "a changed definition does not
+        # inherit its old values" and starts the count again (item 64's rule).
+        if st.get("attempt_days"):
+            fp = "|".join("%s:%.6f" % (t, float(st["record"].get(t) or 0))
+                          for t in sorted(st["record"]))
+            rec["event_attempt_days"] = {st["open_ev"]: list(st["attempt_days"])}
+            rec["event_fingerprint"] = {st["open_ev"]: fp}
         p = LC.state_path("1", root)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        with io.open(p, "w", encoding="utf-8") as fh:
-            json.dump(rec, fh, sort_keys=True)
+        # **A BRAND-NEW RECORD IS NO FILE AT ALL [item 72], which is not the same as an empty
+        # one.** Item 67's fresh-record check refuses ONE cycle when the record is new and the
+        # account is not empty, and that refusal was reachable in no row of the table.
+        if not st.get("fresh"):
+            with io.open(p, "w", encoding="utf-8") as fh:
+                json.dump(rec, fh, sort_keys=True)
 
         live = Rec(holdings=st["record"], resting=st["resting"],
-                   orders_read=read["orders"], positions_read=read["positions"])
+                   orders_read=read["orders"], positions_read=read["positions"],
+                   broker_extra=st.get("broker_extra"))
         # **THE QUOTE AXIS VARIES THE *PAPER* SESSION, and that is a fact about the code rather
         # than a convenience.** `_marks_for(client, ...) if hasattr(client, "quotes")` --
         # and `_LiveClient` has NO `quotes`, correctly, because Alpaca's market data is on a
@@ -613,13 +800,17 @@ class TheWholeTable(unittest.TestCase):
     def test_the_table_is_the_declared_size(self):
         """`MA13`'s committed-literal idiom on the row count: an axis quietly losing a value
         would shrink the table and nothing else would notice."""
-        self.assertEqual(len(STATES), 7)
-        self.assertEqual(len(EVENTS), 5)
+        # **ITEM 72 ADDED THREE STATES AND THREE EVENTS**, the shapes the auditor's seventh
+        # review found the table could not reach: a brand-new record, an exhausted event, a
+        # STALE `open_event`, a quiet cycle, an UPWARD resize, and a new book superseding an
+        # open percentage event. 7 x 5 -> 10 x 8, so 2,240 rows -> 5,120.
+        self.assertEqual(len(STATES), 11)
+        self.assertEqual(len(EVENTS), 8)
         self.assertEqual(len(READS), 8)
         self.assertEqual(len(MODES), 4)
         self.assertEqual(len(PILOTS), 2)
-        self.assertEqual(len(all_rows()), 7 * 5 * 8 * 4 * 2)
-        self.assertEqual(len(all_rows()), 2240)
+        self.assertEqual(len(all_rows()), 11 * 8 * 8 * 4 * 2)
+        self.assertEqual(len(all_rows()), 5632)
 
 
 class TheDeclarationIsNotAMirrorOfTheCode(unittest.TestCase):
@@ -678,7 +869,7 @@ class TheThreeReadsAreCrossedFullyOnOneCell(unittest.TestCase):
                                         ("ok", "unreadable", "empty"),
                                         ("ok", "one_missing", "none")))
         self.assertEqual(len(combos), 36)
-        wrong = []
+        wrong, acted = [], 0
         for o, p, q in combos:
             read = dict(orders=o, positions=p, quotes=q)
             w = expected("off_target", "rebalance", read, "live", "1")
@@ -689,7 +880,20 @@ class TheThreeReadsAreCrossedFullyOnOneCell(unittest.TestCase):
                 wrong.append("%s/%s/%s WROTE with no write permitted" % (o, p, q))
             if w["may_close"] is False and g["closed_in_record"]:
                 wrong.append("%s/%s/%s CLOSED with no evidence" % (o, p, q))
+            # **THE POSITIVE DIRECTION [item 72, the auditor's third request].** Without it
+            # this control asserted only that forbidden things do not happen, so a tree that
+            # did nothing at all would have satisfied all 36 rows -- the vacuous pass, in the
+            # one test whose job is to measure an interaction.
+            if w["clean"] and w["sent"] == "any":
+                if not g["placed"]:
+                    wrong.append("%s/%s/%s is CLEAN with work to do and sent NOTHING"
+                                 % (o, p, q))
+                else:
+                    acted += 1
         self.assertEqual(wrong, [], "\n  ".join(wrong))
+        # AND AT LEAST ONE COMBINATION MUST BE THE CLEAN ONE, or the line above never ran.
+        self.assertEqual(acted, 1,
+                         "exactly one of the 36 is all-ok and it must have traded: %d" % acted)
 
 
 if __name__ == "__main__":
