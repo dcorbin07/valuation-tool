@@ -625,3 +625,99 @@ second is the data.
 
 **5 of 5 mutations caught with the source restored byte-for-byte; 18 tests in
 `tests/test_wrds_client.py`.**
+
+---
+
+# ROUND 3 — 2026-10-18. **FOUR UNLOCKS, ELEVEN ABSENCES, AND THE BIGGEST ONE CANNOT TOUCH THE LIVE SCORE**
+
+**Measured 2026-10-18 by the Frontier Scout lane. ZERO TRIALS** — entitlement and coverage facts,
+no hypothesis, no bar, no forward return. **ONE connection attempt**, as `DECISIONS.md` 2026-10-04
+requires. Reproduce: `python -m scripts.wrds_census3` → `D:\wrds\WRDS_CENSUS3.json`. Raw payloads
+(`stocknames.pkl`, `ibcrsphist.pkl`) stay on `D:` and are never committed.
+
+**224 libraries visible**, against round 2's 221. **A library in the catalogue is still not
+evidence of entitlement** — every line below is a real `SELECT`.
+
+| key | library.table | status | rows | span | what it unlocks |
+|---|---|---|---|---|---|
+| `ibes_recommendations` | `ibes.recddet` | **ENTITLED** | — | **1992-12-14 → 2026-08-20** | IBES analyst recommendations, per-analyst detail |
+| `ibes_rec_summary` | `ibes.recdsum` | **ENTITLED** | — | 1993-11-18 → 2026-08-20 | recommendation summary by statistical period |
+| `jkp_characteristics` | `contrib_global_factor.global_factor` | **ENTITLED** | **16,008,333** | **1925-12-31 → 2025-12-31** | **JKP FIRM-LEVEL characteristics — the file behind the factor returns** |
+| `jkp_char_alt` | `contrib.global_factor` | **ENTITLED** | — | 1925-12-31 → 2025-12-31 | the same product's plain `contrib` home |
+| `trace_enhanced` | `trace.trace_enhanced` | **ENTITLED** | — | **2002-07-01 → 2026-03-17** | **TRACE corporate-bond trades** |
+| `comp_pit_unrestated` | `comp.co_amkt` | **ENTITLED** | — | 1950-06-30 → 2026-09-30 | a Compustat adjunct, probed as a PIT candidate |
+| `comp_segment_customer` | `compsegd.seg_customer` | **ABSENT** | — | — | Cohen-Frazzini customer momentum |
+| `comp_segment_customer_alt` | `comp_segments_hist.seg_customer` | **ABSENT** | — | — | the same product's historical home |
+| `ciq_transcripts` | `ciq.wrds_transcript_detail` | **ABSENT** | — | — | Capital IQ earnings-call transcripts |
+| `ciq_keydev` | `ciq.wrds_keydev` | **ABSENT** | — | — | Capital IQ key developments |
+| `ravenpack` | `ravenpack.rpa_djpr_equities_1990_2019` | **ABSENT** | — | — | RavenPack news analytics |
+| `iss_governance` | `risk.rmgovernance` | **ABSENT** | — | — | ISS/RiskMetrics governance |
+| `iss_directors` | `risk.rmdirectors` | **ABSENT** | — | — | ISS/RiskMetrics directors |
+| `boardex_na` | `boardex.na_wrds_company_profile` | **ABSENT** | — | — | BoardEx board networks |
+| `comp_pit_snapshot` | `comp.snapshot_fundq` | **ABSENT** | — | — | Compustat as-first-reported snapshot |
+| `trace_standard` | `trace.trace_standard` | **ABSENT** | — | — | the TRACE alternative home |
+| `wrds_bond_returns` | `wrdsapps_bondret.bondret` | **ABSENT** | — | — | WRDS computed bond returns |
+
+**6 ENTITLED, 11 ABSENT, 0 DENIED.** Note the shape: **every absence is ABSENT rather than DENIED**,
+i.e. the table does not exist under that name on this account — which `W-14` established is the
+weaker evidence. **A product absent under one name is not a measured absence of the product**, and
+the two Compustat-segment homes and two TRACE homes were probed for exactly that reason.
+
+## THE JOIN SPINE, DATED — **81.65%, AND THAT CORRECTS A FIGURE THIS FILE ALREADY CARRIES**
+
+`crsp.stocknames`, the only route left after CCM's denial. On the **$10B tier** (38,540 cells,
+1,335 distinct tickers, 69 dates):
+
+| | value |
+|---|---|
+| tier cells resolved on the **DATED** route | **31,467 of 38,540 = 81.65%** |
+| cells a ticker-only join would have accepted | 38,540 |
+| cells resolving to **more than one permno** (AMBIGUOUS) | **208** |
+| distinct 6-digit cusips for the tier | **1,247** |
+
+> **THIS FILE'S OWN "2,271 = 89.7 pct" IS A NAME-LEVEL FIGURE AND 81.65% IS THE CELL-LEVEL ONE.**
+> They measure different objects — *"has this ticker any stocknames row"* against *"does this
+> (date, ticker) cell fall inside a name interval"* — and a join plan built on the first will find
+> 8 points fewer cells than it expected. **`W-28`'s contamination is why the dated figure is the
+> only quotable one:** an undated route there assigned one company's dates to a **different
+> company on 54 names.**
+
+## IBES LONG-TERM GROWTH — **ENTITLED AND PLENTIFUL**
+
+`ibes.statsum_epsus` at **`fpi = '0'`** (the LTG horizon) carries **1,443,174 rows across 46
+years**, and the CRSP↔IBES bridge `wrdsapps_link_crsp_ibes.ibcrsphist` has **37,662 rows**
+(previously recorded here as *"not yet measured"*). **Per-date tier coverage is NOT yet measured
+and is the next session's first query.**
+
+## TRACE — **THE BEST COVERAGE ANY NEW SOURCE HAS SHOWN THIS PROJECT**
+
+Sampled quarters (declared as sampling — a full group-by over this table is minutes), with "ours"
+meaning a 6-digit cusip in the $10B tier:
+
+| quarter | all trades | all bonds | all issuers | **our issuers** | our bonds | our trades | tier that year (mean) | **ours ÷ tier** |
+|---|---|---|---|---|---|---|---|---|
+| 2013 Q1 | 4,297,963 | 22,240 | 4,732 | **426** | 2,877 | 1,237,825 | 436 | **97.7%** |
+| 2016 Q1 | 4,797,632 | 25,062 | 5,270 | **473** | 3,630 | 1,937,223 | 493 | **95.9%** |
+| 2020 Q1 | 6,618,723 | 37,257 | 6,104 | **539** | 4,501 | 2,845,469 | 607 | **88.8%** |
+| 2024 Q1 | 11,268,959 | 48,807 | 5,986 | **621** | 5,323 | 5,422,003 | 769 | **80.8%** |
+
+> **81% TO 98% OF THE $10B TIER HAS A TRADED CORPORATE BOND, AND A MEDIAN NAME HAS SIX TO NINE OF
+> THEM.** For comparison the options chain cache reaches about **40%** of the same tier and the
+> harvest freeze reached **5.89%** of panel cells. **On coverage alone this is the strongest new
+> input this account has.**
+
+## ONE QUERY FAILED AND IT WAS MY OWN DEFECT — **PER-MANAGER 13F IS UNMEASURED**
+
+`select ... count(distinct mgrno) ... from wrdssec_all.wrds_13f_holdings` returned
+**`column "mgrno" does not exist`**, so **task D's coverage census did not run and the one
+connection is spent.**
+
+**THE CAUSE IS A FAMILY THIS RECORD ALREADY NAMES.** `mgrno` is **Thomson's** `s34` column —
+`WRDS_UNLOCK_MAP.md:125` uses it in exactly that context — and I applied it to **WRDS's own** 13F
+product. **Entitlement is not schema**, and round 2 recorded this table's row count and span while
+never recording its COLUMNS, which is what left the guess available to make.
+
+**THE FIX FOR THE NEXT SESSION, IN ORDER:** run `select * from wrdssec_all.wrds_13f_holdings
+limit 1` **first**, read the column list, **then** aggregate. One cheap query removes the class.
+`scripts/wrds_census3.py`'s `_one` probe already records columns for anything in its target list —
+**this table was omitted from that list precisely because the census already called it ENTITLED.**
