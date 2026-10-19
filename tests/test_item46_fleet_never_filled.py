@@ -196,11 +196,33 @@ class TheFrozenFixtureStaysFrozen(unittest.TestCase):
     wolf: nothing but an edit to the fixture can move it.
     """
 
-    #: `MA13`'s committed-literal idiom over the FROZEN bytes. Legitimately changing the
-    #: fixture means moving this line in the same commit, which shows in the diff.
+    #: `MA13`'s committed-literal idiom over the frozen CONTENT. Legitimately changing the
+    #: fixture means moving these lines in the same commit, which shows in the diff.
+    #:
+    #: **RAW BYTES, AND IT TOOK TWO TRIES AND A CI RUN TO GET HERE [2026-10-19].** The first
+    #: cut digested raw bytes with the fixture stored as ordinary text, and read 92,618
+    #: locally against 92,406 in CI -- exactly the 212 lines `core.autocrlf=true` rewrites.
+    #: The guard caught its own defect on its first CI run, which is the only reason it is
+    #: right now.
+    #:
+    #: The fix was NOT to normalise the digest, because that would have hidden a worse
+    #: problem: `append_only.append` rewrites the whole file through `csv.writer`, whose
+    #: default terminator is CRLF, so a record stored with LF can NEVER satisfy
+    #: `after.startswith(before)` in `test_the_byte_prefix_and_the_chain_both_survive` below.
+    #: An LF fixture would have failed that test on every platform, not just this one.
+    #: `.gitattributes` now pins both this fixture and `data_export/fleet_records/*.csv` as
+    #: `binary`, so git stores and checks out the bytes verbatim everywhere -- and with the
+    #: endings pinned, a RAW digest is both portable and stricter than a normalised one,
+    #: because it also fails if the endings are ever converted.
     N_FILES = 18
     TOTAL_BYTES = 92618
     DIGEST = "e3ec0249ac1cf99246bc7107ae55f9fe4528728c3789eac46fd91329fbf1f0d5"
+
+    @staticmethod
+    def _lf(b):
+        """Only for the LIVE comparison below: the binary pin governs future commits, and
+        older blobs of the live record were written before it existed."""
+        return b.replace(b"\x0d\x0a", b"\x0a")
 
     def test_the_fixture_is_byte_for_byte_what_was_frozen(self):
         import hashlib
@@ -228,9 +250,9 @@ class TheFrozenFixtureStaysFrozen(unittest.TestCase):
         if not os.path.exists(live):
             self.skipTest("no committed fleet backup in this checkout")
         with io.open(live, "rb") as fh:
-            a = fh.read()
+            a = self._lf(fh.read())
         with io.open(os.path.join(FIXTURE, "f3_bear_puts.csv"), "rb") as fh:
-            b = fh.read()
+            b = self._lf(fh.read())
         self.assertNotEqual(a, b, "the fixture is a copy of the live record, not a freeze")
         self.assertGreater(len(a), len(b),
                            "the live record only ever grows; a shorter live file means it was "

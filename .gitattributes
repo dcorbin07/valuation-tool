@@ -76,3 +76,22 @@ HANDOFF_*.md        merge=union
 # Marking only *.pdf keeps this narrow -- it is NOT `* text=auto`, so nothing is
 # renormalised and no open branch is disturbed. (Master audit #3, MA35.)
 *.pdf               binary
+
+# THE APPEND-ONLY RECORDS ARE BINARY, for the same measured reason as *.pdf above and with a
+# sharper consequence. `append_only.append` rewrites the whole file through `csv.writer` with
+# `newline=""`, and csv's default line terminator is CRLF -- so every row the fleet writer
+# emits is CRLF, and the APPEND-ONLY BYTE-PREFIX GUARANTEE the record's tamper-evidence rests
+# on only holds if the stored bytes are CRLF too.
+#
+# With no rule, `core.autocrlf=true` decides that per COMMITTER: the CI bot commits from Linux
+# and its CRLF survives, while anything committed from a Windows lane is normalised to LF on
+# the way in. Measured 2026-10-19: the live `f3_bear_puts.csv` blob holds 433 CRLF and 0 bare
+# LF, and a fixture copied from it by a Windows lane came back with 0 CRLF and 79 bare LF --
+# 45,648 bytes against the 45,727 it was copied from. A record stored LF can never satisfy
+# `after.startswith(before)` against a writer that re-emits CRLF, so this is a correctness
+# rule for the record, not a style preference.
+#
+# Narrow on purpose, exactly as the *.pdf rule is: these two paths only, so nothing else is
+# renormalised and no open branch is disturbed.
+data_export/fleet_records/*.csv     binary
+tests/frozen_records/**             binary
