@@ -42,14 +42,42 @@ from valuation.edge import fleet as F                                      # noq
 from scripts import fleet_diagnose as D                                    # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#: The LIVE record, appended to by the fleet-backup bot. Read only by the one test that
+#: asserts the diagnosis still RUNS on it, and never for a count.
 BACKUP = os.path.join(REPO, "data_export", "fleet_records")
 
-#: MA13's committed-literal idiom: the measured figures, written down so a change has to move
-#: this line too and shows in the diff.
+#: The FROZEN copy every snapshot assertion below is written against: all 18 streams as they
+#: stood at `3d48813`, item 46's own measurement commit, extracted as raw blobs so the bytes
+#: are byte-identical to what the repository stores. It is NOT under `tests/fixtures/`
+#: on purpose: `tests/fixtures.py` is an existing module that four suites import, and a
+#: sibling directory of the same name would shadow it the day anyone added an
+#: `__init__.py` to it.
+#:
+#: REPOINTED 2026-10-19. The snapshot assertions used to read `BACKUP`, so the fleet-backup
+#: bot's own commit (`69c39d4`, 2026-10-18) turned this suite red against a correct tree --
+#: f3 order rows 72 -> 90, distinct contracts 44 -> 45, declared books 18 -> 24, and 328
+#: `reconcile` rows appearing where three tests assert there are none. `MB31`'s family, and
+#: this file had already been bitten by it once (see
+#: `test_the_implemented_rules_are_a_declared_subset_and_one_cannot_order`).
+#:
+#: THE RULE THIS ENCODES: a test may read a directory a bot writes to, or it may assert an
+#: exact count, but not both. Re-typing the numbers would go red again at the next backup.
+FIXTURE = os.path.join(REPO, "tests", "frozen_records", "fleet_records_item46")
+
+#: `MA13`'s committed-literal idiom, now safe because it describes the FROZEN fixture: these
+#: cannot move unless someone edits the fixture, and that shows in the diff.
 F3_ORDER_ROWS = 72
 F3_DISTINCT_CONTRACTS = 44
-BOOKS_DECLARED = 18
-RULES_IMPLEMENTED = 6          # 2026-10-13: F-21 and F-22 armed
+
+#: Counts that GROW BY DESIGN are floors, never equalities. A floor still fires on the
+#: dangerous direction -- a book un-declared, a rule silently disarmed -- and tolerates the
+#: safe one, which is exactly what an equality could not do.
+BOOKS_DECLARED_FLOOR = 18
+RULES_IMPLEMENTED_FLOOR = 6    # 2026-10-13: F-21 and F-22 armed
+
+#: The four states `why_no_orders` may assign. A fifth is a real change and must go red.
+CENSUS_STATES = {"NO_ENTRY_RULE", "RIDER", "ARMED_NO_ORDERS", "ARMED_WITH_ORDERS"}
 
 
 class _Positions:
@@ -71,14 +99,56 @@ class TheDiagnosisSeparatesThreeCauses(unittest.TestCase):
 
     def test_the_census_is_three_states_and_not_one_number(self):
         """"16 books placed nothing" lumps a book with no rule, a rider, and an armed book
-        that found no candidate. Only the third is a question."""
-        got = D.why_no_orders()
+        that found no candidate. Only the third is a question.
+
+        REPOINTED 2026-10-19 from four frozen integers (14/1/2/1 summing to 18) to the
+        PARTITION PROPERTY they stood in for. Every one of those integers moves BY DESIGN --
+        declaring a book moves the sum, arming one moves a book out of `NO_ENTRY_RULE` -- and
+        the live census is already 24 books. What follows is what the four numbers were
+        really asserting, and it does not move with fleet size.
+        """
+        from valuation.edge.fleet_books import RULES
+        got = D.why_no_orders(root=FIXTURE)
         c = got["census"]
-        self.assertEqual(sum(c.values()), BOOKS_DECLARED)
-        self.assertEqual(c.get("NO_ENTRY_RULE"), 14)
-        self.assertEqual(c.get("RIDER"), 1)
-        self.assertEqual(c.get("ARMED_NO_ORDERS"), 2)
-        self.assertEqual(c.get("ARMED_WITH_ORDERS"), 1)
+        books = got["books"]
+
+        # It PARTITIONS: every book lands in exactly one state and nothing is dropped.
+        self.assertTrue(books, "the fixture is empty -- the census would prove nothing")
+        self.assertEqual(sum(c.values()), len(books))
+        self.assertEqual(len(books), len({b["book"] for b in books}))
+
+        # No fifth state appears unnoticed.
+        self.assertEqual(set(c) - CENSUS_STATES, set())
+
+        # And each state is exactly what RULES and the record imply, book by book. This is
+        # the function's whole contract and what the frozen counts were a proxy for.
+        for b in books:
+            rule = RULES.get(b["book"])
+            if rule is None:
+                want = "NO_ENTRY_RULE"
+            elif not rule[1]:
+                want = "RIDER"
+            elif b["kinds"].get("fill"):
+                want = "ARMED_WITH_ORDERS"
+            else:
+                want = "ARMED_NO_ORDERS"
+            self.assertEqual(b["state"], want, b["book"])
+
+        # Non-vacuous: this suite exists to prove the causes are not lumped, so it must see
+        # more than one of them.
+        self.assertGreaterEqual(len(set(c)), 3,
+                                "fewer than three states present on the fixture")
+
+    def test_the_census_still_runs_on_the_LIVE_record(self):
+        """The fixture buys determinism and would silently cost live coverage, so this keeps
+        it: the diagnosis must still read the real bot-appended streams and return a
+        well-formed partition. NO COUNT IS ASSERTED, which is the whole point."""
+        got = D.why_no_orders()
+        books = got["books"]
+        self.assertGreaterEqual(len(books), BOOKS_DECLARED_FLOOR,
+                                "books are never un-declared; a fall is a real regression")
+        self.assertEqual(sum(got["census"].values()), len(books))
+        self.assertEqual(set(got["census"]) - CENSUS_STATES, set())
 
     def test_the_implemented_rules_are_a_declared_subset_and_one_cannot_order(self):
         """REPOINTED 2026-10-13, `MB31`'s family: this asserted `len(RULES) == 4` and fired
@@ -87,7 +157,9 @@ class TheDiagnosisSeparatesThreeCauses(unittest.TestCase):
         the load-bearing assertions are now PROPERTIES that do not move when the fleet grows:
         every implemented rule is a DECLARED book, and `f1_fill_ab` is the only rider."""
         from valuation.edge.fleet_books import RULES
-        self.assertEqual(len(RULES), RULES_IMPLEMENTED)
+        self.assertGreaterEqual(len(RULES), RULES_IMPLEMENTED_FLOOR,
+                                "a rule is never un-implemented; arming only adds, so this "
+                                "is a FLOOR -- the equality fired on the clock once already")
         declared = {d["book"] for d in F.declared_books() if d.get("parses")}
         self.assertFalse(sorted(set(RULES) - declared),
                          "an implemented rule with no declaration can never be armed")
@@ -96,7 +168,7 @@ class TheDiagnosisSeparatesThreeCauses(unittest.TestCase):
 
     def test_f3s_rows_are_MARKET_orders_with_no_outcome(self):
         """Market, not limit -- so "the sandbox never fills a limit" is refuted, not assumed."""
-        got = D.unfilled("f3_bear_puts")
+        got = D.unfilled("f3_bear_puts", root=FIXTURE)
         self.assertEqual(got["order_rows"], F3_ORDER_ROWS)
         self.assertEqual(got["without_an_outcome"], F3_ORDER_ROWS)
         self.assertEqual(got["order_type"], {"market": F3_ORDER_ROWS})
@@ -104,7 +176,7 @@ class TheDiagnosisSeparatesThreeCauses(unittest.TestCase):
         self.assertEqual(got["distinct_contracts"], F3_DISTINCT_CONTRACTS)
 
     def test_no_broker_order_id_is_stored_which_is_WHY_nothing_could_poll(self):
-        self.assertFalse(D.unfilled("f3_bear_puts")["has_order_id_column"])
+        self.assertFalse(D.unfilled("f3_bear_puts", root=FIXTURE)["has_order_id_column"])
         self.assertNotIn("broker_order_id", F.RECORD_COLUMNS)
 
     def test_the_diagnosis_runs_offline(self):
@@ -112,6 +184,57 @@ class TheDiagnosisSeparatesThreeCauses(unittest.TestCase):
         is up cannot be run on the day the broker is the problem."""
         got = D.main(["--no-broker", "--json"])
         self.assertEqual(got, 0)
+
+
+class TheFrozenFixtureStaysFrozen(unittest.TestCase):
+    """The guard that protects the repoint, and it is the one this fix most needs.
+
+    The failure mode is not someone re-typing 72 as 90 -- it is someone "refreshing" the
+    fixture from `data_export/` to make a diff go away, which silently reintroduces the exact
+    bug the fixture exists to remove and leaves every snapshot assertion below reading the
+    bot's output again. A digest over the whole directory catches that, and it cannot cry
+    wolf: nothing but an edit to the fixture can move it.
+    """
+
+    #: `MA13`'s committed-literal idiom over the FROZEN bytes. Legitimately changing the
+    #: fixture means moving this line in the same commit, which shows in the diff.
+    N_FILES = 18
+    TOTAL_BYTES = 92618
+    DIGEST = "e3ec0249ac1cf99246bc7107ae55f9fe4528728c3789eac46fd91329fbf1f0d5"
+
+    def test_the_fixture_is_byte_for_byte_what_was_frozen(self):
+        import hashlib
+        names = sorted(os.listdir(FIXTURE))
+        h, total = hashlib.sha256(), 0
+        for n in names:
+            with io.open(os.path.join(FIXTURE, n), "rb") as fh:
+                b = fh.read()
+            h.update(n.encode("utf-8"))
+            h.update(b)
+            total += len(b)
+        # GATED, or an empty directory digests to a constant and passes by comparing nothing
+        # (`MB21`'s C1, which scored a perfect zero on an empty frame).
+        self.assertEqual(len(names), self.N_FILES, names)
+        self.assertEqual(total, self.TOTAL_BYTES)
+        self.assertEqual(h.hexdigest(), self.DIGEST,
+                         "the frozen fixture has changed. If that was deliberate, move the "
+                         "literals above in the same commit. If it was a refresh from "
+                         "data_export/, it has just reintroduced the bug this fixture removes.")
+
+    def test_the_fixture_is_NOT_the_live_record(self):
+        """Non-vacuous: if the two ever coincide, the fixture froze nothing and every
+        snapshot assertion in this file is back on the bot's growing stream."""
+        live = os.path.join(BACKUP, "f3_bear_puts.csv")
+        if not os.path.exists(live):
+            self.skipTest("no committed fleet backup in this checkout")
+        with io.open(live, "rb") as fh:
+            a = fh.read()
+        with io.open(os.path.join(FIXTURE, "f3_bear_puts.csv"), "rb") as fh:
+            b = fh.read()
+        self.assertNotEqual(a, b, "the fixture is a copy of the live record, not a freeze")
+        self.assertGreater(len(a), len(b),
+                           "the live record only ever grows; a shorter live file means it was "
+                           "truncated, which is a far worse problem than this suite's")
 
 
 class WhyANewColumnWasNotTheFix(unittest.TestCase):
@@ -140,13 +263,19 @@ class WhyANewColumnWasNotTheFix(unittest.TestCase):
 
 
 class TheReconciliationRecordsWithoutClaiming(unittest.TestCase):
-    """Driven against a COPY of the real stream, so the rows are real and the write is not."""
+    """Driven against a COPY of the FROZEN stream, so the rows are real and the write is not.
+
+    It read `BACKUP` until 2026-10-19. Those rows are still real, but the bot has since
+    appended 328 `reconcile` rows to them -- so three tests below, which assert that no
+    `reconcile` row exists until this code writes one, were reading the bot's own output as
+    though it were theirs. The fixture restores the pre-reconciliation state they describe.
+    """
 
     def setUp(self):
         self.d = tempfile.mkdtemp(prefix="i46-")
         self.addCleanup(shutil.rmtree, self.d, True)
         os.makedirs(os.path.join(self.d, "data", "fleet"))
-        self.src = os.path.join(BACKUP, "f3_bear_puts.csv")
+        self.src = os.path.join(FIXTURE, "f3_bear_puts.csv")
         self.dst = os.path.join(self.d, "data", "fleet", "f3_bear_puts.csv")
         shutil.copy(self.src, self.dst)
         rows = list(csv.DictReader(io.open(self.src, newline="", encoding="utf-8")))

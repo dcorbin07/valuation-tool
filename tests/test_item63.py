@@ -708,11 +708,32 @@ class TheRetryCeilingStopsASilentLoop(_Tmp):
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8") as fh:
             json.dump(st, fh)
-        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
-                          client=broker(RecordedAlpaca()), equity=1000.0, marks=MARKS,
-                          root=self.root, send=True, account=ACCOUNT)
+        # **THE DATE IS PINNED, NOT INHERITED FROM THE WALL CLOCK [repointed 2026-10-19].**
+        # This called `run_slot` under the real clock, so the sixth distinct trading day --
+        # the one that crosses `MAX_EVENT_TRADING_DAYS` -- was whatever day the suite happened
+        # to run on. It passed until the calendar reached the seeded range and then went red
+        # against a correct tree: on 2026-10-19 "today" is ALREADY one of the five seeded days,
+        # `note_trading_day` dedupes it, the count stays at 5, and the slot correctly sends
+        # instead of stopping. `MB31`'s family with the clock as the input. 10-21 is a trading
+        # day outside the seeded set, so the sixth day is now deterministic forever, and the
+        # technique is the one `_cycles` above already uses.
+        real = LC._stamp
+        try:
+            LC._stamp = lambda: "2026-10-21T14:40:00Z"
+            got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
+                              client=broker(RecordedAlpaca()), equity=1000.0, marks=MARKS,
+                              root=self.root, send=True, account=ACCOUNT)
+        finally:
+            LC._stamp = real
         self.assertIn("deduped into silence", got["reason"])
         self.assertIn("TRADING DAYS", got["reason"])
+        # Non-vacuous: it is the SIXTH day that crosses the ceiling, so the seed plus the
+        # pinned day must be exactly one over. A seed that already exhausted the ceiling would
+        # make the assertions above pass without the pinned day doing any work.
+        from valuation.edge import settlement as SETTLE
+        self.assertEqual(len(st["event_attempt_days"][key]),
+                         SETTLE.MAX_EVENT_TRADING_DAYS)
+        self.assertNotIn("2026-10-21", st["event_attempt_days"][key])
 
     def test_A_CYCLE_COUNT_WRITTEN_UNDER_THE_OLD_RULE_IS_NOT_INHERITED(self):
         """Item 64's migration lesson, applied to item 64's own keys.
