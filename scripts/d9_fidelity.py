@@ -111,6 +111,14 @@ def score_sharadar() -> dict:
         # and `res["rows"]` raises on failure -- one idiom cannot serve both. Handled explicitly
         # and REPORTED as a bug rather than papered over.
         rows = res.get("rows") if isinstance(res, dict) else list(res)
+        # **A REFUSAL IS NOT AN EMPTY UNIVERSE [item 75].** `score_universe_now` now refuses an
+        # as-of it cannot honour exactly, and says why. Reporting that as "0 rows" would be the
+        # silent-empty failure this script's own docstring already names one level up.
+        _refused = res.get("refused") if isinstance(res, dict) else None
+        if _refused:
+            out[label] = {"error": "refused: %s" % _refused, "as_of": as_of, "root": root}
+            print("  %-22s REFUSED: %s" % (label, _refused), flush=True)
+            continue
         print("     -> %d rows in %.1f min%s"
               % (len(rows), (time.time() - t0) / 60.0,
                  "" if isinstance(res, dict) else "   [EMPTY-LIST return path]"), flush=True)
@@ -355,6 +363,12 @@ def same_date(root, as_of, live_path=None) -> int:
     # stale export scores an OLD cross-section under a FRESH label, silently. A renewal
     # re-check is exactly the situation where that matters, so the returned `as_of` is compared
     # with the requested one and a mismatch REFUSES.
+    # ITEM 75 FIRST, because its reason is the specific one and this guard's is the general
+    # one. The guard below is KEPT rather than replaced: it costs nothing and it is what would
+    # catch a future regression in the resolver itself.
+    _refused = res.get("refused") if isinstance(res, dict) else None
+    if _refused:
+        raise SystemExit("REFUSING: %s" % _refused)
     used = str((res.get("as_of") if isinstance(res, dict) else None) or "")[:10]
     if used and used != str(as_of)[:10]:
         raise SystemExit(

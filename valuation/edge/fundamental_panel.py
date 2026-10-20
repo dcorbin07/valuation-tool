@@ -1778,14 +1778,72 @@ def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
             if m.any():
                 frame.loc[m, t] = np.nan
     cal = frame.index
-    i = len(cal) - 1 if as_of is None else int(np.searchsorted(cal.values,
-                                                              np.datetime64(str(as_of)[:10]), "right") - 1)
+    if as_of is None:
+        i = len(cal) - 1
+    else:
+        # **AN AS-OF IS HONOURED EXACTLY OR REFUSED [item 75].** `searchsorted(..., "right")-1`
+        # lands on the last session at or BEFORE the requested date, which is right for a panel
+        # walking a calendar and wrong for a book: asked for 2026-10-22 on an export whose
+        # newest close is 2026-10-21 it would quietly build as of the 21st, and the payload
+        # would then carry `data_as_of: 2026-10-21` while the operator's runbook step, their
+        # notes and the event they are about to append all say the 22nd. One of those is wrong
+        # and nothing in the record could say which.
+        #
+        # So the three ways it can be unhonourable are named, each with the remedy:
+        want = str(as_of)[:10]
+        newest = str(cal[-1].date())
+        if want > newest:
+            return {"as_of": None, "rows": [], "dropped_mc_divergence": [],
+                    "refused": ("--as-of %s is later than the newest close in this export "
+                                "(%s). Refresh the export, or build as of a date it covers."
+                                % (want, newest))}
+        # **COMPARED AS THE LANDED SESSION, NOT AS SET MEMBERSHIP.** My first cut asked
+        # `np.datetime64(want) in set(cal.values.tolist())`, and `cal.values` is
+        # nanosecond-resolution while the literal is day-resolution -- so it was False for
+        # every date, including the export's own newest close, and refused a correct build.
+        # The wrong-object family. Landing the search and comparing date STRINGS has no units
+        # to get wrong, and the nearest-earlier hint falls out of the same index.
+        i = int(np.searchsorted(cal.values, np.datetime64(want), "right") - 1)
+        if i < 0 or str(cal[i].date()) != want:
+            return {"as_of": None, "rows": [], "dropped_mc_divergence": [],
+                    "refused": ("--as-of %s is not a trading day in this export. The export IS "
+                                "the calendar here -- no holiday table is consulted -- so a "
+                                "date with no close cannot be built as of. The nearest earlier "
+                                "session is %s."
+                                % (want, (str(cal[i].date()) if i >= 0 else "none")))}
     if i < TD:
+        if as_of is not None:
+            return {"as_of": None, "rows": [], "dropped_mc_divergence": [],
+                    "refused": ("--as-of %s sits only %d sessions into this export and %d are "
+                                "needed before any momentum or volatility input exists. Note "
+                                "the book path asks the provider for the last %d rows per "
+                                "ticker, so an as-of far behind the export's end has no "
+                                "history to stand on."
+                                % (str(as_of)[:10], i + 1, TD, TD * lookback_years + 60))}
         return []
     asof = str(cal[i].date())
     # ffill carries a dead name's last print forward forever, which would put stale quotes in
     # a live book. Require a real recent observation, not a carried-forward one.
     cutoff = cal[max(0, i - stale_days)]
+    # **MEASURED AT THE AS-OF, AND IT WAS NOT [item 75].** `last_seen` is each ticker's newest
+    # print in the WHOLE export, so with an as-of behind the export's end this guard read a
+    # date in the FUTURE of the book it was gating. Measured on a synthetic export: a name with
+    # a full history that goes quiet for the last 30 trading days before the as-of is correctly
+    # DROPPED when the export stops there, and was KEPT -- priced at its forward-filled
+    # month-old close -- as soon as the export carried a few days past the as-of. That is
+    # precisely the stale quote in a live book this cutoff exists to prevent.
+    #
+    # `px[t]` is the RAW per-ticker series, before the union-calendar forward fill, which is
+    # what makes "its newest real print at or before the as-of" answerable at all.
+    #
+    # INERT WHEN `as_of is None`: `cal` is the union calendar, so `cal[i]` is `cal[-1]`, which
+    # is at or after every ticker's last print, and the slice is the whole index.
+    _asof_ts = cal[i]
+    last_seen = {}
+    for t, _s in px.items():
+        _idx = _s.index[_s.index <= _asof_ts]
+        if len(_idx):
+            last_seen[t] = _idx[-1]
     fresh = {t for t, d in last_seen.items() if d >= cutoff}
     _prog(f"scoring {len(px)} names as of {asof} ({len(fresh)} with fresh prices)")
 

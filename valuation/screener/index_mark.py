@@ -608,6 +608,10 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
         cap actually binding. A truncated scan installed under the Index's name is exactly the
         failure the seed door was built to prevent, and a rebalance is the same door one step
         later.
+      * **built AFTER its own event date** — a book scored on a later session, appended as
+        the event for an earlier one, is a look-ahead. The staleness bound below cannot see it:
+        `trading_days_between` counts forward and returns 0 for a reversed pair, so it is
+        silent about a book built a day — or a month — after its event.
       * **dated on or before the last event** — events are an ordered history, and one landing
         out of order silently changes which book was in force for every day after it.
       * **an event already exists on that date** — a rewrite, which append-only forbids
@@ -704,6 +708,29 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
         out["reason"] = ("the rebalance book carries no readable as-of date, so its freshness "
                          "cannot be checked. A book whose vintage is unknown is refused rather "
                          "than assumed current")
+        return out
+    # ---- AND THE MIRROR CASE, WHICH THE CHECK BELOW CANNOT SEE [item 75] ------------------
+    #
+    # `trading_days_between` counts FORWARD and returns 0 for a reversed pair -- measured:
+    # ('2026-10-23' -> '2026-10-22') is 0, and so is ('2026-11-23' -> '2026-10-22'). So the
+    # staleness bound is silent about a book built AFTER its own event date, however long
+    # after.
+    #
+    # THE DATED HAZARD. The 2026-10-22 rebalance is built on the evening of 10-23, and
+    # Sharadar's recommended pull is ~5:20pm ET, so the export that evening very likely carries
+    # the 10-23 close. Without `--as-of` the book is scored as of 10-23 and appended as the
+    # event for 10-22: a one-day look-ahead, where the selection had a session of the future in
+    # it. The event carries only a date and positions, so this is unrecoverable the moment it
+    # is written -- exactly the argument the staleness bound below makes about its own
+    # direction, and it applies with at least as much force here, because a stale book is
+    # merely out of date while this one knows something the date it claims could not.
+    if as_of > d:
+        out["reason"] = (
+            "the rebalance book is as of %s, which is AFTER the event date %s. A book scored "
+            "on a later session and appended as the event for an earlier one records a "
+            "selection made with the future in it, and the event carries only a date and "
+            "positions, so nothing downstream could ever tell. Build it with "
+            "--as-of %s." % (as_of.isoformat(), d.isoformat(), d.isoformat()))
         return out
     stale_by = _session.trading_days_between(as_of, d, inclusive_start=False)
     if stale_by > REBALANCE_MAX_STALE_DAYS:
