@@ -32,6 +32,43 @@ pass** — recorded in a closed vocabulary so an upper bound cannot be read as a
 written **outside the repository tree**, which cannot be committed even by accident. `K2`-`K4` not
 reached; Kwan 1996 still unread. `HANDOFF_tracelead.md`.
 
+## r1 lane — **the 13F census runs at last, and the charter's own split kills the item at an 8-date early half** (2026-10-19, `F13SKILL`)
+
+**ZERO TRIALS** — equity `N` stays **307**, no register committed, no arm run, no skill weight built.
+**`K0` PASSES FROM 2013** at ≥ 1,000 filing managers: 149 in 2012 stepping to **3,945** in 2013 and
+5,859 by 2019 — **and the manager column is `cik`, not the `mgrno` that spent round 3's session.**
+It also corrects the draft's census figure: the step is **149 → 3,945**, not 71 → 3,457; the shape
+reproduces and the levels differ. **THEN THE SPLIT DECIDES IT:** 44 build dates, **28 usable from
+2013**, and the charter's 2015-01-01 boundary splits those into an **early half of 8** against the
+shipped **16-date floor** — so **NOT ASSESSABLE ON THE CHARTER'S SPLIT**, declared before any
+outcome. The draft guessed 14 dates in halves of ~3 years; measured it is 28 split **8 / 20**, so
+twice the dates and a three times more lopsided split, **and the lopsidedness binds.** MDE on the
+early half **1.0047 SD** against the best raw anchor this panel has carried (0.4346 SD). **The
+hypothesis is UNTESTED, not rejected;** what closes is that the charter's staged design cannot carry
+it. **`K2`, the `size` costume kill most likely to end this for a measured reason, was NOT reached**
+— building the signal to correlate it *is* the arm, and `R6`'s −0.815/−0.854 and `E-1`'s 0.6114
+stand undiminished. `HANDOFF_f13skill.md`.
+
+## r1 lane — **the published-signal batch shrinks from three to one on a free kill, and the survivor is blocked on a Google Drive quota** (2026-10-19, `OSAP3`)
+
+**ZERO TRIALS** — equity `N` stays **307**, no register committed, no arm run. **Screen 1 reproduces
+the draft exactly** from a file already on disk: 331 → 212 → 28 → 12, and **184 of 212 predictors
+are equal-weighted**, so one free column removes 87% of the catalogue before a byte is pulled.
+**`K1` then drops two of three on 232,469 fundamentals rows.** The **COVERAGE RULE's own named
+example reproduces at exactly zero** — `roe`, `roic`, `assetturnover` present in the header and
+non-null on **0.000000** of rows — which matters because the draft lists `EquityDuration` as
+rebuildable *from ROE*, so a header reading would have built it on an empty column. `realestate`
+**DROPS on a CONSTRUCTION blocker**: net PP&E is present at 99.98% while **none of nine probed
+component columns exists**, so Tuzel's real-estate-over-total-PP&E cannot be built at any coverage.
+`BetaLiquidityPS` **DROPS** — the Pástor-Stambaugh factor is not in this repo. The shrinking batch
+**tightens** BH to 0.10 at k=1, as the draft pre-committed. **The survivor did not run because the
+firm-level file is one 1.6 GB wide CSV of all 209 predictors with no per-predictor download, and the
+documented package route returns `Google Drive — Quota exceeded`, up to 24 hours.** **A defect of my
+own:** installing that package **silently downgraded pandas to 2.2.3** (`wrds` pins `<2.3`, the
+banked panels are pandas-3 pickles), the panel stopped loading, and a 325-suite gate in flight was
+**killed and re-run** because results from a different runtime are contaminated. Restored to 3.0.6.
+`HANDOFF_osap3.md`.
+
 ---
 
 ## r1 lane — **the SEC ticker join WAS broken, repairing it moves the arm fivefold, and the verdict does not move** (2026-10-15, `F23-JOIN`)
