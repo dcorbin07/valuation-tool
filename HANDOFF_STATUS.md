@@ -1,5 +1,39 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **the bond candidate is neither killed nor cleared, and the coverage claim that ranked it first is not a coverage rate** (2026-10-19, `TRACELEAD`)
+
+**ZERO TRIALS, `FIXED`-class** — equity `N` stays **307**. **No register committed, no arm run, no
+forward return loaded.** Executes `PREREG_DRAFT_tracelead.md`'s free pre-outcome kills, which the
+draft permits before the register (`MB1-SEL`: a control can only BLOCK).
+
+**THE ONE PERMITTED WRDS CONNECTION RAN FOUR STEPS AND PROBED EVERY TABLE'S COLUMNS BEFORE
+AGGREGATING** — the repair of round 3's defect, which spent a session on `mgrno` (Thomson's `s34`
+column applied to WRDS's own 13F product). **The manager column is `cik`.** **`frb.rates_daily` is a
+NEW UNLOCK at 83 columns** and carries the H.15 Treasury curve the spread construction needs — free
+from the Fed for the live rung too; `crsp.tfz_dly_ft` is **ABSENT**.
+
+**`EDGE_DATA_MAP.md`'s "81–98% of the tier" IS NOT A COVERAGE RATE.** Its numerator counts issuers
+from the tier's eleven-year **cusip universe** and its denominator counts **names at one date**;
+against round 3's own 1,247 tier cusips the comparable figure is **34.2%**, and measured on one
+consistent population — the $10B build-quadrant tier, 459 names, 428 resolvable cusip6 — it runs
+**39.5% (2009) to 56.3% (2019)**. The `O-1` family, which the map itself names. **The numerator is
+fine; the ratio is not.** Whether coverage rises **with cap inside the tier** is **UNMEASURED** — the
+per-year rise is a *time* trend.
+
+**`K1` IS UNRESOLVED ON A PROVABLE BOUND.** An issuer trading no bond in a year cannot trade one in a
+window inside it, so the per-year count bounds the per-window figure; under the most favourable
+possible assignment (proved exhaustively) the cell-coverage bound runs **1.0000 → 0.7325** against
+the pre-committed **0.70**, per-date minimum 0.7047. **It CLEARS, and a clearing bound is not a
+pass** — recorded in a closed vocabulary so an upper bound cannot be read as a measurement.
+**Neither killed nor cleared; settling it needs one more connection on an already-probed schema.**
+
+**A DECLARED DEVIATION: the `D:` volume does not exist on this machine**, so the brief's
+`D:\wrds` is unavailable and round 3's `stocknames.pkl` is gone with the drive. Licensed payload is
+written **outside the repository tree**, which cannot be committed even by accident. `K2`-`K4` not
+reached; Kwan 1996 still unread. `HANDOFF_tracelead.md`.
+
+---
+
 ## r1 lane — **the SEC ticker join WAS broken, repairing it moves the arm fivefold, and the verdict does not move** (2026-10-15, `F23-JOIN`)
 
 **ZERO TRIALS, `FIXED`-class** — equity `N` stays **307**. `F23-SECID` reported its SF2 gap as *"a
