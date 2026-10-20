@@ -109,9 +109,11 @@ class TheBoundIsReallyABound(unittest.TestCase):
     def test_a_clearing_bound_is_UNRESOLVED_and_never_a_pass(self):
         """A bound that clears says nothing about the real figure. If this ever reports a pass,
         a candidate could be waved through on an upper bound."""
-        p = os.path.join(_data_root(), "free_analysis", K.OUT)
-        if not os.path.isfile(p):
-            self.skipTest("K1 bound artifact absent; run scripts.tracelead_k1_bound")
+        root = _data_root()
+        p = os.path.join(root, "free_analysis", K.OUT) if root else ""
+        if not p or not os.path.isfile(p):
+            _skip_loudly(self, "%s absent - it is built from LICENSED payload under D:\\wrds, "
+                               "which CI never has" % K.OUT)
         r = json.load(io.open(p, encoding="utf-8"))
         # THE VERDICT IS A CLOSED VOCABULARY, NOT PROSE TO GREP.
         #
@@ -135,13 +137,40 @@ class TheBoundIsReallyABound(unittest.TestCase):
 
 class TheLicenceRulesHold(unittest.TestCase):
 
-    def test_the_raw_root_is_outside_the_repository_tree(self):
-        """Stronger than .gitignore: payload that cannot be reached by a commit at all."""
-        self.assertFalse(os.path.abspath(C.RAW_ROOT).startswith(os.path.abspath(ROOT)))
+    def test_the_raw_root_is_not_inside_the_repository_tree(self):
+        """Licensed payload must not be reachable by a commit.
 
-    def test_the_deviation_from_the_briefs_path_is_declared_not_silent(self):
-        self.assertIn("raw_root_DEVIATION", _src("scripts/edge_drafts_collect.py"))
-        self.assertIn("D:", C.__doc__ or "")
+        **THIS TEST FAILED IN CI AND THE DEFECT WAS MINE.** It used
+        `os.path.abspath(RAW_ROOT).startswith(abspath(ROOT))` — and on **Linux a Windows path is
+        not absolute at all**, so `abspath(r"D:\\wrds")` resolves to
+        `/home/runner/.../valuation-tool/D:\\wrds`, which *is* under the repo, and "outside the
+        repo" came back False. That is `MA42`'s family: a backslash is an ordinary filename
+        character on POSIX, so a path written in one flavour may only be compared in that flavour.
+
+        Compared with `ntpath` explicitly, which is the flavour the constant is written in.
+        """
+        import ntpath
+        self.assertTrue(ntpath.isabs(C.RAW_ROOT), C.RAW_ROOT)
+        drive = ntpath.splitdrive(C.RAW_ROOT)[0].upper()
+        self.assertTrue(drive and drive != "C:",
+                        "payload must not sit on the volume holding the checkout: %r"
+                        % C.RAW_ROOT)
+        # And it must be the client's own constant rather than a second copy (`MA5`).
+        from valuation.edge import wrds_client as W
+        self.assertEqual(C.RAW_ROOT, W.DEFAULT_RAW_ROOT)
+
+    def test_the_raw_root_check_is_not_vacuous(self):
+        """A positive control: the comparison must REJECT a repo-relative root, or the test above
+        passes by looking at nothing."""
+        import ntpath
+        for bad in ("wrds_local", r".\wrds", "data/wrds"):
+            self.assertFalse(ntpath.isabs(bad), bad)
+
+    def test_this_sessions_spine_cannot_overwrite_another_sessions(self):
+        """Round 3 wrote `stocknames.pkl` to the same root with a column this pass does not
+        request. A collision there would destroy another session's payload."""
+        self.assertNotEqual(C.SPINE_PKL, "stocknames.pkl")
+        self.assertIn("EDGE_DRAFTS", C.SPINE_PKL)
 
     def test_no_credential_is_ever_printed(self):
         """The client returns a path and never a password; this module must not print either."""
@@ -184,20 +213,28 @@ class TheCollectionProbesBeforeAggregating(unittest.TestCase):
 
 
 def _data_root():
-    d = ROOT
-    for _ in range(6):
-        if os.path.isdir(os.path.join(d, "data", "free_analysis")):
-            return os.path.join(d, "data")
-        nxt = os.path.dirname(d)
-        if nxt == d:
-            break
-        d = nxt
-    return os.path.join(ROOT, "data")
+    """ASKS without committing. `dipcall.data_root(required=True)` RAISES when there is no
+    populated root, and its own docstring records that the raising form "broke this item's own
+    suite in CI" — `data/` is gitignored, so a runner has no populated root at all."""
+    from valuation.studies import dipcall as D
+    return D.data_root(required=False)
+
+
+def _skip_loudly(case, why):
+    """A skip nobody can mistake for a pass. The repo's own idiom — `test_fleet_doors` prints
+    `(SKIPPED LOUDLY: ...)` — because a silent skip and a pass look identical in a 327-suite run."""
+    msg = "(SKIPPED LOUDLY: %s)" % why
+    print("\n       %s" % msg, flush=True)
+    case.skipTest(msg)
 
 
 class TheTierIsTheCorrectedRawUniverse(unittest.TestCase):
 
     def test_the_tier_is_built_from_the_corrected_raw_panel(self):
+        """Asks for the root without committing, so CI skips loudly instead of aborting."""
+        if _data_root() is None:
+            _skip_loudly(self, "no populated data/ root on this machine - gitignored, so CI "
+                               "never has it")
         from valuation.studies import dipcall as D
         self.assertIn("UNIVERSE_BIAS_PANEL_full", os.path.basename(D.panel_path()))
 

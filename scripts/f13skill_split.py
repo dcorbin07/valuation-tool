@@ -24,8 +24,11 @@ if _HERE not in sys.path:
 
 from valuation.edge import power_gate as PG                              # noqa: E402
 from valuation.studies import dipcall as D                               # noqa: E402
+from scripts import edge_drafts_collect as EC                            # noqa: E402
 
-COLLECT = r"C:\wrds_local\EDGE_DRAFTS_COLLECT.json"
+#: Derived from the collection pass rather than retyped, so the two cannot point at
+#: different roots. The payload is licensed and lives under `D:\wrds`; CI never has it.
+COLLECT = os.path.join(EC.RAW_ROOT, EC.OUT_JSON)
 OUT = "F13SKILL_SPLIT.json"
 
 K0_BAR = 1000                 # draft §4, reused verbatim

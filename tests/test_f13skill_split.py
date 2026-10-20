@@ -21,6 +21,16 @@ if ROOT not in sys.path:
 
 import state_isolation  # noqa: F401,E402
 
+
+def _skip_loudly(case, why):
+    """A skip nobody can mistake for a pass. The repo's own idiom -- `test_fleet_doors` prints
+    `(SKIPPED LOUDLY: ...)` -- because in a 327-suite run a silent skip and a pass look the
+    same. Every artifact below is built from data under `data/`, which is gitignored, so CI
+    never has it and these cases MUST skip rather than fail or pass vacuously."""
+    msg = "(SKIPPED LOUDLY: %s)" % why
+    print("\n       %s" % msg, flush=True)
+    case.skipTest(msg)
+
 from scripts import f13skill_split as F                                  # noqa: E402
 
 DRAFT = os.path.join(ROOT, "PREREG_DRAFT_f13skill.md")
@@ -90,7 +100,7 @@ class TheVerdictFollowsFromDatesAlone(unittest.TestCase):
     def test_the_verdict_is_decided_by_the_floor_and_not_by_an_outcome(self):
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent; run scripts.f13skill_split")
+            _skip_loudly(self, "F13SKILL_SPLIT.json absent -- built from LICENSED WRDS payload, which CI never has")
         cs = r["charter_split"]
         expected_assessable = cs["early_clears_floor"] and cs["late_clears_floor"]
         if expected_assessable:
@@ -103,7 +113,7 @@ class TheVerdictFollowsFromDatesAlone(unittest.TestCase):
         """Measured 2026-10-19: 8 early dates against a 16-date floor."""
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "F13SKILL_SPLIT.json absent -- built from LICENSED WRDS payload, which CI never has")
         cs = r["charter_split"]
         self.assertLess(cs["early_dates"], F.MIN_HALF_DATES)
         self.assertFalse(cs["early_clears_floor"])
@@ -111,7 +121,7 @@ class TheVerdictFollowsFromDatesAlone(unittest.TestCase):
     def test_K0_passes_from_2013_and_not_before(self):
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "F13SKILL_SPLIT.json absent -- built from LICENSED WRDS payload, which CI never has")
         self.assertEqual(r["K0"]["first_year_clearing_the_bar"], 2013)
         by = {int(k): v for k, v in r["K0"]["managers_by_year"].items()}
         self.assertLess(by[2012], F.K0_BAR)
@@ -121,14 +131,14 @@ class TheVerdictFollowsFromDatesAlone(unittest.TestCase):
         """`mgrno` is Thomson's `s34` column. The real one is `cik`."""
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "F13SKILL_SPLIT.json absent -- built from LICENSED WRDS payload, which CI never has")
         self.assertEqual(r["K0"]["manager_column_resolved"], "cik")
 
     def test_the_MDE_travels_with_the_verdict(self):
         """`MB22`/`V6`/`S19`: quote the MDE with the verdict or do not quote the verdict."""
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "F13SKILL_SPLIT.json absent -- built from LICENSED WRDS payload, which CI never has")
         self.assertIn("MDE_SENTENCE", r)
         self.assertIn("usable_window", r["mde"])
         self.assertIn("early_half", r["mde"])
@@ -138,7 +148,7 @@ class TheVerdictFollowsFromDatesAlone(unittest.TestCase):
     def test_the_early_half_MDE_exceeds_the_best_anchor_this_panel_has_carried(self):
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "F13SKILL_SPLIT.json absent -- built from LICENSED WRDS payload, which CI never has")
         self.assertGreater(r["mde"]["early_half"]["mde80_sd_at_crit_2"],
                            F.BEST_EVER_RAW_ANCHOR_SD)
 

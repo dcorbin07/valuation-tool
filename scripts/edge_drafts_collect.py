@@ -25,18 +25,22 @@ spent its connection and lost the 13F census to `column "mgrno" does not exist`:
     earlier measurement.
 
 --------------------------------------------------------------------------------------------
-THE RAW ROOT, AND A DECLARED DEVIATION FROM THE BRIEF'S OWN PATH.
+THE RAW ROOT — `D:\\wrds`, THE BRIEF'S OWN PATH. A DEVIATION WAS TAKEN AND IS NOW RETIRED.
 
-The brief says raw WRDS rows stay in `D:\\wrds` because the repo is public. **Measured today: the
-D: volume does not exist on this machine** — `Get-PSDrive` shows C: only — so the brief's path is
-unavailable, and round 3's `stocknames.pkl` and `WRDS_CENSUS3.json` are gone with the drive.
+Licensed payload goes to **`wrds_client.DEFAULT_RAW_ROOT`**, imported rather than retyped, because
+the brief's rule is that raw WRDS rows stay in `D:\\wrds` and the repo is public.
 
-Licensed payload is therefore written under `C:\\wrds_local`, which is **outside the repository
-tree entirely** — so it cannot be committed even by accident, which is a stronger guarantee than
-the `.gitignore` that protects `data/`. The rule's stated purpose is fully preserved and only its
-location moves. **Reported rather than decided silently**, and the payload is minimised: wherever
-a question can be answered by a server-side aggregate, it is, so most of what comes back is derived
-statistics rather than vendor rows.
+**THE HISTORY, KEPT BECAUSE IT IS A FACT ABOUT THIS SESSION'S FIGURES RATHER THAN A STORY.** When
+this pass first ran, `Get-PSDrive` showed **C: only** — the external volume was detached — so
+payload went to a root outside the repository tree instead, declared as a deviation rather than
+decided silently. **D: was reattached the same evening, the payload was MOVED here, and the
+deviation is gone.** Round 3's own `stocknames.pkl` was already present and carries a `comnam`
+column this pass did not request, so **this session's copy is written under its own name rather
+than over theirs** — a collision there would have destroyed another session's payload. Both files
+independently carry **78,325 rows**, which is the corroboration that the two pulls agree.
+
+The payload is minimised regardless: wherever a question can be answered by a server-side
+aggregate, it is, so most of what comes back is derived statistics rather than vendor rows.
 """
 from __future__ import annotations
 
@@ -55,9 +59,15 @@ if _HERE not in sys.path:
 from valuation.edge import wrds_client as W                              # noqa: E402
 from valuation.studies import dipcall as D                               # noqa: E402
 
-#: Outside the repo tree. See the module docstring for why this is not `D:\wrds`.
-RAW_ROOT = r"C:\wrds_local"
+#: The brief's own path, IMPORTED from the client rather than retyped (`MA5`: a second copy of a
+#: location is how the two drift). See the module docstring for the retired deviation.
+RAW_ROOT = W.DEFAULT_RAW_ROOT
 OUT_JSON = "EDGE_DRAFTS_COLLECT.json"
+
+#: **THIS SESSION'S OWN NAME FOR ITS COPY.** Round 3 already wrote `stocknames.pkl` here with a
+#: `comnam` column this pass does not request, so writing over it would destroy another session's
+#: payload. Named apart deliberately.
+SPINE_PKL = "EDGE_DRAFTS_stocknames.pkl"
 
 TIER_FLOOR = 10e9
 #: `PREREG_DRAFT_tracelead.md` §2: a 63-session window before t, and the change from t-126.
@@ -120,10 +130,11 @@ def main(argv=None):
            "class": "collection-and-free-kills",
            "forward_return_touched": False,
            "raw_root": RAW_ROOT,
-           "raw_root_DEVIATION": ("the brief says D:\\wrds; that volume does not exist on this "
-                                  "machine, so payload goes outside the repo tree instead. The "
-                                  "rule's purpose (licensed rows never reach a public repo) is "
-                                  "preserved; only the location moves."),
+           "raw_root_NOTE": ("the brief's own D:\\wrds, imported from wrds_client rather than "
+                             "retyped. A deviation was taken on 2026-10-19 while the D: volume "
+                             "was detached and is now RETIRED, the payload having been moved "
+                             "here; this session's spine is named apart from round 3's so it "
+                             "cannot overwrite another session's file."),
            "licence_note": ("WRDS is licensed for ACADEMIC RESEARCH ONLY and this repo is public "
                             "and MIT. A WRDS-sourced input can establish whether an idea WORKS "
                             "and may NEVER feed the live score or a public page."),
@@ -200,7 +211,7 @@ def main(argv=None):
             raise KeyError("crsp.stocknames did not probe; no join spine is possible")
         sn = db.raw_sql("select permno, ticker, ncusip, cusip, namedt, nameenddt, shrcd, exchcd "
                         "from crsp.stocknames where ticker is not null")
-        raw = os.path.join(RAW_ROOT, "stocknames.pkl")
+        raw = os.path.join(RAW_ROOT, SPINE_PKL)
         sn.to_pickle(raw)
         sn["ticker"] = sn["ticker"].astype(str).str.strip().str.upper()
         ours = sn[sn["ticker"].isin(tickers)].copy()

@@ -24,6 +24,16 @@ if ROOT not in sys.path:
 
 import state_isolation  # noqa: F401,E402
 
+
+def _skip_loudly(case, why):
+    """A skip nobody can mistake for a pass. The repo's own idiom -- `test_fleet_doors` prints
+    `(SKIPPED LOUDLY: ...)` -- because in a 327-suite run a silent skip and a pass look the
+    same. Every artifact below is built from data under `data/`, which is gitignored, so CI
+    never has it and these cases MUST skip rather than fail or pass vacuously."""
+    msg = "(SKIPPED LOUDLY: %s)" % why
+    print("\n       %s" % msg, flush=True)
+    case.skipTest(msg)
+
 from scripts import osap3_k1 as O                                        # noqa: E402
 
 DRAFT = os.path.join(ROOT, "PREREG_DRAFT_osap3.md")
@@ -82,7 +92,7 @@ class TheScreenReproducesTheDraft(unittest.TestCase):
 
     def test_the_cut_is_331_212_28_12(self):
         if self.docs is None:
-            self.skipTest("osap_signal_docs.csv absent")
+            _skip_loudly(self, "osap_signal_docs.csv absent -- it lives under gitignored data/, so CI never has it")
         d = self.docs
         self.assertEqual(len(d), 331)
         pred = d[d["Cat.Signal"].astype(str).str.strip() == "Predictor"]
@@ -95,14 +105,14 @@ class TheScreenReproducesTheDraft(unittest.TestCase):
     def test_184_of_212_predictors_are_equal_weighted(self):
         """The one free column that removes 87% of the catalogue before a byte is pulled."""
         if self.docs is None:
-            self.skipTest("osap_signal_docs.csv absent")
+            _skip_loudly(self, "osap_signal_docs.csv absent -- it lives under gitignored data/, so CI never has it")
         pred = self.docs[self.docs["Cat.Signal"].astype(str).str.strip() == "Predictor"]
         self.assertEqual(int((pred["Stock Weight"].astype(str).str.strip() == "EW").sum()), 184)
 
     def test_realestate_fails_its_own_papers_t(self):
         """Reported by the draft as the weakest of the three, from the paper's own figure."""
         if self.docs is None:
-            self.skipTest("osap_signal_docs.csv absent")
+            _skip_loudly(self, "osap_signal_docs.csv absent -- it lives under gitignored data/, so CI never has it")
         r = self.docs[self.docs["Acronym"] == "realestate"].iloc[0]
         self.assertLess(float(r["T-Stat"]), 2.0)
 
@@ -113,7 +123,7 @@ class TheCoverageRuleIsCheckedNotCited(unittest.TestCase):
         """`roe`, `roic`, `assetturnover`: the project's own example of wired-but-empty."""
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent; run scripts.osap3_k1")
+            _skip_loudly(self, "OSAP3_K1.json absent -- built from the licensed fundamentals export, which CI never has")
         for c in ("roe", "roic", "assetturnover"):
             self.assertIn(c, r["the_named_empty_columns"])
             self.assertEqual(r["the_named_empty_columns"][c]["non_null_rows"], 0, c)
@@ -134,7 +144,7 @@ class TheKillOutcome(unittest.TestCase):
     def test_realestate_drops_on_a_construction_blocker_not_a_coverage_shortfall(self):
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "OSAP3_K1.json absent -- built from the licensed fundamentals export, which CI never has")
         self.assertEqual(r["realestate_components_found"], [])
         self.assertTrue(r["signals"]["realestate"]["verdict"].startswith("DROPS"))
         self.assertIn("construction blocker", r["signals"]["realestate"]["why"])
@@ -144,13 +154,13 @@ class TheKillOutcome(unittest.TestCase):
         drop would read as 'Sharadar has no PP&E', which is false."""
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "OSAP3_K1.json absent -- built from the licensed fundamentals export, which CI never has")
         self.assertGreater(r["column_coverage"]["ppnenet"]["non_null_frac"], 0.99)
 
     def test_equity_duration_survives(self):
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "OSAP3_K1.json absent -- built from the licensed fundamentals export, which CI never has")
         self.assertFalse(r["signals"]["EquityDuration"]["verdict"].startswith("DROPS"))
         self.assertEqual(r["batch_after_K1"], ["EquityDuration"])
 
@@ -159,7 +169,7 @@ class TheKillOutcome(unittest.TestCase):
         failing signal in would RAISE BH's threshold and make the survivor easier to pass."""
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "OSAP3_K1.json absent -- built from the licensed fundamentals export, which CI never has")
         k = r["batch_size_after_K1"]
         self.assertEqual(k, 1)
         self.assertLess(0.10 / max(1, k), 0.10 / 3 + 1e-12 + 0.0667)
@@ -168,7 +178,7 @@ class TheKillOutcome(unittest.TestCase):
     def test_the_trials_are_still_charged_for_a_dropped_signal(self):
         r = _artifact()
         if r is None:
-            self.skipTest("artifact absent")
+            _skip_loudly(self, "OSAP3_K1.json absent -- built from the licensed fundamentals export, which CI never has")
         self.assertIn("STILL charged", r["TRIALS_STILL_CHARGED"])
         self.assertIn("MA6", r["TRIALS_STILL_CHARGED"])
 

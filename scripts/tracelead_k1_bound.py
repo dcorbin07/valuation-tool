@@ -37,8 +37,12 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 from valuation.studies import dipcall as D                               # noqa: E402
+from scripts import edge_drafts_collect as EC                            # noqa: E402
 
-COLLECT = r"C:\wrds_local\EDGE_DRAFTS_COLLECT.json"
+#: Derived from the collection pass rather than retyped, so the two cannot point at different
+#: roots. The payload is licensed and lives under `D:\wrds`; CI never has it, which is why the
+#: entry point REFUSES loudly rather than computing a bound from nothing.
+COLLECT = os.path.join(EC.RAW_ROOT, EC.OUT_JSON)
 OUT = "TRACELEAD_K1_BOUND.json"
 
 #: `PREREG_DRAFT_tracelead.md` §3, verbatim and NOT re-chosen here.

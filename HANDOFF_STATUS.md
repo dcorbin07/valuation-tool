@@ -27,10 +27,26 @@ the pre-committed **0.70**, per-date minimum 0.7047. **It CLEARS, and a clearing
 pass** — recorded in a closed vocabulary so an upper bound cannot be read as a measurement.
 **Neither killed nor cleared; settling it needs one more connection on an already-probed schema.**
 
-**A DECLARED DEVIATION: the `D:` volume does not exist on this machine**, so the brief's
-`D:\wrds` is unavailable and round 3's `stocknames.pkl` is gone with the drive. Licensed payload is
-written **outside the repository tree**, which cannot be committed even by accident. `K2`-`K4` not
-reached; Kwan 1996 still unread. `HANDOFF_tracelead.md`.
+**THE RAW-ROOT DEVIATION IS RETIRED.** The `D:` volume was detached when the pass ran, so payload
+went outside the repository tree (declared, not silent); **`D:` was reattached and the payload moved
+into the brief's own `D:\wrds`**, imported from `wrds_client.DEFAULT_RAW_ROOT`. **Verified readable
+rather than present:** round 3's `stocknames.pkl` reads at **78,325 rows × 9 cols**,
+`WRDS_CENSUS3.json` is intact, and all four `D:\thetadata` freezes plus the 789-entry chains cache
+are readable. **The move could have destroyed round 3's payload** — it had already written
+`stocknames.pkl` there with a `comnam` column this pass never requested — so this copy is named
+apart, the mover **refuses** to overwrite a differing file, and round 3's was re-read to prove it
+survived; both carry 78,325 rows, which corroborates the two pulls.
+
+**AND A DEFECT OF MY OWN COST A LAND (Actions run 39363979957).** The test pinning "the raw root is
+outside the repo" used `os.path.abspath` on a **Windows** path, and **on Linux a Windows path is not
+absolute**, so it resolved *under* the repo and failed in CI while passing on every local run — the
+`MA42` family. Repaired with `ntpath` plus a positive control. **A second CI hazard in the same
+suite was caught before it fired:** `dipcall.data_root(required=True)` **raises** with no populated
+root, so the one test calling `panel_path()` unconditionally now asks with `required=False`, and
+**every data-dependent case in all three suites skips LOUDLY** — verified by materialising the
+committed blobs into a tree with no `data/` and running all three at exit 0 (2, 6 and 9 loud skips).
+
+`K2`-`K4` not reached; Kwan 1996 still unread. `HANDOFF_tracelead.md`.
 
 ## r1 lane — **the 13F census runs at last, and the charter's own split kills the item at an 8-date early half** (2026-10-19, `F13SKILL`)
 

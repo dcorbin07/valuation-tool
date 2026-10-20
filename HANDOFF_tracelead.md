@@ -35,17 +35,48 @@ And the **live** rung needs no licence for it either — the Fed publishes H.15 
 
 ---
 
-## 2. A DECLARED DEVIATION: THE `D:` VOLUME DOES NOT EXIST
+## 2. THE RAW ROOT — A DEVIATION WAS TAKEN AND IS NOW RETIRED
 
-The brief says raw WRDS rows stay in `D:\wrds` **because the repo is public**. Measured today,
-`Get-PSDrive` shows **C: only** — the external volume is not connected — so that path is
-unavailable, **and round 3's `stocknames.pkl` and `WRDS_CENSUS3.json` are gone with the drive.**
+When this pass ran, `Get-PSDrive` showed **C: only** — the external volume was detached — so the
+brief's `D:\wrds` was unavailable and payload went to a root **outside the repository tree**,
+declared as a deviation rather than decided silently.
 
-Payload is written under **`C:\wrds_local`**, which is **outside the repository tree entirely**, so
-it cannot be committed even by accident — a stronger guarantee than the `.gitignore` that protects
-`data/`. **The rule's stated purpose is fully preserved and only its location moves**, payload is
-minimised by answering every question that can be answered with a server-side aggregate, and this is
-**reported rather than decided silently**. Pinned by a test that the raw root is not under the repo.
+**`D:` WAS REATTACHED THE SAME EVENING AND THE DEVIATION IS GONE.** The payload now sits in
+`D:\wrds`, taken from `wrds_client.DEFAULT_RAW_ROOT` rather than retyped (`MA5`), and the
+out-of-repo root is removed. **Verified readable rather than merely present** (`DEEPITM-FIN`:
+existence is not population):
+
+| | |
+|---|---|
+| `D:` | present, 339.5 GB free |
+| round 3's `D:\wrds\stocknames.pkl` | **READS — 78,325 rows × 9 columns** |
+| `D:\wrds\WRDS_CENSUS3.json` | present, 22,184 bytes |
+| `D:\thetadata` | all four named freezes present, `chains/` 789 entries, `manifest.jsonl` 1.49 MB |
+
+**AND THE MOVE COULD HAVE DESTROYED ANOTHER SESSION'S PAYLOAD.** Round 3 had already written
+`stocknames.pkl` to that root, carrying a `comnam` column this pass never requested — so this
+session's copy is written as **`EDGE_DRAFTS_stocknames.pkl`**, the mover **refuses** to overwrite a
+differing file, and round 3's was re-read afterwards to prove it survived. **Both files
+independently carry 78,325 rows**, which is the corroboration that the two pulls agree.
+
+**A DEFECT OF MY OWN THAT COST A LAND, AND IT IS THE `MA42` FAMILY.** The test pinning "the raw root
+is outside the repo" used `os.path.abspath(RAW_ROOT).startswith(abspath(ROOT))` — and **on Linux a
+Windows path is not absolute at all**, so `abspath("D:\\wrds")` resolves to
+`/home/runner/.../valuation-tool/D:\wrds`, which *is* under the repo. The assertion came back
+`True is not false` and **failed in CI while passing on every local run** (Actions run
+39363979957). A backslash is an ordinary filename character on POSIX, so **a path written in one
+flavour may only be compared in that flavour**; it now compares with `ntpath` explicitly, which is
+pure logic and behaves identically on both platforms, with a positive control that a repo-relative
+root is still rejected.
+
+**AND IT WAS NOT THE ONLY CI HAZARD IN THAT SUITE — THE SECOND ONE WAS FOUND BEFORE IT FIRED.**
+`dipcall.data_root(required=True)` **RAISES** when no populated root exists, and its own docstring
+records that the raising form *"broke this item's own suite in CI"*. One of my tests called
+`panel_path()` unconditionally, so it would have aborted on the next runner; it now asks with
+`required=False` and **skips loudly**. Every data-dependent case in all three suites now prints
+`(SKIPPED LOUDLY: …)` — the repo's own idiom — because in a 327-suite run a silent skip and a pass
+look identical. **Verified by materialising the committed blobs into a tree with no `data/` and
+running all three there: exit 0, with 2, 6 and 9 loud skips.**
 
 ---
 
