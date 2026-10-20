@@ -22080,3 +22080,257 @@ holdings match (`event_closed`, now beside `book_vs_record`). The observation is
   rather than a defect: one bid-only name refuses the whole exit. It is §8's own rule and it
   alerts. **Operationally: set 0% during market hours.**
 
+---
+
+## ITEM 75 — build the book AS OF a date, and refuse a book built after its event
+
+**Friday's command is now:**
+
+```
+python -m valuation.edge.valquo_index --full-universe data/backtest --config taxable \
+       --as-of 2026-10-22 --limit 4000 --out data/valquo_index.json
+```
+
+`--as-of 2026-10-22` is item 75's. **`--limit 4000` is a separate finding this item turned up on
+its way past, and it moves 9 of ~85 names** — §6 below, and §6 item 4 of the runbook.
+
+Two things were wrong and both are closed. The rebalance is dated **2026-10-22** and runs on the
+**evening of 10-23** — the only safe window there is, after the 10-22 track row exists and before
+`track-row` writes the 10-23 row at ~03:07 UTC on 10-24. Sharadar's recommended pull is about
+5:20pm ET the same day, so the refreshed export will very likely carry the **10-23** close.
+
+1. **There was no way to build as of 10-22.** `_full_universe_rows` called
+   `score_universe_now(prov, tickers)` with no `as_of`, so the book is scored as of the export's
+   newest close. §5's freshness gate (`data_as_of == 2026-10-22`) would then stop the rebalance,
+   and the CLI had no `--as-of` — even though `score_universe_now` has accepted one all along.
+2. **And if that gate were skipped, the door would have let it through.** Its freshness check
+   refuses only a book too **old**, and `trading_days_between` counts forward. Measured:
+   `('2026-10-23' → '2026-10-22')` is **0**, and so is `('2026-11-23' → '2026-10-22')`. A 10-23
+   book appended as the event for 10-22 is a one-day look-ahead, and the event carries only a
+   date and positions, so nothing downstream could ever have told.
+
+### 1. `--as-of` IS HONOURED EXACTLY OR REFUSED — never slid to a nearby day
+
+`--as-of YYYY-MM-DD` runs from the CLI through `export` → `_full_universe_rows` →
+`score_universe_now(as_of=...)`, and the payload's `data_as_of` and `scan_date` both equal the
+**requested** date.
+
+`searchsorted(..., "right") - 1` lands on the last session at or before the date asked for,
+which is right for a panel walking a calendar and wrong for a book: asked for 2026-10-22 on an
+export whose newest close is the 21st it would quietly build as of the 21st, and the payload
+would then carry `data_as_of: 2026-10-21` while the operator's runbook step, their notes and the
+event they are about to append all say the 22nd. **One of those is wrong and nothing in the
+record could say which.** So three refusals, each naming its remedy:
+
+* **later than the newest close** — refresh the export, or build as of a date it covers;
+* **not a trading day in the export** — the export *is* the calendar here, no holiday table is
+  consulted, and the refusal names the nearest earlier session rather than using it;
+* **too early for a momentum window** — it used to return a bare `[]`, which the caller turned
+  into *"scored no rows from the full universe"*: true, and nothing an operator can act on.
+
+A malformed date is refused **in under a second**, before the load. Whether a date is a *trading
+day* needs the union calendar, which needs the whole export read — so that refusal arrives after
+the load (~3 minutes on the real export) but still well before any scoring.
+
+### 2. THE ONE INPUT THAT WAS NOT CUT AT THE AS-OF, FOUND BY MEASURING RATHER THAN READING
+
+Item 75 asked me to verify, not assume, that prices, SF1 by `datekey`, DAILY market cap, 13F and
+insiders by filing date, **and the stale-price cutoff** are all cut at the date. Reading six call
+sites proves nothing, so the same synthetic export was built twice — once ending at the as-of,
+once carrying twelve more trading days — and the two books required to be bit-identical.
+
+Everything agreed except the stale-price cutoff:
+
+```
+STALE-CUTOFF PROBE  (MMM has a full history, then goes quiet for 30 trading days
+                     before as_of, and prints again only AFTER as_of)
+  export ENDS at as_of        -> MMM in book: False
+  export CONTINUES past as_of -> MMM in book: True
+  and it was scored at price 192.0900, which is the forward-filled stale close
+```
+
+`last_seen[t] = s.index[-1]` was each ticker's newest print in the **whole export**, so the one
+guard that keeps forward-filled stale quotes out of a live book was reading a date in the
+**future** of the book it gated. A name a month quiet at the as-of was kept, priced at its
+forward-filled month-old close, purely because it traded again later. That is precisely the
+defect the cutoff exists to prevent, re-entering through the `as_of` parameter nobody had used in
+anger. It now measures each name's newest real print **at or before the as-of**, read from the
+raw per-ticker series before the forward fill.
+
+**Provably inert for every shipped caller**, which all pass no `as_of`: `cal` is the union
+calendar, so `cal[-1]` is at or after every ticker's last print and the new slice is the whole
+index. Asserted, not argued — `score(root, None)` and `score(root, newest_close)` are required to
+produce identical rows.
+
+### 2b. ON THE REAL EXPORT, WHICH IS THE CHECK THAT MATTERS
+
+`data/backtest` currently ends at the **2026-10-02** close, so three builds settle it. Nothing
+was written to `data/valquo_index.json` — every `--out` was the job's scratch directory.
+
+| build | `data_as_of` | positions | eligible tier | scored |
+|---|---|---|---|---|
+| no `--as-of` | 2026-10-02 | 82 | 824 | 1,839 |
+| `--as-of 2026-10-02` | 2026-10-02 | 82 | 824 | 1,839 |
+| `--as-of 2026-10-01` | 2026-10-01 | 82 | 824 | 1,839 |
+
+* **`--as-of 2026-10-02` is BIT-IDENTICAL to the no-as-of build** — names, ranks, weights, prices
+  and market caps. That is the inertness proof on 3,000 real names rather than on a fixture.
+* **`--as-of 2026-10-01` differs only as one session can.** 81 of 82 names are shared (98.8%),
+  **LUV** leaves and **ONTO** enters — one swap at the decile boundary — the eligible tier is
+  unchanged at 824, and the shared names' weights move by a median **0.05pp** and at most
+  **0.34pp**. Both builds exclude the same 6 names on market-cap divergence.
+* Both refusals fired on real data too. **Note that 2026-10-03 (a Saturday) is refused as "later
+  than the newest close" rather than as "not a trading day"**, because this export stops on the
+  2nd — correct, and it means the not-a-trading-day branch is exercised by the fixture rather
+  than here.
+
+**The 2026-10-22 book cannot be built from this export yet.** It ends on 10-02, so step 0 of the
+runbook — the Sharadar refresh — is still required, and `--as-of 2026-10-22` would be refused as
+later than the newest close until it has run.
+
+### 3. THE DOOR REFUSES A BOOK BUILT AFTER ITS EVENT
+
+`append_rebalance` gains one refusal, beside the staleness bound it is the mirror of, and the
+message names the remedy:
+
+> the rebalance book is as of 2026-10-23, which is AFTER the event date 2026-10-22. … Build it
+> with `--as-of 2026-10-22`.
+
+**Every rule stays in the door**, so the CLI and `POST /admin/track-rebalance` cannot drift into
+two ideas of a legal event — the endpoint delegates and inherits this for free, pinned by an AST
+test that fails if it ever grows its own copy. The refusal is also added to the function's own
+documented list of refusals, which a reader is entitled to trust.
+
+### 4. THE 30% BAND IS UNTOUCHED, AND PINNED
+
+`held` comes from the book at `--out`, which has nothing to do with the as-of, so the band must be
+unaffected. Pinned anyway, because a band that silently stopped applying would change the book
+without changing a single visible number: with an incumbent book at `--out`,
+`no_trade_band.applied` is **true** under `--as-of`, `n_held_supplied` is non-zero, and `width`
+equals `no_trade_band.BAND_WIDTH`.
+
+### 5. THE `--config` HELP TEXT SAID 20% AND THE CODE WAS 30%
+
+Fixed, and **derived** from `no_trade_band.BAND_WIDTH` rather than retyped — a hard-coded 30 is
+the identical defect at the next width change (`MA5`'s rule). The runbook's §6.2 note, which
+reported this and left it for whoever next touched the file, is updated to say it is closed.
+
+### 6. ONE THING FOUND IN PASSING THAT IS NOT ITEM 75'S, AND IT TOUCHES FRIDAY'S COMMAND
+
+The export has grown to **3,520** names. `WRDSProvider.universe` returns the full universe only
+when `limit >= len(idx)`; at the runbook's default `--limit 3000` it now takes a market-cap-ranked
+subset and prints *"SMOKE-TEST SUBSET, not a verdict"*. On the smaller exports of previous
+quarters the default meant the whole universe and no ranking.
+
+**It is not cosmetic. Measured, both builds `--as-of 2026-10-02` against the same export:**
+
+| | names scored | eligible tier | positions |
+|---|---|---|---|
+| `--limit 3000` (the default) | 1,839 | 824 | 82 |
+| `--limit 4000` (≥ 3,520, the full export) | 2,038 | 848 | **85** |
+
+Nine names differ: **BCS, LUV, RNR** only in the limited book, **AMD, FLEX, LRCX, MDT, PPG,
+RYAN** only in the full one.
+
+**AND THE MECHANISM IS NOT NAME EXCLUSION, WHICH WAS MY FIRST GUESS AND WAS WRONG.** I expected
+the limit to be cutting large caps whose latest SF1 row carries no parseable `marketcap`.
+Measured: of those six, only **FLEX** sits outside the top 3,000 (rank 3,126) — AMD is 546,
+LRCX 15, MDT 76, PPG 416, RYAN 996, all comfortably inside the subset at either limit, and **no
+name in the export has a zero ranking cap at all.** They move because the composite is a
+**cross-sectional z-score**: changing how many names are scored (1,839 → 2,038) re-standardises
+every column and shifts the decile boundary. A limit is not a filter on a book's edges; it
+changes the ranking of the whole thing.
+
+**So the runbook's Path B and Arm 2 commands now carry `--limit 4000`**, which builds the way
+every previous quarter did, written explicitly rather than inherited from a default. **The CLI
+default is deliberately NOT changed** — item 75's rules forbid a construction change, and
+changing it would silently move what every future invocation builds. §6 item 4 of the runbook
+records the measurement and says plainly that keeping 3,000 is a decision Don may take, but
+should take knowingly rather than inherit.
+
+### 7. TESTS
+
+`tests/test_item75.py` — **23 tests**, and **15 of them fail against the pre-item-75 tree**
+(`0ffc014`), including both blockers:
+`test_a_book_built_ONE_DAY_AFTER_its_event_is_REFUSED` and
+`test_a_name_QUIET_AT_THE_AS_OF_is_dropped_whether_or_not_it_trades_LATER`. The 8 that pass on
+both are the controls and positive controls — the bit-identical build, the `as_of is None`
+inertness proof, a book built on its event date being accepted, the one-sidedness measurement,
+and the endpoint-delegation check — which is what they are for.
+
+**Two of my own defects, both caught by the fixture rather than by reading.**
+
+* My refusal asked `np.datetime64("2026-04-18") in set(cal.values.tolist())`. `cal.values` is
+  nanosecond-resolution and the literal is day-resolution, so it was False for **every** date,
+  including the export's own newest close — the refusal fired on a correct build and returned
+  zero rows. The wrong-object family. Repaired by landing the search and comparing date
+  **strings**, which has no units to get wrong.
+* My first stale-price probe gave the gap name only 54 price rows, so it was dropped by the
+  252-session history floor before the freshness check was ever reached: the probe passed while
+  measuring nothing. A `test_the_fixture_is_NOT_VACUOUS` case now requires the same name to be
+  scored when it is *not* quiet.
+
+**And one fixture of another suite's was quietly exercising this very look-ahead.**
+`test_rebalance_chaining._event` hard-coded `scan_date="2026-11-18"`, legal for its default event
+date and a 19-trading-day look-ahead for the earlier date
+`test_an_event_dated_BEFORE_the_last_one_is_REFUSED` passes in. The old code accepted it and the
+test passed for its own reason anyway; item 75's refusal fires first, so it went red. The default
+now derives from the event date, and the two tests that are *about* staleness still set their
+own. 24 of 24 pass.
+
+**Nothing appended, nothing published, no key or token printed, no `.github` change, no
+construction change.** Every real-export build wrote to the job's scratch directory, so
+`data/valquo_index.json` was never opened for writing. No licensed row is committed.
+
+### 8. THE OTHER CALLER, SO A REFUSAL STAYS LOUD
+
+`scripts/d9_fidelity.py` is the only other caller of `score_universe_now`, and it had built its
+own guard against exactly the hazard item 75 closes: it compared the RETURNED `as_of` with the
+requested one and refused on a mismatch, because `searchsorted(..., "right") - 1` would otherwise
+score an old cross-section under a fresh label. That guard is now redundant — the function
+refuses first — and it was also **unreachable** on the new path, because a refusal returns
+`as_of: None` and the guard reads `if used and ...`. Left alone, the script would have printed
+*"-> 0 Sharadar rows"* and carried on, converting a named refusal into a silent empty run; its
+own docstring names that family one level up. Both call sites now read `refused` and stop.
+**The original guard is kept rather than replaced** — it costs nothing and it is the one that
+would catch a future regression in the resolver itself.
+
+### 9. THE GATE: 324 SUITES, 2 FAILING, AND NEITHER IS ITEM 75'S — REPORTED, NOT FIXED
+
+Every file in `tests/` run as its own process and judged by exit code: **329 files, 4 non-zero.
+Two of those are `fixtures.py` and `screener_fixtures.py`, which are import-only helpers with no
+`sys.path` bootstrap and no `__main__` block** — they are not suites and are why the documented
+count is 324. That leaves **two real failures, and both reproduce with every one of item 75's
+changes reverted to `0ffc014`** (measured by restoring the five sources from git and re-running, then
+putting them back byte-for-byte). They are not mixed into this commit, because one item at a time.
+
+**(a) `tests/test_item63.py::test_the_alert_says_WHY_it_stopped` IS A CLOCK FAILURE, AND IT
+CLEARS BY ITSELF ON 2026-10-21.** The fixture seeds `event_attempt_days` with **2026-10-14, 15,
+16, 19, 20** — five days against a ceiling of five, so the refusal is meant to fire on the sixth.
+`note_no_progress` stamps today from the **wall clock** (`_stamp()`, which the auditor's
+seventh review already flagged as non-blocking), so on any day already in that list the count
+does not grow and the ceiling cannot fire. Measured by pinning the clock:
+
+| today | in the seeded list | ceiling fires |
+|---|---|---|
+| 2026-10-16 | yes | **no** |
+| 2026-10-19 (today) | yes | **no** |
+| 2026-10-20 | yes | **no** |
+| 2026-10-21 | no | yes |
+| 2026-10-22 | no | yes |
+
+So it fails on 10-14 through 10-20 and passes on every other date. **The gate goes green again
+on its own tomorrow-but-one, which is exactly why this is written down** — a test that heals
+itself is one nobody ever diagnoses. The durable fix is either to seed days that cannot collide
+with the real calendar or to thread the cycle's own `now` into `note_no_progress`; the second is
+the auditor's item and belongs with it.
+
+**(b) `tests/test_insider_cluster.py::test_the_nullable_boolean_does_not_silently_become_false_without_the_fill`
+is a pandas dtype failure.** `(df["transactioncode"] == "P").to_numpy(dtype=bool)` raises
+`TypeError: boolean value of NA is ambiguous` on an Arrow-backed string column holding `pd.NA` —
+the pandas-3 Arrow-dtype family, environmental rather than a defect in the thing under test.
+Not this lane's and not item 75's.
+
+`valuation/edge/fundamental_panel.py`, `valuation/edge/valquo_index.py`,
+`valuation/screener/index_mark.py`, `scripts/d9_fidelity.py`, `tests/test_item75.py`,
+`tests/test_rebalance_chaining.py`, `REBALANCE_RUNBOOK_2026-10-22.md`.

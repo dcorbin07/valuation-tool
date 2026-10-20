@@ -646,8 +646,15 @@ def _enrich_profiles(payload: dict, store=None) -> str:
     return f"filled name/sector on {filled} of {len(positions)} positions from the live feed"
 
 
-def _full_universe_rows(data_dir: str, limit: int = 3000):
-    """Score the WHOLE Sharadar universe as of its latest date -> (rows, as_of, dropped).
+def _full_universe_rows(data_dir: str, limit: int = 3000, as_of: str = None):
+    """Score the WHOLE Sharadar universe -> (rows, as_of, dropped).
+
+    `as_of` builds the book as of a NAMED session instead of the export's newest close [item
+    75]. It is honoured exactly or refused: a date the export does not cover, or one it has no
+    close for, raises rather than sliding quietly to an earlier session, because the payload
+    would then publish a `data_as_of` that the operator's runbook, their notes and the event
+    they are about to append all disagree with -- and nothing in the record could say which was
+    right.
 
     The live-scan store is whatever the last FMP scan happened to cover, which is a few
     hundred names at best — and a "top decile" of that collapses to the 10-name MIN_NAMES
@@ -667,7 +674,12 @@ def _full_universe_rows(data_dir: str, limit: int = 3000):
     if not ok:
         raise RuntimeError(f"Sharadar export not readable at {data_dir!r}: {msg}")
     tickers = prov.universe(limit=limit) or list(U.bundled_tickers())
-    res = score_universe_now(prov, tickers)
+    res = score_universe_now(prov, tickers, as_of=as_of)
+    # A NAMED REFUSAL REACHES THE OPERATOR INTACT. "scored no rows" is true of a bad as-of and
+    # tells them nothing they can act on, and this is a command somebody runs once a quarter,
+    # at speed, on an evening with one safe window in it.
+    if isinstance(res, dict) and res.get("refused"):
+        raise RuntimeError(res["refused"])
     if not res or not res.get("rows"):
         raise RuntimeError("scored no rows from the full universe")
     return res["rows"], res.get("as_of"), (res.get("dropped_mc_divergence") or [])
@@ -741,7 +753,7 @@ def _previous_book(path: str) -> list:
 
 def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
                       limit: int = 3000, candidate_name: str, carry_held: bool = False,
-                      allow_free_route: bool = False) -> dict:
+                      allow_free_route: bool = False, as_of: str | None = None) -> dict:
     """Write a NAMED CANDIDATE book. Nothing here is adopted, default or published.
 
     THE FREE ROUTE IS REFUSED BY NAME AND THE REFUSAL IS A MEASUREMENT, NOT A PREFERENCE.
@@ -767,10 +779,16 @@ def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | N
                cfg["free_route"]["source"]))
     dropped, scan_date = [], None
     if data_dir:
-        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit)
+        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit,
+                                                      as_of=as_of)
         source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
                   "shipped settings.py weights")
+        if as_of:
+            source += " as of %s (requested)" % str(as_of)[:10]
     else:
+        if as_of:
+            raise RuntimeError("--as-of needs --full-universe: the saved live-scan snapshot "
+                               "has no history to cut")
         if store is None:
             from ..screener.store import Store
             store = Store()
@@ -801,7 +819,8 @@ def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | N
 
 def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
            limit: int = 3000, config: str | None = None,
-           candidate_name: str | None = None, carry_held: bool = False, **kw) -> dict:
+           candidate_name: str | None = None, carry_held: bool = False,
+           as_of: str | None = None, **kw) -> dict:
     """Build the book and write the JSON. Returns the payload.
 
     `data_dir` -> score the full Sharadar universe point-in-time (the headless path, and the
@@ -817,7 +836,8 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
             raise RuntimeError("--candidate and --config set the same knobs; pass one. "
                                "A candidate already fixes the decile, weighting, cap and band.")
         return _export_candidate(store=store, path=path, data_dir=data_dir, limit=limit,
-                                 candidate_name=candidate_name, carry_held=carry_held, **kw)
+                                 candidate_name=candidate_name, carry_held=carry_held,
+                                 as_of=as_of, **kw)
     cfg_meta = None
     if config:
         from ..screener import settings as S
@@ -849,9 +869,19 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
         kw["held"] = _previous_book(path)
     dropped, scan_date = [], None
     if data_dir:
-        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit)
+        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit,
+                                                      as_of=as_of)
         source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
                   "shipped settings.py weights")
+        if as_of:
+            source += " as of %s (requested)" % str(as_of)[:10]
+    elif as_of:
+        # THE LIVE-SCAN PATH CANNOT HONOUR AN AS-OF AND SAYS SO. The store holds whatever the
+        # last scan happened to cover and carries no history to cut, so accepting the argument
+        # and ignoring it would publish a `data_as_of` that is simply the last scan's date
+        # wearing the name the operator chose -- the exact failure this item exists to close.
+        raise RuntimeError("--as-of needs --full-universe: the saved live-scan snapshot has no "
+                           "history to cut, so a named session cannot be built from it")
     else:
         if store is None:
             from ..screener.store import Store
@@ -896,8 +926,15 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
     return payload
 
 
+def _band_width_pct() -> float:
+    """The adopted no-trade band, as a percentage, from the one place it is defined."""
+    from .no_trade_band import BAND_WIDTH
+    return float(BAND_WIDTH) * 100.0
+
+
 def main(argv=None):
     import argparse
+    _BAND_WIDTH_PCT = _band_width_pct()
     ap = argparse.ArgumentParser(description="Export the Valquo Index (top-decile large caps).")
     ap.add_argument("--out", default=DEFAULT_PATH)
     # DEFAULT None SO AN EXPLICIT KNOB IS DISTINGUISHABLE FROM AN ABSENT ONE. Resolved to the
@@ -913,9 +950,28 @@ def main(argv=None):
                          "live scan (headless; the only path that yields a real top decile). "
                          "Optionally takes the export dir, default data/backtest.")
     ap.add_argument("--limit", type=int, default=3000, help="universe size for --full-universe")
+    # **THE BAND WIDTH IS DERIVED, NOT TYPED [item 75].** This help text read "20%% band" long
+    # after Don adopted S14 at 0.30 on 2026-08-13, so an operator reading `--help` to check
+    # what they were about to build was told the wrong construction. Retyping it as 30 fixes
+    # today and is the identical defect at the next width change (`MA5`).
     ap.add_argument("--config", default=None,
                     help="named book config: 'roth' (top-25, 6-week, no band) or 'taxable' "
-                         "(decile, quarterly, 30%% band). Sets width and emits the cadence.")
+                         "(decile, quarterly, %d%%%% band). Sets width and emits the cadence."
+                         % round(_BAND_WIDTH_PCT))
+    # ---- ITEM 75: BUILD AS OF A NAMED SESSION ------------------------------------------------
+    #
+    # The 2026-10-22 rebalance is built on the EVENING OF 10-23, in the one safe window there
+    # is: after the 10-22 track row exists and before track-row writes the 10-23 row at ~03:07
+    # UTC on 10-24. Sharadar's own recommended pull is ~5:20pm ET, so by then the export very
+    # likely carries the 10-23 close -- and the book would be scored as of 10-23 while being
+    # appended as the event for 10-22. That is a one-day look-ahead, and the event carries only
+    # a date and positions, so nothing downstream could ever tell.
+    #
+    # Honoured exactly or refused. See `_full_universe_rows`.
+    ap.add_argument("--as-of", dest="as_of", default=None, metavar="YYYY-MM-DD",
+                    help="score the export as of this session instead of its newest close. "
+                         "Needs --full-universe. Refused if the export has no close on that "
+                         "date, or if the date is later than its newest close.")
     ap.add_argument("--candidate", default=None, choices=sorted(INDEX_CANDIDATES),
                     help="a NAMED, NON-DEFAULT candidate construction (INDEX_CANDIDATES). "
                          "Nothing here is adopted or published; requires --full-universe.")
@@ -924,6 +980,20 @@ def main(argv=None):
                          "default for a candidate: the book on disk is a DIFFERENT "
                          "construction, so the first build is band-less by design.")
     a = ap.parse_args(argv)
+    if a.as_of:
+        # **FORMAT FIRST, CALENDAR LATER.** Whether the date is a trading day needs the union
+        # calendar, which needs the whole export loaded -- about a quarter of an hour. Whether
+        # it is a date at all costs nothing, and this is a command run once a quarter under
+        # time pressure, so a typo must fail in a second rather than after the load.
+        try:
+            _dt.date.fromisoformat(str(a.as_of)[:10])
+        except ValueError:
+            print("--as-of %r is not a date; use YYYY-MM-DD." % a.as_of)
+            return 1
+        if not a.full_universe:
+            print("--as-of needs --full-universe: the saved live-scan snapshot has no history "
+                  "to cut, so a named session cannot be built from it.")
+            return 1
     if a.config and a.config in INDEX_CANDIDATES:
         print("%r is a candidate construction, not a book config -- pass --candidate %s."
               % (a.config, a.config))
@@ -943,7 +1013,7 @@ def main(argv=None):
     try:
         p = export(path=a.out, data_dir=a.full_universe, limit=a.limit,
                    config=a.config, candidate_name=a.candidate, carry_held=a.carry_held,
-                   **_kw)
+                   as_of=a.as_of, **_kw)
     except RuntimeError as e:
         print(f"Could not build the book: {e}")
         return 1

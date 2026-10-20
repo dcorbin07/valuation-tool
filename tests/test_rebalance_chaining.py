@@ -245,8 +245,23 @@ def _no_conformance(n, w, n_eligible=None):
     return {"ok": False, "reason": "only %d names" % n}
 
 
-def _event(date="2026-11-20", ticker="CCC"):
-    return {"date": date, "scan_date": "2026-11-18",
+def _event(date="2026-11-20", ticker="CCC", scan_date=None):
+    """A legal event. `scan_date` DEFAULTS TO THE EVENT DATE, and that is item 75's fix.
+
+    It used to be the literal "2026-11-18", which is two trading days before the DEFAULT event
+    date and a legal pairing for it -- and a 19-trading-day LOOK-AHEAD for any earlier date a
+    caller passed in. `test_an_event_dated_BEFORE_the_last_one_is_REFUSED` passes "2026-10-22"
+    and so was handing the door a book built almost a month AFTER its own event, which the
+    freshness check could not see: `trading_days_between` counts forward and returns 0 for a
+    reversed pair.
+
+    The old code accepted it and the test passed for the right reason anyway (the ordering rule
+    fires too). Item 75's refusal fires FIRST, so the test went red on a fixture that was
+    quietly exercising the very look-ahead the item exists to close. Deriving the default from
+    the event date means each test exercises the rule it is named for; the two tests that are
+    ABOUT staleness still set their own.
+    """
+    return {"date": date, "scan_date": (scan_date or date),
             "positions": [{"ticker": ticker, "weight": 1.0}]}
 
 

@@ -183,16 +183,38 @@ later session points at, and nothing needs re-pulling for research.
 ```
 # 1. The refresh above has already updated data/backtest. Now build DIRECTLY from it --
 #    --full-universe reads the export rather than a live scan snapshot.
+#    --as-of 2026-10-22 is REQUIRED [item 75]: see the note below.
+#    --limit 4000 is REQUIRED too, and it is NOT cosmetic: the export has grown past the
+#    default 3000, which now silently takes a ranked SUBSET. See §6 item 4.
 python -m valuation.edge.valquo_index --full-universe data/backtest \
-       --config taxable --out data/valquo_index.json
+       --config taxable --as-of 2026-10-22 --limit 4000 --out data/valquo_index.json
 
 #    `--config taxable` sets: top decile of the large-cap tier, score-weighted,
 #    8% cap, exit_frac 0.30. Verify the printed line says "no-trade band 30%".
+#    Verify "as of 2026-10-22" on the printed line too.
 
 # 2. Freshness gate (§5).
 
 # 3. Write the 2026-10-22 row FIRST, then append the event dated 2026-10-22 (§4).
 ```
+
+**WHY `--as-of 2026-10-22` IS NOT OPTIONAL (item 75, 2026-10-19).** The build runs on the
+**evening of 10-23**, and Sharadar's recommended pull is about 5:20pm ET the same day, so the
+refreshed export will very likely carry the **10-23** close. Without `--as-of` the book is
+scored as of the export's newest close, which means:
+
+* §5's freshness gate (`data_as_of == 2026-10-22`) stops the rebalance, and there was no way to
+  build as of the 22nd — the flag did not exist;
+* and if the gate were skipped, the door would have **accepted** it. Its staleness check
+  refuses only a book too OLD, and `trading_days_between` counts forward: measured,
+  `('2026-10-23' -> '2026-10-22')` is **0**, and so is `('2026-11-23' -> '2026-10-22')`. A
+  10-23 book appended as the event for 10-22 is a one-day look-ahead, and the event carries
+  only a date and positions, so nothing downstream could ever have told.
+
+Both halves are now closed: the flag exists, and **the door refuses any book whose as-of is
+later than its event date**, naming `--as-of <event date>` as the remedy. The flag is honoured
+exactly or refused — a date the export has no close for, or one later than its newest close,
+raises rather than sliding quietly to an earlier session.
 
 ---
 
@@ -208,8 +230,12 @@ risk, and nothing available before the 22nd can resolve it.
 
 ```
 # Same renewed Sharadar export as §3 -- arm 2 is NOT buildable by the free route (below).
+# --as-of 2026-10-22 for the same reason as §3, and the door enforces it identically.
+# NOTE arm 2's own trim is 1500, which it takes from the supplied universe -- so the supplied
+# universe still has to be the whole export. --limit 4000 does that; see §6 item 4.
 python -m valuation.edge.valquo_index --candidate liquid-decile \
-       --full-universe data/backtest --out data/valquo_index.json
+       --full-universe data/backtest --as-of 2026-10-22 --limit 4000 \
+       --out data/valquo_index.json
 
 #    `--candidate liquid-decile` sets: universe = the top 1500 by point-in-time market cap,
 #    then the top decile OF THAT (large-cap floor 0.0, because the trim IS the tier),
@@ -288,6 +314,16 @@ The book's own payload carries it. Refuse to append unless, for `2026-10-22`:
 * `freshness.stale` is **false**
 * `contract_conformance.conforms` is **true**
 
+**THE FIRST BULLET IS WHAT `--as-of` MAKES REACHABLE AT ALL (item 75).** Building on the evening
+of 10-23 from an export that has refreshed to the 10-23 close, the payload's `data_as_of` would
+be **2026-10-23** and this gate would stop the rebalance with no way forward. With
+`--as-of 2026-10-22` the payload's `data_as_of` and `scan_date` are both exactly the requested
+date, so the gate is satisfiable — and it is satisfied by a book that really was scored as of
+the 22nd rather than by relabelling one that was not. **And this gate is no longer the only
+thing standing between a 10-23 book and the record**: the door itself now refuses any book whose
+as-of is later than its event date, so skipping this step can no longer let the look-ahead
+through.
+
 **`conforms: false` is the live state today and it is not a bug** — `/api/valquo-index` serves
 the **roth** preview (25 positions) against the contract's floor of 50. **`roth` is NOT the
 contract book.** Build with `--config taxable` or the conformance gate will refuse, correctly.
@@ -305,17 +341,52 @@ book in force** (or copy it there first) and then **check the emitted payload sa
 construction change — it turns the book over harder than the adopted rule does — and it would
 look like an ordinary rebalance in every surface.
 
-**2. THE CLI HELP STRING IS STALE AND UNDERSTATES THE BAND.** `--config`'s help reads
-*"'taxable' (decile, quarterly, **20%** band)"*; the shipped `BOOK_CONFIGS["taxable"]["exit_frac"]`
-is **0.3**, matching `no_trade_band.BAND_WIDTH = 0.30` and S14's adopted width. **The code is
-right and the help is wrong.** Reported, not edited here — it is a one-line fix in
-`valuation/edge/valquo_index.py` and it belongs with whoever next touches that file. Trust the
-printed `no-trade band 30%` line, not the `--help` text.
+**2. THE CLI HELP STRING WAS STALE AND UNDERSTATED THE BAND — FIXED 2026-10-19 (item 75).**
+`--config`'s help read *"'taxable' (decile, quarterly, **20%** band)"* while the shipped
+`BOOK_CONFIGS["taxable"]["exit_frac"]` is **0.3**, matching `no_trade_band.BAND_WIDTH = 0.30`
+and S14's adopted width. The code was right and the help was wrong, so an operator reading
+`--help` to check what they were about to build was told the wrong construction.
+
+It now reads **30%**, and the figure is **DERIVED from `no_trade_band.BAND_WIDTH`** rather than
+retyped — retyping it as 30 fixes today and is the identical defect at the next width change
+(`MA5`'s rule). `tests/test_item75.py` asserts the rendered `--help` text carries the adopted
+width and that the literal is not hard-coded. Both the printed `no-trade band 30%` line and the
+`--help` text can now be trusted.
 
 **3. THE FIRST BANDED REBALANCE CANNOT SHOW A BAND EFFECT.** With no previous book there is
 nothing to hold, so the band's effect begins at the **second** rebalance. If Oct 22 is the first
 one after the band shipped, `band_retained` being small is expected and is not evidence the band
 is broken.
+
+**4. THE DEFAULT `--limit 3000` IS NOW A SUBSET, AND IT MOVES 9 OF ~85 NAMES.** Found 2026-10-19
+while running item 75's real-export check; **this is not item 75's change and it needs Don's
+eye.** The export has grown to **3,520** names. `WRDSProvider.universe` returns the FULL universe
+only when `limit >= len(idx)`; at 3,000 it takes a market-cap-ranked subset and prints
+*"SMOKE-TEST SUBSET, not a verdict"* — the function itself saying the output is not a verdict, and
+`CLAUDE.md`'s METHODOLOGY RULE says the same. On every previous quarter the export was smaller
+than 3,000, so the default meant the whole export and no ranking.
+
+Measured, both builds `--as-of 2026-10-02` against the same export:
+
+| | names scored | eligible tier | positions |
+|---|---|---|---|
+| `--limit 3000` (the default) | 1,839 | 824 | 82 |
+| `--limit 4000` (≥ 3,520, i.e. the full export) | 2,038 | 848 | **85** |
+
+Nine names differ: **BCS, LUV, RNR** appear only in the limited book and **AMD, FLEX, LRCX, MDT,
+PPG, RYAN** only in the full one.
+
+**AND THE MECHANISM IS NOT NAME EXCLUSION, WHICH WAS MY FIRST GUESS AND IS WRONG.** Of those six,
+only **FLEX** sits outside the top 3,000 (rank 3,126); AMD is 546, LRCX 15, MDT 76, PPG 416,
+RYAN 996 — all comfortably inside the subset at both limits. They move because the composite is a
+**cross-sectional z-score**, so changing how many names are scored (1,839 → 2,038) re-standardises
+every column and shifts the decile boundary. A limit is not a filter on the edges of a book; it
+changes the ranking of the whole thing.
+
+**So Path B's command above carries `--limit 4000`**, which builds the way every previous quarter
+did. It is written explicitly rather than left to the default so the choice is visible — and it is
+a choice: the 520 extra names were not in the universe any earlier quarter was built on either.
+If Don would rather keep 3,000, that is a construction decision and should be taken knowingly.
 
 ---
 
