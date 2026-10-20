@@ -22604,3 +22604,183 @@ files do carry it. `DECISIONS.md` is untouched.
 `valuation/saas/app_saas.py`, `valuation/edge/live_notify.py`, `valuation/edge/fleet_notify.py`,
 `valuation/edge/live_cycle.py`, `valuation/screener/rebalance_watch.py`,
 `scripts/check_staleness.py`, `tests/test_item74.py`, plus 12 files in `pending_workflows/`.
+
+---
+
+## ITEM 73 — a partial buy-in is spread proportionally, and the shortfall stays open
+
+Don's rulings of 2026-10-18, all six implemented and each tested through the real cycle.
+
+### 1. BUYS ARE SPREAD PROPORTIONALLY, NEVER FILLED STOCK BY STOCK
+
+`settlement.allocate_buys` scales every buy by one fraction, `f = min(1, spendable / total buy
+cost)`. Don's own worked example, to the cent: **$800 against a $2,002 gap gives f = 0.3996**, two
+orders of **3.996004 shares at $399.60 each**, and the $2 name **skipped** because its 40% share is
+**$0.7992**, under the $1.00 minimum order value — where it stays in the gap rather than being
+dropped. Filling stock by stock would have bought the first two in full and the third not at all.
+
+There is **no cash budget or cap** (ruling 3). The only bound is the broker's own no-borrow
+figure, which is item 67's finding and unchanged; a test asserts no cap constant exists in the
+allocator.
+
+### 2. THE SHORTFALL STAYS OPEN, AGAINST TARGETS FROZEN WHEN THE EVENT OPENED
+
+**AND THIS FIXES SOMETHING WIDER THAN THE CASH CASE, WHICH IS THE FINDING HERE.** Before item 73
+every remainder cycle re-derived targets from today's equity and today's marks. So a price move
+between two cycles of **one** rebalance changed the target and the slot traded the difference —
+**drift trading arriving through the back door of a remainder cycle**, which is exactly what Don's
+ruling forbids and which nothing was watching for. Targets are now frozen per event in
+`frozen_targets`, and a test doubles the marks between two cycles of the same event and requires
+them not to move.
+
+A later deposit tops up **to those frozen targets and no further**: a third cycle with the same
+money, driven with the broker reporting the fills, sends nothing.
+
+### 3. ONE UNIVERSAL `LIVE_MIN_TOPUP`, DEFAULT $250
+
+One environment variable for every live slot and the paper slot alike — Don: *"there is no
+per-account variable."* A test asserts the name appears exactly once in `settlement.py` and that
+no `LIVE_MIN_TOPUP_1` form exists. Malformed refuses and alerts, as `LIVE_PCT` does: `abc`, `-5`,
+`nan` and `inf` all return `ok: False` with **no** amount beside the refusal. Blank falls back to
+the default. **The first fill of a new event is never held back** — a rebalance goes in on the day
+it arrives whatever its size.
+
+### 4. "WAITING FOR CASH" IS A DECLARED OUTCOME, AND IT DOES NOT BURN THE CEILING
+
+`SEND_WAITING_CASH` and `SEND_TOPUP_TOO_SMALL` join the send vocabulary, and both are in
+`SEND_OUTCOMES_THAT_DO_NOT_SPEND_A_CEILING_DAY`. Driven over **six trading days** with no cash:
+nothing is sent, the event stays open, **`waiting_for_cash` is alerted exactly once**, and
+`event_attempts_exhausted` never fires. Item 74's registry routes it to `#valquo-alerts`.
+
+**THE BUDGET HAD TO MOVE ABOVE THE CEILING, AND THAT IS THE STRUCTURAL CHANGE.** The order was
+ceiling → budget → fill-until-budget, so a gap waiting for a deposit counted a trading day
+*first* and five of those stop the event and alert. Don's rule is the opposite. A test asserts
+the ordering **on the source**, so it cannot drift back.
+
+### 5. AN ETF DON HOLDS BY HAND IS NEVER SOLD OR COUNTED — with one limit stated
+
+Both halves are structural rather than lucky: `order_plan` reads the slot's **own record**, not
+the broker's position list, so a name the slot never bought cannot be sold and cannot satisfy or
+reduce a target. Driven with a `SCHD` position in the account and asserted on the plan.
+
+**THE HONEST LIMIT, REPORTED RATHER THAN SILENTLY FIXED:** `targets` sizes on the account's
+`equity`, which on a real account **includes** a hand-held ETF — so at a live percentage below
+100 the ETF would inflate the slot's target. It is moot today (the paper slot is 100% of its own
+account and every live slot ships at 0%), and changing what `equity` means is a sizing change
+that needs its own item. A test pins the behaviour so the question is **dated rather than
+discovered later**.
+
+### 6. ITEM 73 SUPERSEDES PART OF ITEM 67, AND ONLY PART
+
+Five of item 67's tests went red, and that was a requirements question rather than a test fix.
+**The two waits are different situations and both survive:**
+
+| | what happened | how long is normal | how it escalates |
+|---|---|---|---|
+| **settlement wait** (item 67) | the slot SOLD and the broker refused a buy for funds | T+1, so more than ~3 trading days is abnormal | item 67's three-day alert, kept |
+| **cash wait** (item 73) | the target exceeds the money and NO sale is pending | as long as Don takes to deposit | ONE alert, no ceiling day |
+
+The distinguishing fact is in the plan: a cycle **with sells** may be waiting on its own
+proceeds; a **buy-only** gap is waiting on outside cash, which is Don's business and not a fault.
+`_cash_wait` requires `not _has_sells` for exactly that reason. Item 67's three-trading-day
+escalation is kept and is now driven end to end through a **broker refusal** rather than through
+a zero-cash account, which item 73 reclassified. `test_item67.py` is **86 green**.
+
+### 7. THE TRANSITION TABLE: 5,632 → 6,656 ROWS
+
+Item 71's table could not reach a cash shortfall at all — **every account in the fixture had ten
+thousand dollars of no-borrow buying power**, so the whole of Don's ruling was outside the space
+it searched. Two states added: `cash_short` (a real gap, no money) and `cash_trickle` ($40
+against the $250 threshold, event already open). **All 6,656 rows match the declaration.**
+
+Three things were done to keep the declaration honest rather than a mirror:
+
+* **`MET` is DERIVED from `off_target`'s, not retyped.** Both new states share its record
+  exactly, and `MET` is a statement about the record against the book with nothing to do with
+  cash — so the derivation asserts the records are identical first. Retyping eight booleans
+  twice is how a table comes to disagree with itself.
+* **`_buys_possible` encodes Don's two rules, not the code's branches**: zero buying power means
+  the fraction is zero so nothing can be bought; some money means the $250 threshold holds it
+  back **only on a later cycle of an already-open event**, because a first fill is exempt.
+* **The cash states are asserted to be REACHABLE** — a budget that was never short would make
+  all 1,024 of their rows a restatement of `off_target`.
+
+**And the table caught two fixture defects of mine on its first two runs**, which is what it is
+for. Seeding `processed` with a hard-coded rebalance key made 66 rows read as **already closed**
+before the cycle ran, because `book_over_pct` replaces `open_event` with its pct event and
+`closed_in_record` is `key in processed and open_event != key`; using the arriving key
+unconditionally failed the same way for the same reason. A top-up is by definition a later cycle
+of an event the record still has **open**, so that is the condition — and where it does not hold,
+the row is a first fill, which the declaration now accounts for.
+
+### 8. ITEM 74's FORWARD DECLARATION DID ITS JOB
+
+Item 74 classified `waiting_for_cash` and `min_topup_invalid` before this item existed, listing
+them in `DECLARED_AHEAD_OF_EMITTER` with a test asserting each was still **unemitted**. The
+moment this item landed its emitters that test went red and named both kinds and the remedy.
+They are now in `KINDS` proper and the list is empty. **A forward declaration that cannot tell
+you when it stopped being one is a comment**, and this one could.
+
+### 9. THE COST OF A $1,000 TOP-UP, AND WHAT CANNOT BE MEASURED HERE
+
+Don asked for the measured cost of a $1,000 top-up across the book on the paper account.
+
+**What is measurable without a live cycle, and is** — measured on the shipped allocator against
+a book of equal-weighted names at a $100 mid:
+
+| book | fraction | orders | skipped | per name | spent |
+|---|---|---|---|---|---|
+| 82 names | 0.121951 | **82** | **0** | $12.20 | $1,000.00 |
+| 86 names | 0.116279 | **86** | **0** | $11.63 | $1,000.00 |
+
+So a $1,000 top-up is **one order per held name and none skipped** — every share is far above the
+$1.00 minimum. Alpaca charges **no commission** on US equities, so the fee cost is **zero**; the
+whole cost is spread and slippage.
+
+**What is NOT measurable here, said plainly: the fill price against the mid.** That needs a real
+paper cycle on Render against the live NBBO — the reason the project moved off the Tradier
+sandbox in the first place (its data is ~15 minutes delayed, so a fill measured against it is a
+fill against a stale mid). Item 58b's `quote_bid`/`quote_ask`/`quote_mid` columns record exactly
+this at submission time, so **the first real top-up cycle measures it and nothing needs building
+for that**. I am not going to put a number on it from a fixture.
+
+### 10. TESTS
+
+`tests/test_item73.py` — **30 tests**, and **29 of them fail against `17428fe`** (item 74's
+commit, with item 73's behaviour reverted and the registry's two entries left in place; removing
+those only makes the suite fail to import and tells nobody anything). The one that passes on both
+is the honest-limit pin on `targets`, which is a statement about existing behaviour and should
+pass either side.
+
+**Three defects of my own, all caught by running it.** `SETTLE.min_topup(env)` inside `run_slot`,
+which has **no `env`** — a `NameError` waiting on the one function that can send a real order,
+fixed by threading the threshold as an argument resolved once in `run_cycle`, because `run_slot`
+reads no environment at all and that is what makes it testable. An assertion at nine decimal
+places that caught **its own tolerance** rather than a defect (the allocator rounds the quantity
+it sends, which it should). And `MARKS` is `{ticker: {"mid": price}}`, not a flat map, which I
+assumed twice — costing one `TypeError` and, worse, **one vacuous test**: a price-doubling
+fixture whose `isinstance(v, (int, float))` was False for every entry, so it doubled nothing and
+passed while changing nothing. There is one reader for the shape now and the fixture asserts the
+prices actually moved.
+
+**THE GATE: 329 suites, 2 failing, both pre-existing** — `test_item63`'s clock-dependent ceiling
+test (which heals itself on 2026-10-21) and `test_insider_cluster`'s pandas Arrow-dtype error,
+both reproduced with every change here reverted and both reported under item 75 above.
+
+**A FIFTH GUARD FIRED AND IS REPOINTED IN THE SAME COMMIT.** `test_item72` kept its own copy of
+the transition table's row count — `assertEqual(len(all_rows()), 5632)` — so growing the table
+broke a suite whose subject is *"these five shapes are now reachable"*. `test_item71_table`
+already pins the count with `MA13`'s committed-literal idiom; a second literal in a second suite
+fires on the next item to add a row whatever it adds. Repointed to item 72's **own** contribution
+— its four states and three events are present, the table is at least the size they imply, and
+the total is still the product of its axes — leaving the exact figure to the one suite whose
+subject it is. **Fifth repoint of this shape on this path**, after item 71's `MB31` tripwire,
+item 72's bag list, item 74's fleet-handover guard and item 74's `.github` diff.
+
+**Nothing adopted, no percentage or arming changed, no key printed, no `.github` change.**
+`LIVE_PILOT_ENABLED` and every slot's percentage are untouched; the paper slot is the only thing
+that transmits.
+
+`valuation/edge/settlement.py`, `valuation/edge/live_cycle.py`,
+`valuation/saas/alert_routing.py`, `tests/test_item73.py`, `tests/test_item67.py`,
+`tests/test_item71_table.py`, `tests/test_item74.py`.

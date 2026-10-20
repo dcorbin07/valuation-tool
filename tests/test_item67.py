@@ -194,9 +194,22 @@ class TheBudgetNeverBorrows(_Tmp):
 
     def test_the_rest_is_DEFERRED_rather_than_dropped(self):
         got, _ = self.cycle(account=LEVERED, sess=Recorded(account_fields=LEVERED))
-        self.assertTrue(got["deferred"], "nothing was deferred on a 250-of-1000 budget")
+        # **SUPERSEDED BY ITEM 73, AND THE PROPERTY THIS WAS PROTECTING IS ASSERTED BELOW.**
+        # Don's ruling of 2026-10-18 replaced fill-until-the-budget-runs-out with a
+        # PROPORTIONAL spread, so a $250 budget against a $1,000 gap no longer defers anything
+        # -- it buys 25% of every name. What must still be true, and is the whole point of this
+        # class, is that the slot never spends more than it can spend without borrowing.
+        _cost = sum(float(o["qty"]) * float(o["limit_price"])
+                    for o in (got.get("will_send") or [])
+                    if str(o["side"]).lower() == "buy")
+        self.assertLessEqual(_cost, 250.0 + 1e-6,
+                             "it planned to spend %.2f of a 250 budget" % _cost)
+        self.assertAlmostEqual((got.get("allocation") or {}).get("fraction") or 0, 0.25,
+                               places=4)
+        # NOTHING IS DEFERRED any more at this budget: every name is bought at a quarter
+        # size, so there is no leftover list. A name is only deferred now when its own scaled
+        # share falls under `min_order_value`, which is tested in `tests/test_item73.py`.
         self.assertTrue(all(o["side"] == "buy" for o in got["deferred"]))
-        self.assertIn("without borrowing", got["deferred"][0]["why"])
 
     def test_the_levered_fields_are_NAMED_as_refused(self):
         """Named rather than merely unread, so a reader can see they were considered."""
@@ -385,12 +398,19 @@ class ARefusedBuyIsASettlementWaitNotABrokerError(_Tmp):
         self.assertEqual(sess.placed, [], "something was transmitted on a zero budget")
         self.assertNotIn("targets are already met", got.get("reason") or "")
         st = LC.read_state(LC.PAPER_SLOT, self.root)
-        self.assertEqual(st.get("open_event"), None,
-                         "the event is not yet OPEN because nothing was sent -- but it must "
-                         "also not be PROCESSED, which is the next assertion")
+        # **ITEM 73 OVERTURNS THE SENTENCE THIS USED TO ASSERT**, on Don's instruction: *"The
+        # shortfall stays OPEN until it is filled or the next event replaces it."* The event was
+        # previously neither open nor processed, so nothing aimed a later top-up at it; now the
+        # gap IS the open event, and `frozen_targets` is what the top-up converges on.
+        self.assertEqual(st.get("open_event"), "rebalance:2026-10-22",
+                         "the shortfall must stay OPEN so a later top-up has a target")
+        # AND THE PROPERTY THIS CLASS EXISTS FOR IS UNCHANGED: it is not FINISHED.
         self.assertNotIn("rebalance:2026-10-22", st.get("processed") or [],
                          "a fully-deferred event was recorded as processed")
-        self.assertTrue(st.get("awaiting_settlement"), st)
+        # The wait is recorded under its own name. A buy-only gap with no cash is waiting on a
+        # DEPOSIT, not on settlement -- see `cash_wait` versus `awaiting_settlement`.
+        self.assertTrue(st.get("cash_wait"), st)
+        self.assertTrue(st.get("frozen_targets"), "nothing froze the targets to top up toward")
 
     def test_the_INTENT_is_not_overwritten_when_nothing_is_sent(self):
         """It is one of the three sources `preflight` derives its duplicate-buy-in scope from,
@@ -411,13 +431,18 @@ class ARefusedBuyIsASettlementWaitNotABrokerError(_Tmp):
                          ["AAPL"], after.get("intent"))
 
     def test_the_deferred_buys_GO_on_a_later_cycle_once_cash_is_there(self):
-        """The property the whole item exists for: the wait resolves by itself."""
+        """The property the whole item exists for: the wait resolves by itself.
+
+        **ITEM 73 RECLASSIFIED THIS PARTICULAR WAIT.** A zero-cash account with no sale pending
+        is waiting on a DEPOSIT rather than on settlement, so the record it clears is
+        `cash_wait`. The resolution behaviour -- the buys go on the cycle after the money
+        arrives -- is unchanged and is what this test is for."""
         self.cycle(account={"cash": "0", "buying_power": "0",
                             "non_marginable_buying_power": "0"}, day="2026-10-22")
         got, sess = self.cycle(account=LIMITED, day="2026-10-23")
         self.assertEqual(len(sess.placed), 2, sess.placed)
         self.assertEqual(got["deferred"], [])
-        self.assertIn("settlement_wait_cleared", got)
+        self.assertIn("cash_wait_cleared", got)
 
 
 class TheWaitIsCountedInTradingDaysAndAlertsOnlyWhenOverdue(_Tmp):
@@ -447,22 +472,50 @@ class TheWaitIsCountedInTradingDaysAndAlertsOnlyWhenOverdue(_Tmp):
         """**ITEM 64's FALSE-ALARM FAMILY, AGAINST THE REAL SCHEDULE.** Item 64 measured the
         GitHub scheduler running 3.45-7.48 hours late and added four backup crons, so
         `live-cycle.yml` now fires FIVE times a day. A wait counted in cycles would alert
-        before lunch on the first day of every rebalance."""
+        before lunch on the first day of every rebalance.
+
+        **AND ITEM 73 MAKES THIS STRONGER RATHER THAN WEAKER on a zero-cash account**: that is
+        a CASH wait -- waiting on a deposit, with nothing to settle -- so Don's rule is one
+        alert ever, not one per day. Five cycles produce exactly one."""
         broke = {"cash": "0", "buying_power": "0", "non_marginable_buying_power": "0"}
-        got = None
+        seen = []
         for _ in range(5):
             got, _ = self.cycle(account=broke, day="2026-10-22")
-        self.assertEqual(got["awaiting_settlement"]["trading_days"], 1)
-        self.assertNotIn("settlement_wait_overdue", [a["kind"] for a in got["alerts"]])
+            seen.extend(a["kind"] for a in got["alerts"])
+        self.assertEqual(seen.count("waiting_for_cash"), 1,
+                         "one post when it starts, and nothing after: %r" % (seen,))
+        self.assertNotIn("settlement_wait_overdue", seen)
 
-    def test_THREE_TRADING_DAYS_DO_ALERT(self):
-        """THE POSITIVE CONTROL: a wait that never resolves must escalate, or the whole
-        mechanism is a way of losing a rebalance quietly."""
+    def test_a_CASH_wait_alerts_ONCE_across_THREE_TRADING_DAYS_TOO(self):
+        """**ITEM 73, AND IT IS THE RULING RATHER THAN A WEAKENING.** Don: *"Waiting for cash
+        is a normal state, not a failure... one post when a problem starts... it does not
+        re-alert every cycle and does not burn the ceiling."* Three days of waiting on a
+        deposit is not a fault, so it does not escalate -- and crucially it does not spend a
+        ceiling day, or five of them would stop the event."""
         broke = {"cash": "0", "buying_power": "0", "non_marginable_buying_power": "0"}
-        got = None
+        seen, got = [], None
         for d in ("2026-10-22", "2026-10-23", "2026-10-26"):
             got, _ = self.cycle(account=broke, day=d)
-        self.assertIn("settlement_wait_overdue", [a["kind"] for a in got["alerts"]])
+            seen.extend(a["kind"] for a in got["alerts"])
+        self.assertEqual(seen.count("waiting_for_cash"), 1, seen)
+        self.assertNotIn("event_attempts_exhausted", seen)
+        self.assertFalse(got.get("attempt_days"),
+                         "a cash wait spent a ceiling day: %r" % (got.get("attempt_days"),))
+
+    def test_but_a_SETTLEMENT_wait_STILL_ESCALATES_on_the_third_trading_day(self):
+        """**ITEM 67's POSITIVE CONTROL, RELOCATED TO THE CASE IT DESCRIBES.** Its own words:
+        *"a wait that never resolves must escalate, or the whole mechanism is a way of losing a
+        rebalance quietly."* That is true of a SETTLEMENT wait -- the broker refusing a buy for
+        funds after a send, where T+1 means a longer wait really is abnormal -- and it is
+        driven here through the broker's own refusal rather than through a zero-cash account,
+        which item 73 reclassified."""
+        got = None
+        for d in ("2026-10-22", "2026-10-23", "2026-10-26"):
+            sess = Recorded(account_fields=LIMITED,
+                            reject_message="insufficient buying power")
+            got, _ = self.cycle(account=LIMITED, sess=sess, day=d)
+        self.assertIn("settlement_wait_overdue", [a["kind"] for a in got["alerts"]],
+                      got.get("reason"))
         self.assertIn("settle T+1", got["awaiting_settlement"]["reason"])
 
     def test_the_number_of_scheduled_cycles_a_day_is_what_the_workflow_SAYS(self):

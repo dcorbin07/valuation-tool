@@ -266,12 +266,34 @@ class TheTableNowReachesTheAuditorsFiveOmissions(unittest.TestCase):
         self.assertIn("resize_up", TT.EVENTS)
         self.assertIn("book_over_pct", TT.EVENTS)
 
-    def test_the_table_grew_to_5632_rows(self):
+    def test_the_table_grew_by_ITEM_72s_OWN_four_states_and_three_events(self):
         """Four states and three events: a brand-new record, the same against a NON-EMPTY
         account, an exhausted event, a stale `open_event`, a quiet cycle, an upward resize, and
-        a new book superseding an open percentage event. 7 x 5 -> 11 x 8."""
-        self.assertEqual(len(TT.all_rows()), 5632)
-        self.assertEqual(len(TT.STATES) * len(TT.EVENTS), 88)
+        a new book superseding an open percentage event. 7 x 5 -> 11 x 8, so 2,240 -> 5,632.
+
+        **IT USED TO ASSERT THE TOTAL AND THAT WAS A SECOND COPY OF THE TABLE'S SIZE
+        [repointed item 73].** `test_item71_table` already pins the row count with `MA13`'s
+        committed-literal idiom; a second literal in a second suite fires on the next item to
+        add a row whatever it adds, which is item 73 (two cash states, 5,632 -> 6,656) and will
+        be item 75 or whoever follows. The same clock-shaped guard this path has now repointed
+        four times.
+
+        So this asserts ITEM 72's OWN contribution -- that its four states and three events are
+        present and that the table is at least the size they imply -- and leaves the exact total
+        to the one suite whose subject it is.
+        """
+        for s in ("brand_new", "brand_new_dirty", "exhausted", "stale_open"):
+            self.assertIn(s, TT.STATES)
+        for e in ("quiet", "resize_up", "book_over_pct"):
+            self.assertIn(e, TT.EVENTS)
+        self.assertGreaterEqual(len(TT.STATES), 11)
+        self.assertGreaterEqual(len(TT.EVENTS), 8)
+        self.assertGreaterEqual(len(TT.all_rows()), 5632)
+        # AND THE ARITHMETIC IS STILL THE PRODUCT OF ITS AXES, which is what would break if an
+        # axis quietly lost a value while another gained one.
+        self.assertEqual(len(TT.all_rows()),
+                         len(TT.STATES) * len(TT.EVENTS) * len(TT.READS)
+                         * len(TT.MODES) * len(TT.PILOTS))
 
     def test_the_UPWARD_resize_plans_BUYS_which_every_other_resize_did_not(self):
         """Every resize in the table went DOWN, so every one planned sells — and buys are the

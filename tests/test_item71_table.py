@@ -95,6 +95,16 @@ ACCOUNT = {"id": "acct-live-1", "account_number": "L1", "equity": "10000", "cash
            "status": "ACTIVE", "multiplier": "1"}
 PAPER_ACCOUNT = dict(ACCOUNT, id="acct-paper-1", account_number="PA1")
 
+#: **THE TWO CASH ACCOUNTS ITEM 73 NEEDED, and their absence is why this table could not reach
+#: a cash shortfall at all.** `non_marginable_buying_power` is the field the budget reads
+#: (item 67), so it is the one that has to be short -- setting `cash` alone would leave the
+#: budget full and the row inert, which is the shape of an axis that varies nothing.
+BROKE_ACCOUNT = dict(ACCOUNT, cash="0", buying_power="0",
+                     non_marginable_buying_power="0")
+#: Forty dollars, against item 73's $250 default threshold.
+TRICKLE_ACCOUNT = dict(ACCOUNT, cash="40", buying_power="40",
+                       non_marginable_buying_power="40")
+
 #: 5% of $10,000 over two equal weights at a $100 mid = 2.5 shares each. Every fixture's
 #: holdings are stated in these units so "the targets are met" is a declared fact rather than
 #: arithmetic this file re-does.
@@ -265,7 +275,46 @@ STATES = {
     # `open_ev` state in this table pairs it with live resting orders.
     "stale_open":       dict(record={"AAPL": ON_TARGET, "BBB": ON_TARGET}, resting=(),
                              open_ev="rebalance:2026-08-01", holds=True),
+    # ---- ADDED BY ITEM 73: the two CASH states, which this table could not reach ---------
+    #
+    # Every account in this fixture had ten thousand dollars of no-borrow buying power, so no
+    # row could ever reach a cash shortfall -- and Don's rulings of 2026-10-18 are entirely
+    # about what happens when it does.
+    #
+    # **BOTH SHARE `off_target`'s RECORD, DELIBERATELY.** `MET` is a statement about the record
+    # against the book and has nothing to do with cash, so sharing the record means their
+    # `MET` entries are derived from `off_target`'s rather than guessed afresh -- and a
+    # declaration guessed afresh is the one way this table can start agreeing with the
+    # implementation about a bug.
+    #
+    # `cash_short`: a real gap and NO money. Don: *"Waiting for cash is a normal state, not a
+    # failure ... it alerts Don once. It does not re-alert every cycle and does not burn the
+    # ceiling."* The sells still go -- a sell RAISES cash -- so the constraint is no BUY.
+    "cash_short":       dict(record={"AAPL": 1.0}, resting=(), open_ev=None, holds=True,
+                             account=BROKE_ACCOUNT, cash_short=True),
+    # `cash_trickle`: a gap, and forty dollars against the $250 threshold. The event is already
+    # in `processed`, so this is NOT the first fill -- which is the only state in which the
+    # threshold may hold anything back.
+    "cash_trickle":     dict(record={"AAPL": 1.0}, resting=(),
+                             open_ev="rebalance:" + FORMED, holds=True,
+                             processed_extra=("rebalance:" + FORMED,),
+                             account=TRICKLE_ACCOUNT, cash_short=True),
 }
+
+def _derive_cash_met():
+    """`MET` for item 73's cash states, from `off_target`'s — identical records, same answer.
+
+    Asserted rather than assumed: both must actually carry `off_target`'s record, or the
+    derivation is a guess wearing a derivation's clothes.
+    """
+    for name in ("cash_short", "cash_trickle"):
+        assert STATES[name]["record"] == STATES["off_target"]["record"], \
+            "%s no longer shares off_target's record, so its MET cannot be derived" % name
+    for (st, ev), v in list(MET.items()):
+        if st == "off_target":
+            MET[("cash_short", ev)] = v
+            MET[("cash_trickle", ev)] = v
+
 
 #: EVENT. `last_*` is what the record says it last acted on; `pct` is the environment now.
 EVENTS = {
@@ -384,6 +433,12 @@ MET = {
     ("off_target", "resize"): False,
     ("off_target", "resize_up"): False,
     ("off_target", "sell_out"): False,
+    # ---- ITEM 73's TWO CASH STATES are DERIVED from `off_target` below the literal ---------
+    #
+    # `MET` is a statement about the RECORD against the book and has nothing to do with how much
+    # cash the account holds, and both new states share `off_target`'s record exactly. Deriving
+    # them means a change to that record's declaration moves all three together; retyping eight
+    # booleans twice is how a table comes to disagree with itself. See `_derive_cash_met`.
     # on_target         record {'AAPL': 2.5, 'BBB': 2.5}
     ("on_target", "book_over_pct"): True,
     ("on_target", "buy_in"): True,
@@ -430,6 +485,10 @@ MET = {
     ("stale_open", "resize_up"): True,
     ("stale_open", "sell_out"): False,
 }
+
+#: Item 73's two cash states, filled in from `off_target`'s — see `_derive_cash_met` above for
+#: why by reference rather than by retyping. Called HERE because `MET` is the thing it reads.
+_derive_cash_met()
 
 
 
@@ -499,6 +558,18 @@ def expected(state, event, read, mode, pilot):
             sent = "none"                      # record-versus-broker disagreement refuses
         elif wind_down:
             sent = "sells_only"
+        elif st.get("cash_short") and not _buys_possible(state, event):
+            # S8. **NO MONEY MEANS NO BUY, AND THE SELLS STILL GO [item 73].** Don, 2026-10-18:
+            #     the buys are scaled by `min(1, spendable / total buy cost)`, which is ZERO
+            #     when the no-borrow figure is zero. A SELL is never bounded by cash, because a
+            #     sell RAISES it, so the constraint on these rows is "no buy" -- the same
+            #     constraint as a wind-down's, for a different reason.
+            # S9. **AND THE TOP-UP THRESHOLD ONLY BINDS A LATER CYCLE.** Don: *"The first fill
+            #     of a new event is not held back by the threshold."* So `cash_trickle`'s $40
+            #     waits when the event is already open (a top-up under $250) and goes out
+            #     scaled when the event is arriving now (a first fill). `_buys_possible` is
+            #     that distinction, derived from the rule rather than from the code.
+            sent = "sells_only"
         else:
             sent = "any"
 
@@ -530,6 +601,14 @@ def expected(state, event, read, mode, pilot):
         # safety direction is still asserted on every overlap row, and blocker B's own property
         # has a dedicated test where the sequence is explicit.
         may_close = None
+    elif st.get("cash_short") and not met:
+        # C2. **A CASH GAP KEEPS ITS EVENT OPEN [item 73].** Don, 2026-10-18: *"The shortfall
+        #     stays OPEN until it is filled or the next event replaces it."* So a row with a
+        #     real gap and no money to close it may NOT close -- and that is the whole point of
+        #     the ruling, because an event closed over an unfilled gap is a gap nothing will
+        #     ever come back for. Where the targets ARE met there is no gap and cash is
+        #     irrelevant, which the `not met` guard leaves to the ordinary rule below.
+        may_close = False
     else:
         may_close = bool(may_write and met and not resting_this_event and open_is_mine
                          and not (read["positions"] == "empty" and st["holds"])
@@ -561,6 +640,34 @@ def expected(state, event, read, mode, pilot):
             "alerted": alerted, "wind_down": wind_down, "armed": armed, "clean": clean,
             "targets_met": met, "resting_this_event": resting_this_event,
             "open_is_mine": open_is_mine}
+
+
+def _buys_possible(state, event) -> bool:
+    """Can a CASH-SHORT row buy anything at all? [item 73]
+
+    Two of Don's rules decide it, and neither is read off the implementation:
+
+      * with ZERO no-borrow buying power the scaling fraction is zero, so nothing can be
+        bought whatever else is true;
+      * with SOME money, the $250 top-up threshold holds it back **only on a later cycle of an
+        already-open event** -- *"the first fill of a new event is not held back by the
+        threshold"*. A first fill goes out scaled.
+
+    So a trickle buys when this row is the event's FIRST fill and waits when it is a top-up,
+    and the record's own open event is what distinguishes them.
+    """
+    st = STATES[state]
+    if not st.get("cash_short"):
+        return True
+    acct = st.get("account") or {}
+    if float(acct.get("non_marginable_buying_power") or 0) <= 0:
+        return False
+    # Some money: a top-up waits, a first fill goes. A top-up is a later cycle of an event the
+    # record still has open, which is exactly when `processed_extra` is seeded.
+    ev = EVENTS[event]
+    open_now = ev.get("open_pct_event") or st["open_ev"]
+    is_top_up = bool(st.get("processed_extra") and open_now == _key_for(state, event))
+    return not is_top_up
 
 
 def _key_for(state, event):
@@ -621,6 +728,20 @@ def run_row(state, event, read, mode, pilot, *, root=None):
         # [item 72].** Both are needed: the day list alone resets on the first cycle, because
         # `note_no_progress` treats an absent fingerprint as "a changed definition does not
         # inherit its old values" and starts the count again (item 64's rule).
+        # **ITEM 73: AN EVENT ALREADY IN `processed` is what makes a cycle NOT the first
+        # fill**, and the threshold may hold nothing back on a first fill. Only the SEND path
+        # appends the key, so seeding it is how this fixture reaches a later top-up at all.
+        #
+        # **SEEDED ONLY WHERE THE RECORD'S OPEN EVENT IS THE ARRIVING ONE**, and that took two
+        # goes. A hard-coded rebalance key left `processed` carrying the arriving key while
+        # `book_over_pct` replaced `open_event` with its pct event, so 66 rows read as ALREADY
+        # CLOSED before the cycle ran (`closed_in_record` is `key in processed and
+        # open_event != key`). Using the arriving key unconditionally has the same effect for
+        # the same reason. A top-up is by definition a later cycle of an event the record still
+        # has OPEN, so that is the condition -- and where it does not hold the row is a FIRST
+        # FILL, which `is_first_fill` in the declaration accounts for.
+        if st.get("processed_extra") and rec.get("open_event") == _key_for(state, event):
+            rec["processed"] = [_key_for(state, event)]
         if st.get("attempt_days"):
             fp = "|".join("%s:%.6f" % (t, float(st["record"].get(t) or 0))
                           for t in sorted(st["record"]))
@@ -637,7 +758,11 @@ def run_row(state, event, read, mode, pilot, *, root=None):
 
         live = Rec(holdings=st["record"], resting=st["resting"],
                    orders_read=read["orders"], positions_read=read["positions"],
-                   broker_extra=st.get("broker_extra"))
+                   broker_extra=st.get("broker_extra"),
+                   # **ITEM 73: THE STATE CARRIES ITS OWN ACCOUNT.** Every account here had ten
+                   # thousand dollars of no-borrow buying power, so no row could reach a cash
+                   # shortfall -- and Don's rulings of 2026-10-18 are entirely about that case.
+                   account=st.get("account"))
         # **THE QUOTE AXIS VARIES THE *PAPER* SESSION, and that is a fact about the code rather
         # than a convenience.** `_marks_for(client, ...) if hasattr(client, "quotes")` --
         # and `_LiveClient` has NO `quotes`, correctly, because Alpaca's market data is on a
@@ -738,7 +863,10 @@ def check_row(row):
     if want["sent"] == "sells_only":
         buys = [t for t, side in got["placed"] if side != "sell"]
         if buys:
-            bad.append("a WIND-DOWN transmitted buys: %r" % (buys,))
+            # TWO REASONS REACH THIS, so the message names which. A wind-down may not buy at
+            # all (item 71 blocker A); a cash-short slot has nothing to buy WITH (item 73).
+            why = "a WIND-DOWN" if want["wind_down"] else "a CASH-SHORT slot"
+            bad.append("%s transmitted buys: %r" % (why, buys))
     if not want["may_write"] and got["wrote"]:
         bad.append("WROTE the record when no write is permitted")
     if want["may_close"] is False and got["closed_in_record"]:
@@ -800,17 +928,30 @@ class TheWholeTable(unittest.TestCase):
     def test_the_table_is_the_declared_size(self):
         """`MA13`'s committed-literal idiom on the row count: an axis quietly losing a value
         would shrink the table and nothing else would notice."""
-        # **ITEM 72 ADDED THREE STATES AND THREE EVENTS**, the shapes the auditor's seventh
-        # review found the table could not reach: a brand-new record, an exhausted event, a
-        # STALE `open_event`, a quiet cycle, an UPWARD resize, and a new book superseding an
-        # open percentage event. 7 x 5 -> 10 x 8, so 2,240 rows -> 5,120.
-        self.assertEqual(len(STATES), 11)
+        # **ITEM 72 ADDED FOUR STATES AND THREE EVENTS**, the shapes the auditor's seventh
+        # review found the table could not reach: a brand-new record, a brand-new record
+        # against a non-empty account, an exhausted event, a STALE `open_event`, a quiet cycle,
+        # an UPWARD resize, and a new book superseding an open percentage event.
+        # 7 x 5 -> 11 x 8, so 2,240 rows -> 5,632.
+        #
+        # **ITEM 73 ADDED THE TWO CASH STATES.** Every account in this fixture had ten thousand
+        # dollars of no-borrow buying power, so no row could reach a cash shortfall at all --
+        # and Don's rulings of 2026-10-18 are entirely about that case. 11 -> 13 states, so
+        # 5,632 rows -> 6,656.
+        self.assertEqual(len(STATES), 13)
         self.assertEqual(len(EVENTS), 8)
         self.assertEqual(len(READS), 8)
         self.assertEqual(len(MODES), 4)
         self.assertEqual(len(PILOTS), 2)
-        self.assertEqual(len(all_rows()), 11 * 8 * 8 * 4 * 2)
-        self.assertEqual(len(all_rows()), 5632)
+        self.assertEqual(len(all_rows()), 13 * 8 * 8 * 4 * 2)
+        self.assertEqual(len(all_rows()), 6656)
+        # AND THE CASH STATES ARE REACHABLE: a budget that was never short would make every one
+        # of their 1,024 rows a restatement of `off_target`.
+        for name in ("cash_short", "cash_trickle"):
+            acct = STATES[name]["account"]
+            self.assertLess(float(acct["non_marginable_buying_power"]),
+                            float(ACCOUNT["non_marginable_buying_power"]),
+                            "%s's account is not actually short, so its rows are inert" % name)
 
 
 class TheDeclarationIsNotAMirrorOfTheCode(unittest.TestCase):

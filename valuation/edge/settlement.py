@@ -63,6 +63,7 @@ Counting distinct dates makes the ceiling mean what its own message says.
 from __future__ import annotations
 
 import datetime as _dt
+import os
 from typing import Optional
 
 #: US equities settle T+1. A wait still open on the SECOND trading day after it began has
@@ -294,3 +295,114 @@ def paged_orders(fetch, *, page_limit: int = 500, status: str = "all",
     return {"ok": True, "data": out, "truncated": True, "pages": pages,
             "reason": ("the order history did not end within %d pages of %d, so this slot's "
                        "fill totals cannot be read reliably" % (cap, page_limit))}
+
+# ---------------------------------------------------------------------------------------------
+# ITEM 73 -- PARTIAL CASH: spread the buys, keep the shortfall open, top up in useful amounts
+# ---------------------------------------------------------------------------------------------
+
+#: **ONE UNIVERSAL VARIABLE, which is Don's explicit choice of 2026-10-18**: *"There is no
+#: per-account variable; Don chose one universal setting."* It applies to every live slot AND to
+#: the paper slot, so parity still compares like with like -- a per-slot threshold would make the
+#: two books diverge for a reason that has nothing to do with the Index.
+MIN_TOPUP_VAR = "LIVE_MIN_TOPUP"
+
+#: Dollars. Below this, a top-up waits rather than firing 86 tiny orders for a small deposit.
+DEFAULT_MIN_TOPUP = 250.0
+
+
+def min_topup(env=None) -> dict:
+    """The smallest top-up worth sending. `{"ok", "amount", "stated", "reason"}`.
+
+    **A MALFORMED VALUE REFUSES, EXACTLY AS `LIVE_PCT` DOES**, and for a sharper reason than
+    that one has: reading a typo as **0** would top up on every cent that lands in the account,
+    and reading it as the DEFAULT would silently ignore a figure Don had deliberately set. So a
+    value that is not a non-negative number is a broken input and the slot sends nothing.
+
+    An ABSENT value is the default rather than a refusal -- that is the shipped state and it is
+    not a typo.
+    """
+    e = env if env is not None else os.environ
+    raw = (e.get(MIN_TOPUP_VAR, "") or "").strip()
+    if raw == "":
+        return {"ok": True, "amount": DEFAULT_MIN_TOPUP, "stated": False,
+                "reason": ("%s is not set, so the default of $%.2f applies to every slot"
+                           % (MIN_TOPUP_VAR, DEFAULT_MIN_TOPUP))}
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        v = None
+    if v is None or v != v or v in (float("inf"), float("-inf")) or v < 0:
+        return {"ok": False, "amount": None, "stated": True,
+                "reason": ("%s is %r, which is not a non-negative number of dollars. The slot "
+                           "sends no orders and alerts, because reading it as 0 would fire a "
+                           "top-up on every cent that lands in the account and reading it as "
+                           "the default would ignore a figure that was set deliberately."
+                           % (MIN_TOPUP_VAR, raw))}
+    return {"ok": True, "amount": float(v), "stated": True, "reason": ""}
+
+
+def allocate_buys(buys, spendable, *, min_order_value: float = 1.0) -> dict:
+    """Spread `spendable` across `buys` PROPORTIONALLY. Pure arithmetic; sends nothing.
+
+    `{"orders", "skipped", "fraction", "total_cost", "fillable_cost", "shortfall"}`.
+
+    **EVERY NAME IS SCALED BY THE SAME FRACTION** -- `f = min(1, spendable / total cost)` --
+    which is Don's ruling of 2026-10-18. The alternative, and what shipped until now, is to take
+    the buys in plan order until the budget runs out: that leaves the first names at full size
+    and the rest at zero, so with $2,000 against a $5,000 target the alphabetical tail is simply
+    not bought.
+
+    **A SCALED ORDER UNDER `min_order_value` IS SKIPPED AND STAYS IN THE GAP**, rather than
+    being rounded up (which would spend more than the fraction allows) or down (which the broker
+    refuses anyway). Don accepted the consequence in writing: *"Smaller names lagging behind,
+    because their share of a top-up is under `min_order_value`, is accepted. They stay in the gap
+    and catch up on a later top-up."*
+
+    **`fillable_cost` IS WHAT WOULD ACTUALLY BE SENT**, which is what the top-up threshold is
+    measured against -- not the nominal scaled total, because the names dropped for being too
+    small would make a $250 threshold pass on $40 of real orders.
+    """
+    rows = [dict(o) for o in (buys or [])]
+    total = 0.0
+    for o in rows:
+        try:
+            total += float(o["qty"]) * float(o["limit_price"])
+        except (TypeError, ValueError, KeyError):
+            return {"orders": [], "skipped": [], "fraction": 0.0, "total_cost": None,
+                    "fillable_cost": 0.0, "shortfall": None,
+                    "reason": "a planned buy carried no usable quantity or price"}
+    amt = None
+    try:
+        amt = float(spendable)
+    except (TypeError, ValueError):
+        amt = None
+    if amt is None or amt != amt or amt < 0:
+        return {"orders": [], "skipped": [dict(o, why="no spendable figure was reported")
+                                          for o in rows],
+                "fraction": 0.0, "total_cost": round(total, 2), "fillable_cost": 0.0,
+                "shortfall": round(total, 2),
+                "reason": "no spendable figure was reported, so nothing is sized"}
+    if total <= 0:
+        return {"orders": [], "skipped": [], "fraction": 1.0, "total_cost": 0.0,
+                "fillable_cost": 0.0, "shortfall": 0.0, "reason": "there is nothing to buy"}
+    f = min(1.0, amt / total)
+    out_orders, skipped, fill = [], [], 0.0
+    for o in rows:
+        cost = float(o["qty"]) * float(o["limit_price"])
+        scaled_cost = cost * f
+        if scaled_cost < float(min_order_value):
+            skipped.append(dict(o, why=("its %.1f%% share of the available cash is $%.4f, "
+                                        "under the $%.2f minimum order value, so it stays in "
+                                        "the gap and catches up on a later top-up"
+                                        % (f * 100.0, scaled_cost, min_order_value))))
+            continue
+        q = float(o["qty"]) * f
+        out_orders.append(dict(o, qty=round(q, 9), full_qty=float(o["qty"]),
+                               scaled_by=round(f, 9),
+                               scaled_cost=round(scaled_cost, 2)))
+        fill += scaled_cost
+    return {"orders": out_orders, "skipped": skipped, "fraction": round(f, 9),
+            "total_cost": round(total, 2), "fillable_cost": round(fill, 2),
+            "shortfall": round(max(0.0, total - fill), 2),
+            "reason": ("every buy is scaled to %.4f of its gap, which is $%.2f of the $%.2f "
+                       "needed" % (f, fill, total))}

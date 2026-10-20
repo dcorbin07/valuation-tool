@@ -94,6 +94,18 @@ KINDS = {
     "stale_open_event_never_completed": ALERTS,
     "state_write_failed": ALERTS,
     "targets_failed": ALERTS,
+    # ---- item 73: the cash gap ---------------------------------------------------------------
+    # **ALERTS, AND ONCE PER EVENT RATHER THAN ONCE A DAY.** Don, 2026-10-18: *"Waiting for cash
+    # is a normal state, not a failure ... it alerts Don once. It does not re-alert every cycle
+    # and does not burn the ceiling."* So it is a problem in the sense that Don has to act (move
+    # money, or decide not to) and NOT in the sense that anything is broken — which is why its
+    # once-per-event record lives in the slot's own state rather than in `live_notify`'s daily
+    # reminder. Pre-classified by item 74 before this emitter existed; see
+    # `DECLARED_AHEAD_OF_EMITTER` below for how that was kept honest.
+    "waiting_for_cash": ALERTS,
+    # A malformed `LIVE_MIN_TOPUP` refuses the cycle, as a malformed percentage does, so this is
+    # a broken input and the slot sends nothing.
+    "min_topup_invalid": ALERTS,
 
     # ---- the daily record: `track_meter` / `/admin/track-row` --------------------------------
     "record_row_missing": ALERTS,
@@ -132,13 +144,19 @@ KINDS = {
     "routine_test": ROUTINE,
 }
 
-#: **DECLARED BUT NOT YET EMITTED, and said out loud rather than left to look like coverage.**
-#: Item 73 adds these two and is landing separately; classifying them here means its routing is
-#: right on the day it lands instead of a week later. `tests/test_item74.py` reports them as
-#: declared-and-unemitted, so a registry entry whose emitter was deleted shows up rather than
-#: sitting forever as a line nobody can reach — the `C5` direction (absent is not a measured
-#: zero) applied to the registry itself.
-DECLARED_AHEAD_OF_EMITTER = ("waiting_for_cash", "min_topup_invalid")
+#: **ITEM 73'S TWO KINDS, NOW EMITTED — and this list is empty because its guard said so.**
+#:
+#: Item 74 classified `waiting_for_cash` and `min_topup_invalid` before item 73 existed, so that
+#: its routing would be right on the day it landed rather than a week later, and listed them
+#: here as declared-but-unreachable: the `C5` direction (absent is not a measured zero) applied
+#: to the registry itself. `tests/test_item74.py` asserts each entry here is still *unemitted* —
+#: so the moment item 73 landed its emitters, that test went red and named the two kinds and the
+#: remedy. **A forward declaration that cannot tell you when it stopped being one is a comment.**
+#:
+#: Both are now in `KINDS` proper, above, beside the other live-path kinds. The list stays
+#: rather than being deleted: it is the mechanism, and the next item to pre-classify a kind will
+#: want it.
+DECLARED_AHEAD_OF_EMITTER = ()
 for _k in DECLARED_AHEAD_OF_EMITTER:
     KINDS.setdefault(_k, ALERTS)
 
