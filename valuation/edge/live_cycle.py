@@ -808,7 +808,38 @@ def account_settlement_report(client) -> dict:
 #: on the list because a bag that is cleared in one place and not the other is the drift this
 #: constant exists to prevent, and clearing something nothing reads costs nothing.
 EVENT_SCOPED_STATE = ("event_attempts", "event_progress", "send_seq",
-                      "event_fingerprint", "event_attempt_days", "awaiting_settlement")
+                      "event_fingerprint", "event_attempt_days", "awaiting_settlement",
+                      # **ITEM 73: the per-name targets this event was opened against, and the
+                      # cash-wait record.** Both are meaningless once the event is finished,
+                      # and a frozen target surviving into the NEXT event would aim a top-up
+                      # at a book that no longer applies -- which is the drift Don's
+                      # three-events rule forbids, arriving by the back door.
+                      "frozen_targets", "cash_wait")
+
+
+#: **WHAT THE SEND PHASE CONCLUDED, which is a DIFFERENT QUESTION from what the planner
+#: concluded. [item 73]**
+#:
+#: `plan_outcome` answers *"could I work out what to do?"*. These answer *"could I do it?"* --
+#: and the case that forced the distinction is Don's: a gap waiting for cash has a perfectly
+#: good plan and no money. Folding it into `plan_outcome` would have made one value mean both,
+#: which is the fault every blocker on this path has been.
+SEND_SENT = "sent"                        # orders went to the broker
+SEND_NOTHING_TO_DO = "nothing_to_do"      # the plan was empty; no money question arises
+SEND_WAITING_CASH = "waiting_for_cash"    # a real gap, no spendable cash. NORMAL, not a failure
+SEND_TOPUP_TOO_SMALL = "topup_below_threshold"   # cash exists; the fillable amount is too small
+SEND_WITHHELD = "withheld"                # armed/session/parity/write gates refused first
+
+#: Every value. An outcome absent from this tuple is a programming error rather than a state.
+SEND_OUTCOMES = (SEND_SENT, SEND_NOTHING_TO_DO, SEND_WAITING_CASH, SEND_TOPUP_TOO_SMALL,
+                 SEND_WITHHELD)
+
+#: **NEITHER OF THESE TWO BURNS THE NO-PROGRESS CEILING, and that is Don's ruling verbatim:**
+#: *"Waiting for cash is a normal state, not a failure... it does not re-alert every cycle and
+#: does not burn the ceiling. The ceiling still applies to orders that are sent and never
+#: fill."* A ceiling that counts days spent waiting for a deposit would stop the event after
+#: five of them and alert -- which is the opposite of what the state means.
+SEND_OUTCOMES_THAT_DO_NOT_SPEND_A_CEILING_DAY = (SEND_WAITING_CASH, SEND_TOPUP_TOO_SMALL)
 
 
 #: WHAT THE PLANNER CONCLUDED, AS A VALUE RATHER THAN AS AN EMPTY LIST.  [item 69]
@@ -1040,7 +1071,8 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
              paper_targets: dict = None, paper_value: float = None,
              account_id=None, account=None, settlement_report=None,
              fractional=None, send: bool = True, sess_reason: str = "",
-             may_write: bool = True, sell_only: bool = False) -> dict:
+             may_write: bool = True, sell_only: bool = False,
+             min_topup: dict = None) -> dict:
     """One slot's cycle. Returns what it did and why. NEVER RAISES.
 
     `account` is the broker's whole account reply, not only its equity: item 67 sizes buys
@@ -1056,6 +1088,11 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
     `may_write=False` is what a GET uses: the plan is computed and reported and **the record is
     left exactly as it was** [item 71, blocker C]. Separate from `send` because they are
     separate permissions -- a dry POST may write what it learned and must transmit nothing.
+
+    `min_topup` is item 73's one universal threshold, resolved by the caller from the
+    environment. Below it a top-up WAITS rather than firing a handful of tiny orders; the first
+    fill of a new event is exempt. A malformed value refuses the cycle, as a malformed
+    percentage does.
 
     `sell_only=True` is the X->0 WIND-DOWN [item 71, blocker A]. Every buy is withheld and
     reported; the sales are of what this slot's own record holds, which is the only thing a 0%
@@ -1407,6 +1444,39 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         for nm in exits:
             tg["targets"].setdefault(nm, 0.0)
 
+        # ---- THE TARGETS ARE FROZEN WHEN THE EVENT OPENS [item 73] ----------------------
+        #
+        # Don, 2026-10-18: *"The gap is measured against that event's own per-name targets,
+        # frozen when the event opened. It is NOT re-derived from today's equity. Otherwise
+        # this becomes daily drift trading, which Don's three-events rule forbids."*
+        #
+        # **IT FIXES SOMETHING WIDER THAN THE CASH CASE.** Until now every cycle of an open
+        # event recomputed the targets from TODAY's equity, so a price move between two cycles
+        # of one rebalance changed the target and the slot traded the difference -- drift
+        # trading arriving through a remainder cycle, which nobody authorised.
+        #
+        # **AND IT IS WHAT MAKES A TOP-UP CONVERGE.** A gap measured against today's equity
+        # shrinks when the market falls, so a deposit would chase a moving number.
+        #
+        # A frozen set is only ever REUSED, never merged: a partial overlap would be a third
+        # target map that is neither this event's nor the last's.
+        _frozen = dict(st.get("frozen_targets") or {})
+        if key and key != "none":
+            if key in _frozen and isinstance(_frozen[key], dict) and _frozen[key]:
+                tg["targets"] = {str(k).upper(): (LS._f(v) or 0.0)
+                                 for k, v in _frozen[key].items()}
+                # The exits still apply: a name the book dropped SINCE the freeze must still be
+                # sold, and a zero target is the only way `order_plan` expresses that.
+                for nm in exits:
+                    tg["targets"].setdefault(nm, 0.0)
+                out["targets_are_frozen"] = True
+                out["targets_frozen_for"] = key
+            else:
+                _frozen[key] = {k: round(float(v), 6) for k, v in tg["targets"].items()}
+                st["frozen_targets"] = _frozen
+                out["targets_are_frozen"] = False
+                out["targets_frozen_for"] = key
+
         plan = LS.order_plan(tg["targets"], st.get("holdings") or {}, marks,
                              resting=(rec.get("resting") or []))
         out["orders"] = plan["orders"]
@@ -1737,6 +1807,103 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                                  if not session_ok else "no client was supplied")))
             return out
 
+        # ---- THE BUY BUDGET AND THE PROPORTIONAL SPREAD [item 73] ---------------------
+        #
+        # **THIS SITS ABOVE THE CEILING DELIBERATELY.** Until item 73 the ceiling counted a
+        # trading day and only then did the budget discover there was no cash -- so a gap
+        # waiting for a deposit burned the ceiling and the event was stopped and alerted after
+        # five trading days. Don, 2026-10-18: *"Waiting for cash is a normal state, not a
+        # failure... it does not re-alert every cycle and does not burn the ceiling. The
+        # ceiling still applies to orders that are sent and never fill."*
+        budget = SETTLE.spendable(account) if account is not None else {
+            "ok": False, "amount": None, "field": None,
+            "reason": ("no account reply was supplied to this cycle, so nothing bounds a buy "
+                       "and none is sized")}
+        out["budget"] = budget
+        # **PASSED IN, NOT READ HERE [item 73].** `run_slot` reads no environment at all,
+        # and everything it acts on arrives as an argument -- which is what makes it testable
+        # through `run_cycle` with a dict, and the same reason `armed_state` arrives that way.
+        # A caller that passes nothing gets the REAL environment's answer rather than a silent
+        # default, so an un-updated caller cannot quietly disable the threshold.
+        _topup = min_topup if min_topup is not None else SETTLE.min_topup()
+        out["min_topup"] = _topup
+        if not _topup["ok"]:
+            # **A MALFORMED THRESHOLD REFUSES, exactly as a malformed percentage does.**
+            # Reading it as 0 would fire a top-up on every cent; reading it as the default
+            # would ignore a figure Don set deliberately.
+            out["alerts"].append({"kind": "min_topup_invalid", "slot": str(slot),
+                                  "reason": _topup["reason"]})
+            out["reason"] = _topup["reason"]
+            out["send_outcome"] = SEND_WITHHELD
+            return out
+
+        _buys = [o for o in plan["orders"] if str(o["side"]).lower() == "buy"]
+        alloc = SETTLE.allocate_buys(_buys, budget.get("amount") if budget.get("ok") else None)
+        out["allocation"] = {k: alloc[k] for k in
+                             ("fraction", "total_cost", "fillable_cost", "shortfall", "reason")}
+        scaled_buys = alloc["orders"]
+        deferred_buys = alloc["skipped"]
+
+        # **THE TOP-UP THRESHOLD, and the FIRST FILL OF AN EVENT IS EXEMPT [item 73].** Don:
+        # *"Don't fire 86 tiny orders for every small deposit... A top-up happens only when the
+        # uninvested gap's fillable amount is at least a threshold."* And: *"The first fill of a
+        # new event is not held back by the threshold"* -- a rebalance must go in on the day it
+        # arrives whatever its size.
+        #
+        # "First fill" is read from `processed`: only the SEND path appends the key, so a key
+        # absent from it means nothing has been transmitted for this event yet.
+        _first_fill = bool(key and key != "none" and key not in (st.get("processed") or []))
+        out["is_first_fill_of_event"] = _first_fill
+        _held_back = (not _first_fill and scaled_buys
+                      and alloc["fillable_cost"] < float(_topup["amount"]))
+        if _held_back:
+            scaled_buys = []
+            deferred_buys = list(alloc["orders"]) + list(alloc["skipped"])
+
+        _has_sells = any(str(o["side"]).lower() == "sell" for o in plan["orders"])
+        # **A CASH WAIT IS A REAL GAP WITH NOTHING SENDABLE, and it is NOT the same as an empty
+        # plan.** If there is nothing to buy at all there is no money question to answer.
+        _cash_wait = bool(_buys and not scaled_buys and not _has_sells and not _held_back)
+        if _cash_wait or (_held_back and not _has_sells):
+            out["send_outcome"] = (SEND_TOPUP_TOO_SMALL if _held_back else SEND_WAITING_CASH)
+            out["deferred"] = deferred_buys
+            out["will_send"] = []
+            # THE EVENT STAYS OPEN. The frozen targets are what a later top-up aims at.
+            st["open_event"] = key
+            waits = dict(st.get("cash_wait") or {})
+            prior = dict(waits.get(key) or {})
+            _since = prior.get("since") or _stamp()
+            # **ONE POST WHEN IT STARTS, and nothing after it [item 73].** Don's noise rule.
+            _already = bool(prior.get("alerted"))
+            waits[key] = {"since": _since, "alerted": True,
+                          "shortfall": alloc["shortfall"],
+                          "fillable": alloc["fillable_cost"],
+                          "outcome": out["send_outcome"]}
+            st["cash_wait"] = waits
+            if out["send_outcome"] == SEND_WAITING_CASH:
+                out["reason"] = (
+                    "$%.2f of the Index target is waiting for cash; it will be bought "
+                    "automatically when cash is available. Nothing is sold, the event stays "
+                    "open, and this is not a failure." % alloc["shortfall"])
+            else:
+                out["reason"] = (
+                    "$%.2f of the Index target is waiting for cash. $%.2f could be bought "
+                    "now, which is under the $%.2f minimum top-up, so it waits rather than "
+                    "sending a handful of tiny orders."
+                    % (alloc["shortfall"], alloc["fillable_cost"], _topup["amount"]))
+            if not _already:
+                out["alerts"].append({"kind": "waiting_for_cash", "slot": str(slot),
+                                      "reason": out["reason"]})
+                out["cash_wait_alerted"] = True
+            # **NO CEILING DAY IS SPENT** -- this branch returns above it.
+            _note_write(out, _write(), slot, "recording a cash wait")
+            return out
+        if key in (st.get("cash_wait") or {}):
+            # IT CLEARED. The record goes, so a later wait on the same event alerts again.
+            waits = dict(st.get("cash_wait") or {})
+            out["cash_wait_cleared"] = dict(waits.pop(key), event=key)
+            st["cash_wait"] = waits
+
         # ---- THE CEILING COUNTS ATTEMPTS THAT MADE NO PROGRESS [item 63 #11, fixed item 64]
         #
         # **ITEM 63 COUNTED CYCLES THAT ACTED, WHICH IS A DIFFERENT QUANTITY AND WOULD HAVE
@@ -1813,12 +1980,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # **IT IS NOT A SETTLEMENT MODEL AND MUST NOT BECOME ONE.** It asks the broker what is
         # available and sizes to that, so an account whose proceeds are immediately spendable --
         # which Alpaca says a limited-margin IRA's are -- never waits at all.
-        budget = SETTLE.spendable(account) if account is not None else {
-            "ok": False, "amount": None, "field": None,
-            "reason": ("no account reply was supplied to this cycle, so nothing bounds a buy "
-                       "and none is sized")}
-        out["budget"] = budget
-        to_send, deferred, spent = [], [], 0.0
+        to_send, deferred = [], list(deferred_buys)
         # **A WIND-DOWN TRANSMITS NO BUY [item 71, blocker A].** `sell_only` comes from
         # `armed`, the only function that may say yes, and it is set only when the percentage
         # is zero AND this slot's own record still holds something. Every target is therefore
@@ -1848,21 +2010,12 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                                   ", ".join(str(o.get("ticker")) for o in withheld_buys)))})
         out["withheld_buys"] = withheld_buys
         out["sell_only"] = bool(sell_only)
-        for o in plan["orders"]:
-            if str(o["side"]).lower() == "sell":
-                to_send.append(o)               # a sell RAISES cash; no budget binds it
-                continue
-            cost = float(o["qty"]) * float(o["limit_price"])
-            if not budget.get("ok"):
-                deferred.append(dict(o, why="no spendable figure was reported"))
-            elif spent + cost > float(budget["amount"]) + 1e-9:
-                deferred.append(dict(o, why=("would spend %.2f of the %.2f available without "
-                                             "borrowing" % (spent + cost, budget["amount"]))))
-            else:
-                spent += cost
-                to_send.append(o)
+        # **THE SELLS ARE NOT BOUNDED BY CASH** -- a sell RAISES it -- and they were already
+        # sorted first by `order_plan`. The buys were scaled proportionally above the ceiling.
+        to_send = [o for o in plan["orders"] if str(o["side"]).lower() == "sell"] + scaled_buys
         out["deferred"] = deferred
-        out["buy_cost_planned"] = round(spent, 2)
+        out["buy_cost_planned"] = round(sum(float(o["qty"]) * float(o["limit_price"])
+                                            for o in scaled_buys), 2)
         out["will_send"] = [dict(o) for o in to_send]
 
         if not to_send:
@@ -2239,6 +2392,10 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
         mode = DRY
     paper_sends = mode in (PAPER, LIVE)
     live_sends = (mode == LIVE)
+    # **ONE RESOLUTION PER CYCLE, SHARED BY EVERY SLOT [item 73].** Don chose a single
+    # universal variable on 2026-10-18 -- *"there is no per-account variable"* -- so resolving
+    # it per slot would be one definition pretending to be several.
+    _min_topup = SETTLE.min_topup(e)
 
     out = {"ok": True, "at": _stamp(), "mode": mode,
            "send_requested": live_sends, "paper_send_requested": paper_sends,
@@ -2354,6 +2511,10 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                 frac = None
             res = run_slot(PAPER_SLOT, pct=PAPER_PCT, fractional=frac,
                            may_write=bool(may_write),
+                           # **THE SAME THRESHOLD AS EVERY LIVE SLOT**, which is Don's explicit
+                           # choice -- one universal setting -- and what keeps parity comparing
+                           # like with like.
+                           min_topup=_min_topup,
                            armed_state={"armed": True,
                                         "reason": "the paper slot is always armed: it is "
                                                   "paper money on the paper host"},
@@ -2463,6 +2624,7 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                            account_id=live_account_id,
                            send=bool(live_sends and a["armed"]),
                            may_write=bool(may_write),
+                           min_topup=_min_topup,
                            sell_only=bool(a.get("sell_only")),
                            sess_reason=sess.get("reason") or "")
             res["mode"] = mode
