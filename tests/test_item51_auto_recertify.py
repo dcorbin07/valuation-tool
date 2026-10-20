@@ -250,7 +250,7 @@ class TheAlertGoesOutBecauseTheCodesWouldNot(unittest.TestCase):
             p = FN.pending({}, {BOOK: before}, F.fleet_dir(root))
             # first sight of a refusal is news; the point is that the SECOND is not, which is
             # the steady state a failed re-certification sits in
-            FN.announce({}, {BOOK: before}, F.fleet_dir(root), send=lambda c, b: True)
+            FN.announce({}, {BOOK: before}, F.fleet_dir(root), send=lambda c, b, ch=None: True)
             p2 = FN.pending({}, {BOOK: before}, F.fleet_dir(root))
             self.assertTrue(p["new_refusals"])
             self.assertFalse(p2["new_refusals"])

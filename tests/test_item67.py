@@ -814,7 +814,7 @@ class ARemainderNeverStacksOnARestingOrder(unittest.TestCase):
         for _ in range(n):
             outs.append(LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root,
                                      book=T63.BOOK, paper_client=broker(sess),
-                                     notify_send=(lambda cfg, b: True)))
+                                     notify_send=(lambda cfg, b, ch=None: True)))
         return outs
 
     def test_FIVE_IN_SESSION_CYCLES_DO_NOT_SEND_FIVE_FULL_ORDERS(self):
@@ -885,7 +885,7 @@ class TheSettlementWaitDoesNotDOUBLE_SEND(unittest.TestCase):
             LC._stamp = (lambda d=day: "%sT14:40:00Z" % d)
             return LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root,
                                 book=T63.BOOK, paper_client=broker(sess),
-                                notify_send=(lambda cfg, b: True))
+                                notify_send=(lambda cfg, b, ch=None: True))
         finally:
             LC._stamp = real
 
@@ -1037,7 +1037,7 @@ class AFreshRecordMeetingANonEmptyAccountRefusesOnce(unittest.TestCase):
                          "submitted_at": "2026-10-20T14:40:00Z"}]
         out = LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root,
                            book=T63.BOOK, paper_client=broker(sess),
-                           notify_send=(lambda cfg, b: True))
+                           notify_send=(lambda cfg, b, ch=None: True))
         p = out["paper"]
         self.assertEqual(sess.placed, [], "a full buy-in went out on top of a held account")
         self.assertTrue(p["record_is_fresh"])
@@ -1078,7 +1078,7 @@ class AFreshRecordMeetingANonEmptyAccountRefusesOnce(unittest.TestCase):
         def cycle():
             return LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root,
                                 book=T63.BOOK, paper_client=broker(sess),
-                                notify_send=(lambda cfg, b: True))["paper"]
+                                notify_send=(lambda cfg, b, ch=None: True))["paper"]
 
         first = cycle()
         self.assertIn("brand new", first["reason"])
@@ -1102,7 +1102,7 @@ class AFreshRecordMeetingANonEmptyAccountRefusesOnce(unittest.TestCase):
                          "limit_price": "10", "filled_avg_price": "10",
                          "submitted_at": "2026-07-30T14:40:00Z"}]
         LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root, book=T63.BOOK,
-                     paper_client=broker(sess), notify_send=(lambda cfg, b: True))
+                     paper_client=broker(sess), notify_send=(lambda cfg, b, ch=None: True))
         st = LC.read_state(LC.PAPER_SLOT, self.root)
         self.assertNotIn("ZZZZ", st.get("holdings") or {},
                          "the refusal adopted a position the slot never bought")
@@ -1276,7 +1276,7 @@ class AnExitedNameIsPRICEDOrItCannotBeSold(unittest.TestCase):
 
         sess = Quoting()
         LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root, book=T63.BOOK,
-                     paper_client=broker(sess), notify_send=(lambda cfg, b: True))
+                     paper_client=broker(sess), notify_send=(lambda cfg, b, ch=None: True))
         self.assertTrue(asked, "no quote was requested at all")
         self.assertIn("GONE", asked[0],
                       "a name the slot HOLDS was never priced, so it could never be sold: %r"
@@ -1290,7 +1290,7 @@ class AnExitedNameIsPRICEDOrItCannotBeSold(unittest.TestCase):
                        "processed": [], "account_id": "acct-paper-1"}, fh)
         out = LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root,
                            book=T63.BOOK, paper_client=broker(Accumulating()),
-                           notify_send=(lambda cfg, b: True))
+                           notify_send=(lambda cfg, b, ch=None: True))
         rep = out["priced_names"]
         self.assertEqual(rep["held_by_a_slot_and_not_in_the_book"], ["GONE"])
         self.assertGreater(rep["n"], rep["book_held"])
@@ -1301,7 +1301,7 @@ class AnExitedNameIsPRICEDOrItCannotBeSold(unittest.TestCase):
         can never reach for a quote on one of Don's other holdings."""
         out = LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root,
                            book=T63.BOOK, paper_client=broker(Accumulating()),
-                           notify_send=(lambda cfg, b: True))
+                           notify_send=(lambda cfg, b, ch=None: True))
         self.assertEqual(out["priced_names"]["held_by_a_slot_and_not_in_the_book"], [],
                          "a fresh record priced a name no slot bought")
 

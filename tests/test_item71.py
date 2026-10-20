@@ -91,7 +91,7 @@ class _Live(unittest.TestCase):
             paper_client=AB.AlpacaPaperBroker(key_id="PKFIX", secret_key="s" * 24,
                                               session=paper),
             live_client_factory=(lambda n: LS._LiveClient(n, "k", "s" * 24, session=live)),
-            notify_send=(lambda cfg, b: True))
+            notify_send=(lambda cfg, b, ch=None: True))
         slot = next((x for x in (got.get("slots") or [])
                      if str(x.get("slot")) == "1"), {}) or {}
         return slot, live, LC.read_state("1", self.root)
@@ -140,7 +140,7 @@ class TheSellOutCanNowExecuteOnALiveSlot(_Live):
                                                        session=paper),
                      live_client_factory=(lambda n: LS._LiveClient(n, "k", "s" * 24,
                                                                    session=live)),
-                     notify_send=(lambda cfg, b: True))
+                     notify_send=(lambda cfg, b, ch=None: True))
         sold = sorted(o["symbol"] for o in live.placed)
         self.assertEqual(sold, ["AAPL"], "it reached Don's own position: %r" % (sold,))
 

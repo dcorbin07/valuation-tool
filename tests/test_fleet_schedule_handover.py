@@ -128,12 +128,111 @@ class TestItReplacesRatherThanAdds(unittest.TestCase):
         self.assertEqual(callers, ["fleet-cycle.yml"], "callers: %r" % (callers,))
 
 
+#: The steps item 74 adds to every workflow. A CLOSED LIST, named here rather than "anything
+#: added is fine": a guard that permits arbitrary additions is not a guard. Each is monitoring
+#: only -- a healthchecks ping and a Discord post on failure -- and none of them can change what
+#: the door does.
+ITEM_74_STEPS = ("item 74: healthchecks start", "item 74: tell Don this failed",
+                 "item 74: healthchecks end")
+
+
+def _strip_item74(src: str) -> str:
+    """`src` with item 74's monitoring steps removed, so the verbatim guards keep their subject.
+
+    **WHY THIS EXISTS [repointed item 74, and `MA59`'s rule -- in the same commit].** This
+    class enforced *"the cron is the ONLY line that differs"* by comparing the whole jobs block
+    byte for byte. That is exactly right for a handover whose only content is a cron change, and
+    false the moment a second legitimate change arrives -- which item 74 is. The property it was
+    really guarding is in its own docstring: *"or the two files become two different doors"*, and
+    the door is one step. So the declared monitoring steps are removed and the comparison keeps
+    asking its own question about everything else.
+
+    Third repoint of this shape on this path, after item 71's `MB31` tripwire and item 72's bag
+    list, and the pattern is identical each time: a guard asserting "these two things are equal
+    today" fires on the clock, so assert the property the equality stood in for.
+
+    A comment run above a step belongs to it, so the cut starts there.
+    `TestTheBodyIsVerbatim.test_THE_STRIPPER_IS_NOT_VACUOUS` proves it both removes and keeps.
+    """
+    lines = src.split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        ln = lines[i]
+        if ln.lstrip().startswith("- name:") and "item 74:" in ln:
+            while out and (out[-1].lstrip().startswith("#") or not out[-1].strip()):
+                out.pop()
+            i += 1
+            while i < len(lines):
+                nxt = lines[i]
+                if nxt.lstrip().startswith("- name:") or (
+                        nxt.strip() and not nxt.startswith("      ")):
+                    break
+                i += 1
+            continue
+        out.append(ln)
+        i += 1
+    return "\n".join(out)
+
+
 class TestTheBodyIsVerbatim(unittest.TestCase):
     """(2) - or the two files become two different doors."""
 
+    @staticmethod
+    def _door_step(src):
+        """The `POST the fleet-cycle door` step's own text -- the thing that must not drift.
+
+        **STRIPPED FIRST, THEN SLICED.** Taking the slice from the raw text ends it at whatever
+        step comes next, which in the pending file is item 74's comment block -- so the two
+        sides differed by the trailing blank lines rather than by anything the door does.
+        Trailing whitespace is normalised for the same reason: the subject is what the step
+        does, not whether the file ends on a blank line.
+        """
+        src = _strip_item74(src)
+        start = src.index("      - name: POST the fleet-cycle door")
+        rest = src[start + 1:]
+        nxt = rest.find("\n      - name:")
+        return (rest[:nxt] if nxt >= 0 else rest).rstrip()
+
+    def test_the_door_step_is_byte_identical_in_both_files(self):
+        """The obligation, narrowed to the door: nothing it DOES may differ."""
+        self.assertEqual(self._door_step(_body(PENDING)),
+                         self._door_step(_body(INSTALLED)),
+                         "the fleet-cycle door call differs between the pending and the "
+                         "installed file -- two files, two doors")
+
+    def test_ANYTHING_ADDED_IS_A_DECLARED_MONITORING_STEP_and_nothing_else(self):
+        """The other half, and without it the narrowing above would permit anything.
+
+        Every step name in one file and not the other must be one of item 74's three. A
+        smuggled extra step, or a renamed door, still fails.
+        """
+        def names(src):
+            return re.findall(r"^      - name:\s*(.+?)\s*$", src, re.M)
+
+        pend, inst = names(_body(PENDING)), names(_body(INSTALLED))
+        diff = set(pend) ^ set(inst)
+        for extra in sorted(diff):
+            self.assertTrue(any(k in extra for k in ITEM_74_STEPS),
+                            "%r is in one file and not the other, and it is not one of item "
+                            "74's monitoring steps" % extra)
+
+    def test_THE_STRIPPER_IS_NOT_VACUOUS(self):
+        """A stripper that removed everything would make the two guards below pass by seeing
+        nothing -- the vacuous-pass family this project has paid for repeatedly. So it must
+        remove the item-74 steps AND keep the door."""
+        raw = _body(PENDING)
+        out = _strip_item74(raw)
+        self.assertIn("POST the fleet-cycle door", out, "the stripper ate the door")
+        self.assertIn("admin/fleet-cycle?run=1", out)
+        self.assertNotIn("item 74:", out, "the stripper left an item-74 step behind")
+        self.assertLess(len(out), len(raw), "the stripper removed nothing at all")
+
     def test_the_body_is_byte_identical_once_the_cron_block_is_substituted(self):
         """The whole obligation, in one comparison: nothing but the schedule may differ."""
-        pend, inst = _body(PENDING), _body(INSTALLED)
+        # Trailing whitespace normalised: removing a step at the end of a file leaves a
+        # different number of trailing newlines, and the subject is content.
+        pend = _strip_item74(_body(PENDING)).rstrip()
+        inst = _strip_item74(_body(INSTALLED)).rstrip()
         # **THE HANDOVER HAS RUN, OR IT HAS NOT, AND BOTH ARE LEGITIMATE.** This used to assert
         # the files DIFFER, which is only true while the pending file is pending -- so the
         # install that this suite exists to make safe is what broke it (`2dc5496`, pushed
@@ -158,7 +257,8 @@ class TestTheBodyIsVerbatim(unittest.TestCase):
 
     def test_the_jobs_and_steps_text_is_present_verbatim(self):
         """A narrower restatement, so a failure says WHICH part drifted."""
-        pend, inst = _body(PENDING), _body(INSTALLED)
+        pend = _strip_item74(_body(PENDING)).rstrip()
+        inst = _strip_item74(_body(INSTALLED)).rstrip()
         tail = inst[inst.index("jobs:"):]
         self.assertIn(tail, pend, "the jobs block must be verbatim")
 

@@ -101,7 +101,7 @@ class _Tmp(unittest.TestCase):
         kw.setdefault("send", True)
         kw.setdefault("now", OPEN_NOW)
         return LC.run_cycle(env={}, root=self.root, book=BOOK, paper_client=client,
-                            notify_send=(lambda cfg, body: True), **kw)
+                            notify_send=(lambda cfg, body, ch=None: True), **kw)
 
 
 class ARestartNeverRepeatsAnOrder(_Tmp):
@@ -228,7 +228,7 @@ class ThePaperOnlySendMode(_Tmp):
     def test_run_paper_SENDS_for_the_paper_slot(self):
         c = Stub(fill=1.0)
         r = LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root, book=BOOK, paper_client=c,
-                         notify_send=(lambda cfg, b: True))
+                         notify_send=(lambda cfg, b, ch=None: True))
         self.assertEqual(r["mode"], "paper")
         self.assertTrue(r["paper"]["acted"])
         self.assertEqual(len(c.sent), 2)
@@ -242,7 +242,7 @@ class ThePaperOnlySendMode(_Tmp):
         a = LS.armed(1, env)
         self.assertTrue(a["armed"], "the fixture is not actually armed: %r" % a)
         LC.run_cycle(env=env, mode=LC.PAPER, now=OPEN_NOW, root=self.root, book=BOOK,
-                     paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                     paper_client=Stub(), notify_send=(lambda cfg, b, ch=None: True),
                      live_client_factory=lambda n: built.append(n) or LiveShaped())
         self.assertEqual(built, [], "a PAPER cycle constructed a live client")
 
@@ -258,7 +258,7 @@ class ThePaperOnlySendMode(_Tmp):
                 return super().place_limit(*a, **k)
 
         r = LC.run_cycle(env=env, mode=LC.PAPER, now=OPEN_NOW, root=self.root, book=BOOK,
-                         paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                         paper_client=Stub(), notify_send=(lambda cfg, b, ch=None: True),
                          live_client_factory=lambda n: Spy())
         self.assertEqual(sent, [], "an armed live slot transmitted during a PAPER cycle")
         rows = [x for x in r["slots"] if str(x["slot"]) == "1"]
@@ -272,7 +272,7 @@ class ThePaperOnlySendMode(_Tmp):
         send nothing either, and the two tests above would pass while measuring nothing."""
         env = self._armed_live_env()
         r = LC.run_cycle(env=env, mode=LC.PAPER, now=OPEN_NOW, root=self.root, book=BOOK,
-                         paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                         paper_client=Stub(), notify_send=(lambda cfg, b, ch=None: True),
                          live_client_factory=lambda n: LiveShaped())
         row = [x for x in r["slots"] if str(x["slot"]) == "1"][0]
         self.assertTrue(row["orders"], "the slot computed no plan, so nothing was proven")
@@ -289,7 +289,7 @@ class ThePaperOnlySendMode(_Tmp):
                 return super().place_limit(t, side, qty, lp, client_order_id)
 
         r = LC.run_cycle(env=env, mode=LC.LIVE, now=OPEN_NOW, root=self.root, book=BOOK,
-                         paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                         paper_client=Stub(), notify_send=(lambda cfg, b, ch=None: True),
                          live_client_factory=lambda n: Spy())
         self.assertEqual(r["mode"], "live")
         self.assertTrue(sent, "an armed live slot sent nothing in LIVE mode")
@@ -307,7 +307,7 @@ class ThePaperOnlySendMode(_Tmp):
                 return super().place_limit(*a, **k)
 
         LC.run_cycle(env=env, mode=LC.LIVE, now=OPEN_NOW, root=self.root, book=BOOK, paper_client=Stub(),
-                     notify_send=(lambda cfg, b: True), live_client_factory=lambda n: Spy())
+                     notify_send=(lambda cfg, b, ch=None: True), live_client_factory=lambda n: Spy())
         self.assertEqual(sent, [])
 
     def test_DRY_sends_nothing_anywhere(self):
@@ -315,7 +315,7 @@ class ThePaperOnlySendMode(_Tmp):
         env = self._armed_live_env()
         r = LC.run_cycle(env=env, mode=LC.DRY, now=OPEN_NOW, root=self.root, book=BOOK,
                          paper_client=c,
-                         notify_send=(lambda cfg, b: True),
+                         notify_send=(lambda cfg, b, ch=None: True),
                          live_client_factory=lambda n: LiveShaped())
         self.assertEqual(len(c.sent), 0)
         self.assertEqual(r["mode"], "dry")
@@ -341,12 +341,12 @@ class ThePaperOnlySendMode(_Tmp):
         env = self._armed_live_env()
         r = LC.run_cycle(env=env, send=True, now=OPEN_NOW, root=self.root, book=BOOK,
                          paper_client=Stub(),
-                         notify_send=(lambda cfg, b: True),
+                         notify_send=(lambda cfg, b, ch=None: True),
                          live_client_factory=lambda n: LiveShaped())
         self.assertEqual(r["mode"], "live")
         r2 = LC.run_cycle(env=env, send=False, now=OPEN_NOW, root=self.root, book=BOOK,
                           paper_client=Stub(),
-                          notify_send=(lambda cfg, b: True))
+                          notify_send=(lambda cfg, b, ch=None: True))
         self.assertEqual(r2["mode"], "dry")
 
 
@@ -679,7 +679,7 @@ class TheAnnouncementDiscipline(_Tmp):
     def setUp(self):
         super().setUp()
         self.bodies = []
-        self.send = lambda cfg, body: (self.bodies.append(body) or True)
+        self.send = lambda cfg, body, ch=None: (self.bodies.append((ch, body)) or True)
 
     def test_an_order_is_announced_once(self):
         a = [{"kind": "live_order_sent", "slot": "paper", "event": "rebalance:x",
@@ -720,7 +720,11 @@ class TheAnnouncementDiscipline(_Tmp):
         got = LN.announce([], root=self.root, send=self.send)
         self.assertTrue(got["sent"])
         self.assertEqual(got["n_cleared"], 1)
-        self.assertIn("has cleared", self.bodies[-1])
+        # `self.bodies` records `(channel, body)` since item 74 split the send, so the body is
+        # the second half. The CHANNEL is asserted too: a clearing is the good half of a problem
+        # and belongs in the same place the problem was reported.
+        self.assertIn("has cleared", self.bodies[-1][1])
+        self.assertEqual(self.bodies[-1][0], "alerts")
 
     def test_a_quiet_cycle_stays_quiet(self):
         got = LN.announce([], root=self.root, send=self.send)
@@ -733,11 +737,11 @@ class TheAnnouncementDiscipline(_Tmp):
         announce, silently and permanently."""
         a = [{"kind": "live_order_sent", "slot": "paper", "event": "e", "reason": "buy A"}]
         self.assertFalse(LN.announce(a, root=self.root,
-                                     send=lambda cfg, b: False)["sent"])
+                                     send=lambda cfg, b, ch=None: False)["sent"])
         self.assertTrue(LN.announce(a, root=self.root, send=self.send)["sent"])
 
     def test_a_webhook_that_raises_never_raises_out(self):
-        def boom(cfg, body):
+        def boom(cfg, body, ch=None):
             raise RuntimeError("discord is down")
 
         got = LN.announce([{"kind": "broker_error", "slot": "1", "reason": "x"}],
@@ -746,7 +750,7 @@ class TheAnnouncementDiscipline(_Tmp):
         self.assertIn("webhook failed", got["reason"])
 
     def test_a_notifier_failure_is_never_the_cycles(self):
-        def boom(cfg, body):
+        def boom(cfg, body, ch=None):
             raise RuntimeError("discord is down")
 
         r = LC.run_cycle(env={}, root=self.root, book=BOOK, send=True,
@@ -784,7 +788,7 @@ class OneSlotsFailureNeverStopsAnother(_Tmp):
         """The ordinary state before Don's keys exist: no client, every slot still runs, and
         the reason says which one could not."""
         r = LC.run_cycle(env={}, root=self.root, book=BOOK, send=False,
-                         now=OPEN_NOW, notify_send=(lambda cfg, b: True))
+                         now=OPEN_NOW, notify_send=(lambda cfg, b, ch=None: True))
         self.assertTrue(r["ok"])
         self.assertIsNotNone(r["paper"])
 
@@ -860,7 +864,7 @@ class TheGateIsTheORDERSWindowAndNotTheClose(unittest.TestCase):
         """A reader comparing this against the Index mark needs both, and they are now visibly
         different questions rather than one function doing two jobs."""
         r = LC.run_cycle(env={}, now=OPEN_NOW, book=BOOK, paper_client=Stub(), send=False,
-                         notify_send=(lambda cfg, b: True))
+                         notify_send=(lambda cfg, b, ch=None: True))
         self.assertTrue((r.get("session") or {}).get("ok"))
         self.assertFalse((r.get("session_closed_state") or {}).get("ok"))
 
@@ -873,7 +877,7 @@ class TheGateIsTheORDERSWindowAndNotTheClose(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root, True)
         c = Stub()
         r = LC.run_cycle(env={}, now=CLOSED_NOW, root=root, book=BOOK, paper_client=c,
-                         send=True, notify_send=(lambda cfg, b: True))
+                         send=True, notify_send=(lambda cfg, b, ch=None: True))
         self.assertEqual(len(c.sent), 0)
         self.assertTrue(r["paper"]["orders"], "it should still COMPUTE the plan")
         self.assertIn("day order", r["paper"]["reason"])

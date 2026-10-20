@@ -671,7 +671,7 @@ def run_row(state, event, read, mode, pilot, *, root=None):
                 paper_client=AB.AlpacaPaperBroker(key_id="PKFIX", secret_key="s" * 24,
                                                   session=paper),
                 live_client_factory=factory,
-                notify_send=(lambda cfg, b: True))
+                notify_send=(lambda cfg, b, ch=None: True))
 
         got = _cycle(ev["pct"])
         if event == "overlap":

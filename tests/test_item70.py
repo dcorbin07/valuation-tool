@@ -190,7 +190,7 @@ class _Cycle(unittest.TestCase):
                 LC._stamp = (lambda d=day: "%sT14:40:00Z" % d)
             out = LC.run_cycle(env={}, mode=LC.PAPER, now=(now or OPEN_NOW), root=self.root,
                                book=(book or BOOK), paper_client=broker(sess),
-                               notify_send=(lambda cfg, b: True))
+                               notify_send=(lambda cfg, b, ch=None: True))
         finally:
             LC._stamp = real
         return out, (out.get("paper") or {})

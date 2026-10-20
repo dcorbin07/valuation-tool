@@ -142,7 +142,7 @@ class _Cycle(unittest.TestCase):
         how 236 tests missed it.
         """
         out = LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root, book=BOOK,
-                           paper_client=paper(sess), notify_send=(lambda cfg, b: True))
+                           paper_client=paper(sess), notify_send=(lambda cfg, b, ch=None: True))
         return out, (out.get("paper") or {})
 
 
@@ -432,13 +432,36 @@ class TheCycleLogIsReadable(unittest.TestCase):
         cls.src = io.open(p, encoding="utf-8").read().replace("\r\n", "\n")
         lines = cls.src.split("\n")
         # The `run: |` block, dedented exactly as YAML would.
-        start = next(i for i, ln in enumerate(lines) if ln.strip() == "run: |")
-        indent = len(lines[start]) - len(lines[start].lstrip()) + 2
-        body = []
-        for ln in lines[start + 1:]:
-            if ln.strip() and not ln.startswith(" " * indent):
-                break
-            body.append(ln[indent:] if len(ln) >= indent else ln.strip())
+        #
+        # **IDENTIFIED BY WHAT IT CONTAINS, NOT BY BEING FIRST [repointed item 74].** This read
+        # `next(... if ln.strip() == "run: |")` -- the FIRST run block in the file -- and item
+        # 74 added a healthchecks start ping as the job's first step, which has a `run:` of its
+        # own. The suite then died in `setUpClass` on `heredoc = ...split("<<'PYEOF'")[1]`,
+        # pointing nowhere near the cause.
+        #
+        # The guard was keyed on POSITION and its subject is the block carrying the embedded
+        # Python, so it is now keyed on that: the run block whose body contains the heredoc.
+        # That is the property every assertion below is actually about, and it cannot be moved
+        # by anything added before or after it.
+        def _body(i):
+            """The dedented body of the `run: |` block whose header is at line `i`."""
+            ind = len(lines[i]) - len(lines[i].lstrip()) + 2
+            out = []
+            for ln in lines[i + 1:]:
+                if ln.strip() and not ln.startswith(" " * ind):
+                    break
+                out.append(ln[ind:] if len(ln) >= ind else ln.strip())
+            return ind, "\n".join(out)
+
+        # **ITS OWN BODY, NOT A LINE WINDOW.** My first repoint scanned 80 lines from each
+        # candidate, and the first block's window reached PAST ITS OWN END into the heredoc
+        # eighty lines later -- so it still selected the wrong block and failed identically.
+        # A window is a proxy for "inside this block"; the block's extent is the thing itself,
+        # and the loop below already knew how to compute it.
+        starts = [i for i, ln in enumerate(lines) if ln.strip() == "run: |"]
+        start = next(i for i in starts if "<<'PYEOF'" in _body(i)[1])
+        indent, _joined = _body(start)
+        body = _joined.split("\n")
         # **NOT `cls.run` -- THAT SHADOWS `TestCase.run` AND UNITTEST THEN CALLS A STRING.**
         # The whole suite died with `TypeError: 'str' object is not callable` from inside
         # unittest's own machinery, which points nowhere near the cause.

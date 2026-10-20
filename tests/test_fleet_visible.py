@@ -163,13 +163,21 @@ class TheNotifier(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp(prefix="fnotify_")
         self.sent = []
+        self.channels = []
 
     def tearDown(self):
         shutil.rmtree(self.d, ignore_errors=True)
 
     def _send(self, ok=True):
-        def send(cfg, body):
+        """The seam takes the CHANNEL because `send_discord` does [item 74].
+
+        A seam whose signature differs from the thing it stands in for is how a fixture comes
+        to pass against behaviour that could not happen. `self.sent` keeps the bodies so every
+        existing assertion still reads; `self.channels` records where each went.
+        """
+        def send(cfg, body, channel=None):
             self.sent.append(body)
+            self.channels.append(channel)
             return ok
         return send
 
@@ -244,7 +252,7 @@ class TheNotifier(unittest.TestCase):
         self.assertEqual(good["n_fills"], 1)
 
     def test_it_never_raises_when_the_webhook_explodes(self):
-        def boom(cfg, body):
+        def boom(cfg, body, channel=None):
             raise RuntimeError("discord is down")
         r = N.announce({"f1": [dict(self.FILL)]}, {}, self.d, send=boom)
         self.assertFalse(r["sent"])
