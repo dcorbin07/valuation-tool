@@ -195,6 +195,47 @@ manager from Don's own words in chat.
   paper account, which lets F-21, F-22 and F-8 trade; EARNINGS-CSP's free kill; the
   forward-calendar measurement; and F-21b's rule frozen before F-21's first fill. MB2's single
   cell and the cap-3 sizing test wait for Don.
+- **2026-10-18 — HOW THE LIVE SLOT SPENDS CASH (Don, chat; item 73).**
+  1. **Buys are spread proportionally** across every stock in the book when cash is short, never
+     filled stock by stock.
+  2. **The shortfall stays open until filled**, measured against that event's own per-name targets
+     frozen when it opened, never re-derived from daily equity. New cash tops it up, never past
+     the targets. A new rebalance or a percentage change replaces it.
+  3. **No cash budget or cap**: the slot uses whatever spendable cash exists, up to its frozen
+     targets, and never sells anything it did not buy.
+  4. **A top-up happens only when at least $250 can be bought.** It is ONE universal setting,
+     `LIVE_MIN_TOPUP` on Render, for every live slot and the paper slot; there is no per-account
+     setting. Don can change it. Smaller names that fall under the $1 order minimum lag and
+     catch up later, which Don accepts.
+  5. **"Waiting for cash" is a normal state:** one plain alert, and no ceiling burn.
+
+  The auditor reviews item 73 before any percentage above 0.
+- **2026-10-18 — ALERTS GO TO DISCORD (Don, chat; item 74).**
+  1. **Anything breaking, and any rebalance that cannot happen or is late, posts to a separate
+     `#valquo-alerts` channel** (`DISCORD_ALERT_WEBHOOK_URL`). Routine posts (recaps, order
+     fills) stay on the existing channel.
+  2. **A free outside monitor (healthchecks.io, `HC_PING_KEY`) alerts the same channel if a key
+     job never runs at all.**
+  3. One post when a problem starts, one when it clears, and a daily reminder while it stays
+     broken. No P&L or returns, and never a key, token, webhook or account number.
+  4. Don creates the channel, the webhook and the healthchecks.io account, and enters every URL
+     himself on Render and GitHub. Messages change; trading does not.
+- **2026-10-18 — AUDITOR'S SEVENTH REVIEW: LIVE KEYS MAY BE ENTERED AT 0%** (`4d6f09e`); **DON'S IRA
+  KEYS ARE IN.**
+  - **What the auditor found:** for the first time, no route by which the path loses money,
+    trades without authority, trades twice, or records a conclusion without evidence. Item 71
+    fixed the 0% sell-out (sell-only, slot-owned shares only; hand-held shares untouched), the
+    shared close, and writes on cycles that never read. Its 2,240-row transition table found
+    1,641 wrong rows before the fix.
+  - **What `/admin/live-slots` showed at 03:09Z:** slot 1 ("Donovan") has both keys present, 0%,
+    `LIVE_PILOT_ENABLED=0` so paused, not armed, 0 holdings, and isolation ok.
+  - **Going live** takes three separate steps, all Don's: set `LIVE_PILOT_ENABLED=1`; hand over
+    and install a `live-cycle.yml` sending `?run=1`; raise the percentage. The recommendation is
+    to wait until the paper slot has carried out the 2026-10-22 rebalance cleanly.
+  - **Item 72** handles the non-blocking leftovers: a stale `open_event` message, five unchecked
+    combinations, and watching the paper rebalance.
+  - **Fractional shares in the IRA** are still unconfirmed. At 0% nothing reads the IRA, so Don
+    checks the Alpaca app's dollar-amount ticket on the IRA by hand.
 - **2026-10-17 — AUDITOR'S SIXTH REVIEW: NOT YET** (`439eef1`). Item 70 closed the fifth blocker
   in all four cases. Three new blockers:
   - **(A) The X→0 sell-out cannot execute on a live slot at all.** `armed()` refuses at 0%, so
