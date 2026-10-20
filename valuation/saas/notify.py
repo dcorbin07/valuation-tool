@@ -82,13 +82,51 @@ def screaming_buys_with_stats(rows, min_score, term_mode=None):
     return TF.apply_with_stats(out, mode=term_mode)
 
 
-def send_discord(cfg, content: str) -> bool:
-    url = getattr(cfg, "discord_webhook_url", "")
-    if not url:
+def send_discord(cfg, content: str, channel: str = None, *, env=None, extra=(),
+                 check_returns: bool = None) -> bool:
+    """THE ONE PATH OUT, now with a channel [item 74].
+
+    `channel` defaults to the routine webhook, so every caller that existed before item 74 is
+    bit-identical: same URL, same body, same return value. `channel="alerts"` posts to Don's
+    `#valquo-alerts` and falls back LOUDLY to the routine webhook when that is not configured
+    yet -- `alert_routing.webhook` owns that rule, and it is the only place it is written.
+
+    **THE PRIVACY GATE RUNS HERE, ON THE FINISHED TEXT.** Not on the inputs, and not in each
+    composer: `post_dip_digest` already learned that a publishing rule has to be asserted
+    against what actually sends, because that is the one point every message passes through.
+    A secret value is removed; a body that still carries something private is REPLACED by a
+    pointer rather than dropped, so a leak cannot look like a quiet day. See
+    `alert_routing.safe_body`.
+
+    `extra` is for identifiers this module cannot know -- an Alpaca account id, which the live
+    path reads from its own record and whose refusal text embeds it.
+
+    `check_returns` defaults to **the alerts channel only**, because the routine channel carries
+    product cards whose copy already has its own authority and which legitimately say "profit"
+    in the confidence caveat. `return_violations` records why that line is there; the operational
+    composers keep their own tests.
+    """
+    from . import alert_routing as AR
+    ch = channel or AR.ROUTINE
+    if check_returns is None:
+        check_returns = (ch == AR.ALERTS)
+    hook = AR.webhook(cfg, ch, env)
+    if not hook["ok"]:
+        if ch == AR.ALERTS:
+            # A problem nobody can be told about is still a problem. The job log is the last
+            # resort Don asked for, and it names the variable rather than any value.
+            import sys
+            print("[alerts] %s" % hook["reason"], file=sys.stderr)
         return False
+    body = AR.safe_body(hook["prefix"] + str(content or ""), env=env, extra=extra,
+                        check_returns=check_returns)
+    if body["blocked"]:
+        import sys
+        print("[alerts] a message was replaced before sending: %s" % "; ".join(body["why"]),
+              file=sys.stderr)
     try:
         import requests
-        r = requests.post(url, json={"content": content[:1900]}, timeout=10)
+        r = requests.post(hook["url"], json={"content": body["text"][:1900]}, timeout=10)
         return r.status_code < 300
     except Exception:
         return False

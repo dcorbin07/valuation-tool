@@ -248,7 +248,7 @@ soft-import  MA1 x MA50: valuation/config.py <-> valuation/web/app.py
 soft-import  MA4 x MA9: valuation/screener/index_mark.py <-> valuation/saas/app_saas.py
 hard-file    MA4 x MA18: valuation/screener/index_mark.py
 soft-import  MA4 x MA50: valuation/screener/index_mark.py <-> valuation/web/app.py
-soft-import  MA9 x MA18: valuation/saas/app_saas.py <-> valuation/screener/index_mark.py
+soft-import  MA9 x MA18: valuation/saas/app_saas.py <-> valuation/edge/track_meter.py
 soft-import  MA9 x MA36: valuation/saas/app_saas.py <-> valuation/edge/paper_track.py
 soft-import  MA9 x MA39: valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py
 soft-import  MA9 x MA50: valuation/saas/app_saas.py <-> valuation/screener/store.py

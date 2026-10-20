@@ -1,0 +1,121 @@
+name: REBALANCE WATCH (late, refused, or coming up)
+
+# ITEM 74. Don's ruling, 2026-10-18: a rebalance that cannot happen or is late goes to
+# `#valquo-alerts`, and so does a missing row in the daily record.
+#
+# WHY A WORKFLOW AND NOT A STEP INSIDE ANOTHER ONE. Its own failure to run has to be
+# detectable, which is what the healthchecks ping buys -- and a ping only means something if the
+# thing being pinged is a job with its own schedule. Folding this into `live-cycle` would mean a
+# quiet `live-cycle` and a quiet rebalance watch are the same silence.
+#
+# THE DATES ARE NOT IN THIS FILE, DELIBERATELY. `next_rebalance` is 63 trading days from the
+# in-force event's own scan date and `index_in_force` owns that arithmetic. A cron carrying
+# `2026-10-22` would be right for one quarter and silently wrong for every quarter after it --
+# the clock-shaped guard this project has repointed three times. So this is thin and the service
+# derives.
+#
+# One-time setup (repo -> Settings -> Secrets and variables -> Actions):
+#   SITE_BASE_URL                https://valuation-tool-h2hr.onrender.com
+#   ADMIN_TOKEN                  same value as on Render
+#   DISCORD_ALERT_WEBHOOK_URL    the #valquo-alerts webhook (also a RENDER env var)
+#   HC_PING_KEY                  healthchecks.io project ping key
+#
+# NOTHING HERE PLACES AN ORDER OR WRITES A RECORD. It reads the bound book and the contract
+# meter and posts words.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # ONCE EACH TRADING MORNING, IN BOTH DAYLIGHT REGIMES. Early enough that an overdue
+    # rebalance is Don's first news of the day, and ODD MINUTES because GitHub's free scheduler
+    # routinely drops top-of-the-hour runs -- the same reason every other workflow here does it.
+    - cron: "19 12 * * 1-5"      # 12:19 UTC = 8:19am ET (EDT)
+    - cron: "19 13 * * 1-5"      # 13:19 UTC = 8:19am ET (EST)
+    # One backup several hours later, because the measured lateness on this scheduler runs
+    # 3.45-7.48 hours and a dropped morning run would otherwise cost a whole day. The door is
+    # idempotent for noise: `live_notify` says a condition once and reminds once a day, so a
+    # second run on the same day adds no post.
+    - cron: "41 17 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rebalance-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: "item 74: healthchecks start (rebalance-watch)"
+        if: always()
+        env:
+          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
+        run: |
+          set -u
+          if [ -z "${HC_PING_KEY:-}" ]; then
+            echo "::warning::HC_PING_KEY is not set -- no outside monitor is watching rebalance-watch"
+            exit 0
+          fi
+          curl -sS -m 10 --retry 2 "https://hc-ping.com/${HC_PING_KEY}/rebalance-watch/start" \
+            >/dev/null || true
+
+      - name: Ask the service whether a rebalance is late, refused, or due soon
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -u
+          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "::error::SITE_BASE_URL and ADMIN_TOKEN must both be set"
+            exit 1
+          fi
+          # **A POST, BECAUSE ONLY A POST MAY ANNOUNCE.** A GET of this door computes and posts
+          # nothing, by design -- a side-effecting GET is reachable by a retry, a prefetch, a
+          # proxy or a pasted link, and none of those is a decision to tell Don something is
+          # wrong. The service holds the alert webhook and does the posting, with the same
+          # once-a-day noise discipline the live cycle uses.
+          CODE=$(curl -sS -m 60 -o body.json -w '%{http_code}' -X POST \
+                   -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                   "${SITE_BASE_URL%/}/admin/rebalance-watch") || CODE="000"
+          echo "HTTP ${CODE}"
+          # The body is a diagnosis, never a secret: it carries dates, counts and reasons.
+          head -c 4000 body.json || true
+          echo
+          [ "${CODE}" = "200" ] || exit 1
+
+      - name: "item 74: tell Don this failed"
+        if: failure()
+        env:
+          ALERT_HOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ROUTINE_HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -u
+          HOOK="${ALERT_HOOK:-}"; PREFIX=""
+          if [ -z "$HOOK" ]; then
+            HOOK="${ROUTINE_HOOK:-}"; PREFIX="(alerts channel not set) "
+          fi
+          if [ -z "$HOOK" ]; then
+            echo "::warning::neither DISCORD_ALERT_WEBHOOK_URL nor DISCORD_WEBHOOK_URL is set -- Don was NOT told this failed"
+            exit 0
+          fi
+          RUN="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          BODY=$(printf '{"content": "%s**The rebalance watch could not run**\\nWhile this is failing, nobody is checking whether a rebalance is late or a record row is missing.\\nOpen the run and read the failed step: %s"}' \
+                 "$PREFIX" "$RUN")
+          curl -sS -m 20 -H 'Content-Type: application/json' -d "$BODY" "$HOOK" >/dev/null \
+            || echo "::warning::the Discord post itself failed"
+
+      - name: "item 74: healthchecks end (rebalance-watch)"
+        if: always()
+        env:
+          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -u
+          [ -n "${HC_PING_KEY:-}" ] || exit 0
+          SUFFIX="/fail"
+          if [ "${JOB_STATUS:-}" = "success" ]; then SUFFIX=""; fi
+          curl -sS -m 10 --retry 2 "https://hc-ping.com/${HC_PING_KEY}/rebalance-watch${SUFFIX}" \
+            >/dev/null || true

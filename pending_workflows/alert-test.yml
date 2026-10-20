@@ -1,0 +1,107 @@
+name: ALERT TEST (manual only)
+
+# ITEM 74. The button that proves the alert plumbing BEFORE it is needed.
+#
+# `workflow_dispatch` ONLY -- no schedule, deliberately. A test that fires on a timer is a
+# recurring message saying nothing is wrong, which is the fastest way to teach a reader to
+# ignore the channel it arrives in.
+#
+# WHAT IT DOES, in Don's order:
+#   1. posts ONE test line from GitHub straight to `#valquo-alerts` -- the GitHub side, which is
+#      the path that has to work when the service is the thing that is down;
+#   2. asks the service to post one test line to EACH channel, using the admin token;
+#   3. reports, for each name, PRESENT OR ABSENT ONLY.
+#
+# **NEVER THE VALUE.** Every line below prints whether a secret is set, never what it is. A
+# workflow log is readable by anyone with repo access and persists for months, so a test button
+# that echoed a webhook URL would have published the thing it exists to test.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alert-test
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Which names are set (present or absent only, never the value)
+        env:
+          ALERT_HOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ROUTINE_HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -u
+          say() { if [ -n "${2:-}" ]; then echo "  $1: PRESENT"; else echo "  $1: ABSENT"; fi; }
+          echo "GitHub secrets:"
+          say DISCORD_ALERT_WEBHOOK_URL "${ALERT_HOOK:-}"
+          say DISCORD_WEBHOOK_URL       "${ROUTINE_HOOK:-}"
+          say HC_PING_KEY               "${HC_PING_KEY:-}"
+          say SITE_BASE_URL             "${SITE_BASE_URL:-}"
+          say ADMIN_TOKEN               "${ADMIN_TOKEN:-}"
+
+      - name: Post one test line from GitHub to the alerts channel
+        env:
+          ALERT_HOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ROUTINE_HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -u
+          HOOK="${ALERT_HOOK:-}"; PREFIX=""
+          if [ -z "$HOOK" ]; then
+            HOOK="${ROUTINE_HOOK:-}"; PREFIX="(alerts channel not set) "
+          fi
+          if [ -z "$HOOK" ]; then
+            echo "::warning::neither webhook is set -- nothing posted from the GitHub side"
+            exit 0
+          fi
+          RUN="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          BODY=$(printf '{"content": "%s**Alert test, from GitHub**\\nThis is a test. Nothing is wrong, and no order was placed.\\nIf you can read this, a failing workflow can reach you: %s"}' \
+                 "$PREFIX" "$RUN")
+          CODE=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' \
+                   -H 'Content-Type: application/json' -d "$BODY" "$HOOK") || CODE="000"
+          echo "  GitHub -> alerts channel: HTTP ${CODE}"
+          case "${CODE}" in 2*) : ;; *) echo "::error::the GitHub-side post failed"; exit 1 ;; esac
+
+      - name: Ask the service to post one test line to each channel
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -u
+          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "::warning::SITE_BASE_URL or ADMIN_TOKEN is absent -- the service side was not tested"
+            exit 0
+          fi
+          # The door returns present/absent per name and whether each post went. It is written
+          # never to return a URL or a token, so this body is safe to print in full.
+          CODE=$(curl -sS -m 30 -o body.json -w '%{http_code}' -X POST \
+                   -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                   "${SITE_BASE_URL%/}/admin/alert-test") || CODE="000"
+          echo "  service -> both channels: HTTP ${CODE}"
+          head -c 3000 body.json || true
+          echo
+          [ "${CODE}" = "200" ] || exit 1
+
+      - name: Ping healthchecks so the test shows up there too
+        if: always()
+        env:
+          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
+        run: |
+          set -u
+          if [ -z "${HC_PING_KEY:-}" ]; then
+            echo "::warning::HC_PING_KEY is ABSENT -- healthchecks.io was not reached"
+            exit 0
+          fi
+          # A dedicated slug, so a manual test never satisfies a REAL job's schedule. Pinging
+          # `track-row` from here would silence the monitor for a job that had not run.
+          CODE=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+                   "https://hc-ping.com/${HC_PING_KEY}/alert-test") || CODE="000"
+          echo "  healthchecks alert-test: HTTP ${CODE}"

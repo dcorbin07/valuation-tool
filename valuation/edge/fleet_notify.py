@@ -131,8 +131,31 @@ def pending(rows_by_book: dict, refusals: dict, fleet_dir: str, alerts=()) -> di
             "quiet": not (fills or new_refusals or cleared or alerts)}
 
 
-def compose(p: dict) -> str:
-    """The message. Facts only — no total, no P&L, no verdict."""
+def for_channel(p: dict, channel: str) -> dict:
+    """`p`, restricted to one channel [item 74].
+
+    Fills are routine; a refusal, a clearing and an operational alert line are problems. The
+    channel names come from `saas.alert_routing` rather than being spelled here, so the fleet
+    and the live path cannot disagree about what "alerts" means.
+    """
+    from ..saas import alert_routing as AR
+    if channel == AR.ROUTINE:
+        return {"fills": list(p.get("fills") or []), "new_refusals": [], "cleared": [],
+                "alerts": []}
+    return {"fills": [], "new_refusals": list(p.get("new_refusals") or []),
+            "cleared": list(p.get("cleared") or []), "alerts": list(p.get("alerts") or [])}
+
+
+def compose(p: dict, channel: str = None) -> str:
+    """The message. Facts only — no total, no P&L, no verdict.
+
+    `channel=None` composes everything, which is what every pre-item-74 caller and
+    `tests/test_fleet_visible.py` read. Empty string when the channel has nothing to say.
+    """
+    if channel is not None:
+        p = for_channel(p, channel)
+        if not (p["fills"] or p["new_refusals"] or p["cleared"] or p["alerts"]):
+            return ""
     lines, fixable = [], False
     # FIRST, because an alert is the one thing here that asks for attention rather than
     # recording something that happened. A line about the harness being broken does not
@@ -198,25 +221,46 @@ def announce(rows_by_book: dict, refusals: dict, fleet_dir: str, *, cfg=None,
         out["reason"] = "nothing new to announce"
         return out
 
-    body = compose(p)
-    try:
-        if send is None:
+    from ..saas import alert_routing as AR
+    if send is None:
+        try:
             from ..saas.notify import send_discord as send
-        ok = bool(send(cfg, body))
-    except Exception as e:                                             # noqa: BLE001
-        ok, out["reason"] = False, "the webhook failed (%s)" % type(e).__name__
-    out["sent"] = ok
-    if not ok and not out["reason"]:
-        out["reason"] = "no webhook configured, or it declined"
+        except Exception as e:                                         # noqa: BLE001
+            out["reason"] = "the notifier could not be imported (%s)" % type(e).__name__
+            return out
 
-    # STATE MOVES ONLY ON A SUCCESSFUL SEND. A failed post that advanced the watermark would
-    # lose the very fill it failed to announce, silently and permanently.
-    if ok:
+    ok_ch, reasons = {}, []
+    out["by_channel"] = {}
+    for ch in (AR.ALERTS, AR.ROUTINE):
+        body = compose(p, ch)
+        if not body:
+            continue
+        try:
+            ok = bool(send(cfg, body, ch))
+        except Exception as e:                                         # noqa: BLE001
+            ok = False
+            reasons.append("%s: the webhook failed (%s)" % (ch, type(e).__name__))
+        else:
+            if not ok:
+                reasons.append("%s: no webhook configured, or it declined" % ch)
+        ok_ch[ch] = ok
+        out["by_channel"][ch] = {"sent": ok}
+    out["sent"] = any(ok_ch.values())
+    if reasons:
+        out["reason"] = "; ".join(reasons)
+
+    # STATE MOVES ONLY ON A SUCCESSFUL SEND, AND NOW PER CHANNEL [item 74]. A failed post that
+    # advanced the watermark would lose the very fill it failed to announce -- and advancing the
+    # REFUSAL record because the FILLS post succeeded would mean the day the fleet becomes
+    # blocked is the day nobody is told, which is the same defect one channel over.
+    if any(ok_ch.values()):
         st = _read(fleet_dir)
-        last = dict(st.get("last_seq") or {})
-        for f in p["fills"]:
-            last[f["book"]] = max(int(last.get(f["book"]) or 0), int(f["seq"]))
-        st["last_seq"] = last
-        st["refusals"] = dict(refusals or {})
+        if ok_ch.get(AR.ROUTINE):
+            last = dict(st.get("last_seq") or {})
+            for f in p["fills"]:
+                last[f["book"]] = max(int(last.get(f["book"]) or 0), int(f["seq"]))
+            st["last_seq"] = last
+        if ok_ch.get(AR.ALERTS):
+            st["refusals"] = dict(refusals or {})
         out["remembered"] = _write(fleet_dir, st)
     return out

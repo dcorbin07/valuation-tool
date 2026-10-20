@@ -181,6 +181,16 @@ class Config:
     # Screaming-buy alerts: a Discord webhook (owner-level, posts to your channel)
     # and opt-in email. alert_min_score is the score bar a signal must clear to alert.
     discord_webhook_url: str = field(default_factory=lambda: _get("DISCORD_WEBHOOK_URL"))
+    # **THE PROBLEMS CHANNEL [item 74].** Don's ruling of 2026-10-18: anything broken, and any
+    # rebalance that cannot happen or is late, goes to a SEPARATE `#valquo-alerts` channel, so
+    # that a message in it is by construction a message worth reading. The routine posts -- the
+    # recap, order sent and filled lines -- stay on `discord_webhook_url`.
+    #
+    # Unset is a supported state and is not silent: `saas.alert_routing.webhook` falls back to
+    # the routine channel with a "(alerts channel not set)" prefix, so nothing disappears during
+    # setup and nobody mistakes the fallback for the finished configuration.
+    discord_alert_webhook_url: str = field(
+        default_factory=lambda: _get("DISCORD_ALERT_WEBHOOK_URL"))
     alert_min_score: float = field(default_factory=lambda: _get_float("ALERT_MIN_SCORE", 80))
     # Term-structure filter on scream-buy alerts (phase 3b: the only signal that survived the
     # fade gate). "flag" annotates every alert, "suppress" drops backwardation ones, "off"

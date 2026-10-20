@@ -1,0 +1,180 @@
+# VALREADS -- record one week of the valuation page's reads, then commit it.
+#
+# REGISTERED FIRST: `PREREG_valuation_reads.md`, committed ALONE and a strict git ancestor of the
+# recorder. This workflow RECORDS. It reads no verdict, scores nothing against a bar, and reads no
+# forward return.
+#
+# WHY A FREE RUNNER IS ENOUGH, measured rather than assumed. One `pipeline.value_ticker` costs
+# ~1.83 s (median 1.44 s, max 4.25 s over a paced 12-name probe), so the register's 542-name
+# population is ~34 minutes at 1.5 s pacing -- comfortably inside a 90-minute budget, which is
+# why the population is a population and not the scan's full ~1,500 names (~83 minutes, beside a
+# hot scan that already needs most of that). NO PAID CRON, no secret: both population routes
+# (`/api/hotstocks` and `/api/valquo-index`) are PUBLIC and TOKENLESS.
+#
+# THE SCHEDULE IS SUNDAY, MATCHING `track-backup.yml`'s cadence, and the record is keyed on the
+# run's own date. A missed Sunday is a MISSING WEEK, recorded as missing -- not backfilled. The
+# register's §8.2 makes a backfill a void condition, and `append_only` refuses a backward key, so
+# there is no door to walk through by accident.
+#
+# IT COMMITS INTO `data_export/`, which is the tracked directory the forward Index record is
+# already backed up into. `data/` is gitignored, and this project has twice lost an artifact to a
+# directory that did not survive (`MA28_CARD.json`, `I2_BURN_IN_CENSUS.json`).
+name: valreads-record
+
+on:
+  schedule:
+    # Sunday 07:11 UTC. Offset from `track-backup.yml`'s 06:17 so the two jobs do not contend for
+    # the same vendor quota in the same minute -- the quota is per IP and does not raise when
+    # exhausted, it silently empties CompanyData.
+    - cron: "11 7 * * 0"
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: "Smoke test only (N names, NOT written to the record). 0 = record the week."
+        required: false
+        default: "0"
+
+permissions:
+  contents: write
+
+concurrency:
+  # A SECOND CONCURRENT RUN MUST NOT RACE THE FIRST. Two runs would both pass the canary, both
+  # value ~542 names, and the second would be REFUSED by `write_week` -- correct, but it would
+  # also have burned the quota the first run depends on.
+  group: valreads-record
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --require-hashes -r requirements.lock.txt
+
+      - name: Day-1 self-check (six cases, each with its vacuity control)
+        # THE RECORDER REFUSES WHILE THIS IS ABSENT, STALE OR FAILING -- three states, not one.
+        # It is run every week rather than once, because a check that was green in October is not
+        # evidence about the code running in March. It writes nothing into the record.
+        run: python -m scripts.valreads_record --selfcheck
+
+      - name: Run the recorder
+        id: record
+        run: |
+          if [ "${{ github.event.inputs.smoke }}" != "" ] && [ "${{ github.event.inputs.smoke }}" != "0" ]; then
+            echo "SMOKE TEST -- deliberately not written to the record"
+            python -m scripts.valreads_record --limit "${{ github.event.inputs.smoke }}"
+          else
+            python -m scripts.valreads_record
+          fi
+
+      - name: Verify the append-only guarantee before committing
+        # THE BYTE PREFIX IS CHECKED AGAINST GIT, not against the recorder's own word for it --
+        # `track-row.yml` does exactly this with `cmp` on `head -n N`, and a guarantee stated in
+        # weaker terms would be untestable against the check that already exists.
+        run: |
+          set -e
+          M=data_export/valreads/VALREADS_MANIFEST.csv
+          if git cat-file -e HEAD:$M 2>/dev/null; then
+            git show HEAD:$M > /tmp/manifest_before.csv
+            N=$(wc -l < /tmp/manifest_before.csv)
+            head -n "$N" "$M" > /tmp/manifest_prefix.csv
+            cmp /tmp/manifest_before.csv /tmp/manifest_prefix.csv
+            echo "append-only prefix held over $N lines"
+            NEW=$(wc -l < "$M")
+            if [ "$NEW" -lt "$N" ]; then
+              echo "REFUSING: the manifest SHRANK from $N to $NEW lines" >&2
+              exit 1
+            fi
+          else
+            echo "first run -- no committed manifest to compare against"
+          fi
+
+      - name: Suite
+        # Run BEFORE the commit, as `track-backup.yml` does: a record committed by a run whose own
+        # tests fail is a record nobody can trust afterwards.
+        run: python tests/test_valreads.py
+
+      - name: Commit the week
+        run: |
+          set -e
+          git config user.name "valquo-bot"
+          git config user.email "bot@valquo.local"
+          git add data_export/valreads
+          if git diff --cached --quiet; then
+            echo "nothing new -- the week was refused, or already recorded (idempotent retry)"
+            exit 0
+          fi
+          git commit -m "VALREADS: record the week of $(date -u +%Y-%m-%d)"
+          # Rebase rather than merge, and retry once: another lane may have landed while this ran.
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && exit 0
+            echo "push raced; retrying ($i)"
+            sleep 7
+          done
+          echo "could not push after three attempts" >&2
+          exit 1
+
+      - name: Report
+        if: always()
+        run: |
+          echo "### VALREADS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f data_export/valreads/VALREADS_MANIFEST.csv ]; then
+            echo "Weeks recorded: $(( $(wc -l < data_export/valreads/VALREADS_MANIFEST.csv) - 1 ))" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 3 data_export/valreads/VALREADS_MANIFEST.csv >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No manifest yet -- no week has been recorded." >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f data_export/valreads/VALREADS_REFUSALS.csv ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Refusals (a missing week is a fact, recorded):" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 3 data_export/valreads/VALREADS_REFUSALS.csv >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "No verdict is read here. The first verdict read is five years after the first recorded row (PREREG_valuation_reads.md §4)." >> $GITHUB_STEP_SUMMARY
+
+      # ---- ITEM 74: TELL DON ON DISCORD IF THIS JOB FAILED -------------------------------
+      #
+      # GITHUB-SIDE, AND THAT IS THE POINT RATHER THAN A CONVENIENCE. The service often cannot
+      # post that the service is the thing that failed -- August's billing stoppage is the
+      # recorded case -- so this runs on the runner with nothing but curl. A non-200 from the
+      # service is a failure of the step that called it, so it lands here too.
+      #
+      # Falls back to the routine webhook with a visible prefix when the alerts one is not set
+      # yet, so nothing goes quiet during setup and nobody mistakes the fallback for the
+      # finished configuration. Neither value is ever echoed.
+      - name: "item 74: tell Don this failed"
+        if: failure()
+        env:
+          ALERT_HOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ROUTINE_HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -u
+          HOOK="${ALERT_HOOK:-}"; PREFIX=""
+          if [ -z "$HOOK" ]; then
+            HOOK="${ROUTINE_HOOK:-}"; PREFIX="(alerts channel not set) "
+          fi
+          if [ -z "$HOOK" ]; then
+            echo "::warning::neither DISCORD_ALERT_WEBHOOK_URL nor DISCORD_WEBHOOK_URL is set -- Don was NOT told this failed"
+            exit 0
+          fi
+          RUN="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          WF=$(printf '%s' "$GITHUB_WORKFLOW" | tr -d '"\\')
+          JB=$(printf '%s' "$GITHUB_JOB" | tr -d '"\\')
+          # Three short lines: what broke, what it means, what to do.
+          BODY=$(printf '{"content": "%s**%s / %s failed**\\nWhile this is failing that part of the Index machinery is not running.\\nOpen the run and read the failed step: %s"}' \
+                 "$PREFIX" "$WF" "$JB" "$RUN")
+          curl -sS -m 20 -H 'Content-Type: application/json' -d "$BODY" "$HOOK" >/dev/null \
+            || echo "::warning::the Discord post itself failed"
+

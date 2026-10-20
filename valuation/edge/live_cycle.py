@@ -2502,7 +2502,8 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
         # belt-and-braces on top of that.
         try:
             from . import live_notify as LN
-            out["announced"] = LN.announce(out["alerts"], root=root, send=notify_send)
+            out["announced"] = LN.announce(out["alerts"], root=root, send=notify_send,
+                                           now=now)
         except Exception as ex:                                         # noqa: BLE001
             out["announced"] = {"sent": False,
                                 "reason": "the notifier failed and the cycle did not: %s" % ex}

@@ -22334,3 +22334,273 @@ Not this lane's and not item 75's.
 `valuation/edge/fundamental_panel.py`, `valuation/edge/valquo_index.py`,
 `valuation/screener/index_mark.py`, `scripts/d9_fidelity.py`, `tests/test_item75.py`,
 `tests/test_rebalance_chaining.py`, `REBALANCE_RUNBOOK_2026-10-22.md`.
+
+---
+
+## ITEM 74 — every breakage, and every rebalance that can't happen, goes to `#valquo-alerts`
+
+**Nothing here can move a share, and that is pinned rather than promised.** The first test in
+`tests/test_item74.py` runs the real cycle and compares the paper slot's order plan against the
+one `71b0c2b` produced — `[('AAPL','buy',6.0), ('MSFT','buy',2.0)]`, measured by restoring the
+sources from git, printing the plan, and putting them back. A second test asserts the planner
+cannot even mention a channel. This item changes **where messages go** and nothing else.
+
+### 1. WHEN DON CAN DOUBLE-CLICK `install_workflows.bat`
+
+**Now, and it is safe before the secrets exist.** Twelve files are waiting in
+`pending_workflows/`. Every new step degrades to a warning when its secret is absent: a missing
+`DISCORD_ALERT_WEBHOOK_URL` falls back to the routine webhook with a visible
+`(alerts channel not set)` prefix, a missing `HC_PING_KEY` logs a warning and carries on, and
+nothing new can fail a job. So the order does not matter — install first or create the secrets
+first.
+
+**`live-cycle.yml` still sends `?run=paper`**, pinned by a test that allows `run=1` only on
+comment lines.
+
+### 2. THE INVENTORY — every source, its channel, and when it fires
+
+| Source | Channel | Fires when |
+|---|---|---|
+| an order sent | routine | each order, once (deduped by identity) |
+| a fleet fill | routine | each fill, once (deduped by `seq`) |
+| the daily/weekly recap, hot digest, dip digest, scream buys | routine | unchanged |
+| a broker rejection | **alerts** | each rejection, once |
+| preflight refusal, parity mismatch, parity absent | **alerts** | on change, then once a day |
+| the no-progress ceiling running out | **alerts** | on change, then once a day |
+| a stale open event | **alerts** | on change, then once a day |
+| a missing paper client, an unreadable paper account | **alerts** | on change, then once a day |
+| the account under a slot changed | **alerts** | on change, then once a day |
+| a cycle or slot crash | **alerts** | on change, then once a day |
+| "waiting for cash" | **alerts** | once per event (item 73's, pre-classified) |
+| the fleet self-check failing, a book refused, a fleet crash | **alerts** | on change |
+| a book becoming unblocked | **alerts** | once, where the problem was reported |
+| **a rebalance overdue** | **alerts** | >1 trading day past `next_rebalance`, no newer book |
+| **a rebalance refused** | **alerts** | whenever the service refused a book |
+| **a rebalance due soon** | **alerts** | 14 calendar days before the date |
+| **a missing record row** | **alerts** | any trading day the open vintage owes and lacks |
+| **`recording_ok` false** | **alerts** | while the contract's own gate reads false |
+| the site watchdog (stale data, failed scan) | **alerts** | moved off the routine webhook |
+| **any scheduled workflow failing** | **alerts** | `if: failure()` on all 16 jobs of 10 workflows |
+
+`land-agent-branch` is deliberately out, on Don's instruction: a lane branch failing the gate is
+normal, and alerting on it would post several times a day for something working as designed.
+
+### 3. THE HEALTHCHECKS TABLE — schedule and grace to set on healthchecks.io
+
+Grace is sized to the **measured** 3.45–7.48 hour GitHub lateness (item 64's own figure), not to
+the nominal cron. A grace shorter than the observed lateness is a check that cries wolf, and
+`MA21`'s rule is why that matters: one you learn to ignore is one that is not there the day it
+counts.
+
+| Slug | Schedule (UTC) | Period to set | Grace to set |
+|---|---|---|---|
+| `track-row` | `7 3 * * 2-6` + `37 4 * * 2-6` | 1 day | **10 hours** |
+| `live-cycle` | 5 crons, `30 11`–`10 16` Mon–Fri | 1 day | **10 hours** |
+| `fleet-cycle` | `0 12 * * 1-5` | 1 day | **10 hours** |
+| `auto-scan-watchdog` | `15 13 * * 1-5` | 1 day | **10 hours** |
+| `track-backup` | `17 6 * * 0` | 7 days | **2 days** |
+| `rebalance-watch` | `19 12` + `19 13` + `41 17`, Mon–Fri | 1 day | **10 hours** |
+| `alert-test` | manual only | — | set it to **never alert** |
+
+**Weekday-only jobs need healthchecks' own cron mode, not a simple period** — a 1-day period
+would go red every Saturday. Paste the cron above and set the grace.
+
+`alert-test` pings a slug of its own on purpose: pinging `track-row` from a manual test would
+silence the monitor for a job that had not run.
+
+### 4. ONE REGISTRY, AND A TEST THAT FAILS ON ANYTHING UNCLASSIFIED
+
+`valuation/saas/alert_routing.py` classifies all **45** kinds by hand, each with its reason
+beside it. `tests/test_item74.py` walks the syntax tree of the whole package, finds every dict
+carrying both `kind` and `reason`, and fails on any kind nobody has classified — so a future
+alert cannot default to the wrong channel or to nowhere. `channel_for` raises on an unknown kind
+rather than guessing.
+
+**AND THE OBVIOUS SHORTCUT IS MEASURED TO BE WRONG, WHICH IS WHY THE TABLE IS WRITTEN BY HAND.**
+A rule like *"anything whose name contains fail, error or crash is a problem"* gets **24** of the
+45 wrong — and every single one of its mistakes sends a real **problem to the routine channel**,
+including `account_changed` and `stale_open_event_never_completed`, the two most serious things
+the live path can say. (My first version of that test also claimed it misroutes
+`live_order_sent`; it does not — nothing routine contains one of those words, so the rule is
+right about every routine kind by luck and wrong about two dozen problems. The corrected test
+asserts that one-directional shape, which is sharper.)
+
+Two kinds are declared **ahead of their emitter** — `waiting_for_cash` and `min_topup_invalid`,
+item 73's — so its routing is right on the day it lands rather than a week later. They are
+listed in `DECLARED_AHEAD_OF_EMITTER` and a test asserts they are still unemitted, so a registry
+line nobody can reach shows up instead of looking like coverage (`C5`'s direction).
+
+### 5. THE NOISE RULE, AND A CORRECTNESS FIX IT FORCED
+
+One post when a problem starts; one when it clears; one reminder per day while it stays broken.
+Keyed on the calendar **date** rather than elapsed hours — a 24-hour rule drifts later every day
+until it lands in the middle of the night, and this path runs five times a day on a scheduler
+measured 3.45–7.48 hours late.
+
+**THE WATERMARK HAD TO BECOME PER CHANNEL, AND THAT IS A REAL FIX RATHER THAN TIDYING.** Both
+notifiers advanced their record wholesale on one successful send. With two channels that means a
+successful **routine** post discards the alert lines that failed to post — losing exactly the
+message Don asked to be told about, which is the inverse of the rule those modules already
+carry. Now a signature advances only if the channel carrying it succeeded; a new condition whose
+post failed is left unknown so it is retried; and a **cleared** condition whose post failed is
+put back in the record so the clearing is announced again.
+
+The conditions record changes shape from `{slot: [sig]}` to `{slot: {sig: last_posted_date}}`,
+because a daily reminder needs a date. **The schema string is deliberately NOT bumped**: `_read`
+refuses an unknown schema and returns an empty record, which would discard `announced` and
+**re-announce every order every slot has ever sent**. The old shape is migrated on read instead.
+`live_notify/0` is still refused, so the test that pins that is untouched.
+
+### 6. NOTHING PRIVATE, AND THE GATE IS SPLIT IN TWO ON PURPOSE
+
+Secrets are removed **by value, never by name** — a webhook URL or a token goes because the
+message contains that exact string, so the module never has to know, print or store one. `extra`
+covers identifiers it cannot know: `account_changed`'s own reason text embeds the Alpaca account
+id, so the caller supplies it and nothing is guessed at. A body that still carries something
+private is **replaced by a pointer rather than dropped**, because a leak must not be
+indistinguishable from a quiet day.
+
+**THE RETURN-WORD HALF DOES NOT APPLY TO THE PRODUCT CARDS, AND THAT IS A LINE RATHER THAN AN
+OVERSIGHT.** The prohibition comes from `live_notify`/`fleet_notify` and is about the
+**operational** posts. The scream-buy confidence caveat legitimately contains the word
+"profit", and the hot and dip digests carry scores — gating the routine channel on return-words
+would have silently stopped a card this project ships today, and that copy already has its own
+authority in `web.dip_posture`. So secrets are checked on every message on both channels, and
+return-words on the alerts channel plus the operational composers' own tests. A test pins that
+the caveat still sends.
+
+### 7. THE REBALANCE WATCH — the dates are DERIVED, never written down
+
+`valuation/screener/rebalance_watch.py` plus `POST /admin/rebalance-watch`. `next_rebalance` is
+63 trading days from the in-force event's own scan date, which `index_in_force` already owns. A
+cron carrying `2026-10-22` would be right for one quarter and silently wrong for every quarter
+after it — the clock-shaped guard this project has repointed three times.
+
+Measured against the book in force (formed 2026-07-31 from the 2026-07-24 scan):
+
+| as of | heads-up | overdue | note |
+|---|---|---|---|
+| 2026-10-07 | no | no | 15 days out |
+| 2026-10-08 | **yes** | no | 14 days out — the heads-up |
+| 2026-10-22 | yes | no | the due date itself |
+| 2026-10-23 | no | no | 1 trading day past — the ordinary build window |
+| **2026-10-26** | no | **yes** | 2 trading days past — **Don's own figure** |
+
+Once the 10-22 event lands, overdue goes quiet and `next_rebalance` rolls to **2027-01-25**,
+which is also Amendment 3's segment base — an independent cross-check that the arithmetic is the
+same one the contract uses.
+
+An **unreadable** book alerts rather than passing: absent is not on time (`C5`).
+
+### 8. WHAT THE DOORS WILL AND WILL NOT DO
+
+`POST /admin/rebalance-watch` announces; a **GET computes and posts nothing**, pinned by an AST
+test that the announce sits behind a POST check. A side-effecting GET is reachable by a retry, a
+prefetch, a proxy or a pasted link, and none of those is a decision to tell Don something is
+wrong.
+
+`POST /admin/alert-test` posts one line to each channel and reports **present or absent only** —
+asserted over the **entire** reply body, not one field, because the reply travels through a
+workflow log that anyone with repo access can read for months.
+
+### 9. FOUR DEFECTS OF MY OWN, AND TWO ARE WORTH CARRYING FORWARD
+
+**(a) PyYAML IS NOT IN THE CI ENVIRONMENT AND I IMPORTED IT ANYWAY.** Five of my own tests read
+the workflows with `yaml.safe_load`; they pass here and would have **errored on the runner**.
+`tests/test_item65.py` carries that exact lesson in its own docstring — *"my first cut imported
+`yaml` and the gate returned ModuleNotFoundError"* — and I wrote a new test instead of reading
+the neighbouring suite. One `grep yaml requirements.txt` would have said so in a second. All
+five now parse the YAML as text.
+
+**(b) MY HEALTHCHECKS START PING BROKE A SUITE BY BEING FIRST, WHICH IS WHERE IT HAS TO BE.**
+`test_item65`'s `setUpClass` took *the first* `run: |` block in `live-cycle.yml` as the cycle
+script; the start ping has a `run:` of its own, so the suite died in setup on
+`split("<<'PYEOF'")[1]`, pointing nowhere near the cause. The guard was keyed on **position**
+and its subject is the block carrying the embedded Python, so it is repointed to that property.
+**My first repoint was also wrong**: it scanned 80 lines from each candidate, and the first
+block's window reached *past its own end* into the heredoc, so it still chose the wrong block
+and failed identically. Keyed on the block's own extent now.
+
+**(c) `rebalance_watch` READ A KEY THAT DOES NOT EXIST.** My first cut took the missing dates
+from `track_meter.detail()["gaps"]["missing"]`, and `detail()` has **no `gaps` key at all** — so
+`missing` was always empty and the row-missing alert could never fire, while `recording_ok` was
+independently `False` and made the function look like it worked. The wrong-object family: a
+lookup that computes cleanly, raises nothing, and answers about an object that does not exist.
+Measured instead — the dates live in `per_vintage_recording[*]["missing_dates"]`, and only the
+**open** vintage's are owed, because a closed vintage's misses are history nobody can act on.
+Pinned against the real meter.
+
+**(d) A TEST OF MINE PRINTED PART OF A REAL WEBHOOK URL.** It called the watchdog's
+`_alert_webhook()` against the live process environment, which on this machine has
+`DISCORD_WEBHOOK_URL` set — so it failed for no reason *and* put most of the real URL in the
+failure message. It clears the variables first now. A test that reads live secrets can both
+fail spuriously and publish the thing it is checking is handled carefully.
+
+**(e) MY HEALTHCHECKS STEP FIRED A THIRD GUARD, AND IT IS THE SAME SHAPE AS THE OTHER TWO.**
+`test_fleet_schedule_handover` enforces *"the cron is the ONLY line that differs from the file
+this replaces"* by comparing the whole jobs block byte for byte — exactly right for a handover
+whose only content is a cron change, and false the moment a second legitimate change arrives.
+Repointed, in the same commit, to the property its own docstring names (*"or the two files
+become two different doors"*): the **door step** must be byte-identical, and **anything present
+in one file and not the other must be one of item 74's three declared monitoring steps** — so a
+smuggled extra step or a renamed door still fails. The stripper is proved non-vacuous in both
+directions, because one that removed everything would make both guards pass by seeing nothing.
+**Third repoint of this shape on this path**, after item 71's `MB31` tripwire and item 72's bag
+list, and the pattern is identical each time: a guard asserting "these two things are equal
+today" fires on the clock, so assert the property the equality stood in for.
+
+**(f) AND I EMPTIED THAT FILE WHILE REPOINTING IT.** My patch script ended with
+`io.open(P, "w", ..., newline="\\n")`, which is an illegal `newline` value — and `io.open` in
+`"w"` mode **truncates before it validates the argument**, so the `ValueError` left a 204-line
+suite at zero bytes. Recovered from git in one command, and the repoint was then applied with
+direct edits instead. This record's own lesson, earned again: *a harness that cannot put a file
+back is worse than none*, because it leaves the tree altered in exactly the file it was aimed at.
+
+**(g) AND A TEST OF MINE BROKE A CONVENTION THIS REPO ALREADY ENFORCES.** My
+*"no `.github` change"* test ran `git diff --name-only origin/main -- .github`, and
+`test_ma60_conventions` forbids exactly that in any suite: such a check *"measures whatever is
+checked out rather than the lane that wrote them, and becomes a permanent tripwire for every
+later lane."* It is right, and the property is directly checkable without git at all — if this
+item had written into `.github/`, the installed files would carry its marker. The replacement
+asserts that, plus a positive control that the PENDING files do carry it, so it cannot pass on a
+lane that did nothing.
+
+**(h) THE MA DEPENDENCY MAP IS GENERATED AND MY TWO NEW MODULES MADE IT STALE.**
+`tests/test_ma_dependency_map.py` went red because the map is derived from the import graph.
+Re-ran `scripts/ma_dependency_map.py`: **424 → 427 collisions**, three new edges, both artifacts
+committed. Attributable and small — and it was green in item 75's gate, which is how I know it
+is mine.
+
+**And one piece of collateral damage worth recording:** `sed -i 's/.../g' tests/*.py` rewrote the
+**line endings of all 239 test files**, not just the 8 it matched — `sed -i` rewrites every file
+it is handed and writes LF. Git normalises on commit so the committed content was unaffected
+(`git diff --numstat` read 0/0 for every unmatched file), but `git status` became 256 lines in
+which a real change could have hidden. The 231 untouched files were put back by checking out
+every path with no content difference, with the 8 I meant to change named explicitly so the
+restore could not quietly revert real work.
+
+### 10. TESTS AND THE GATE
+
+`tests/test_item74.py` — **58 tests, zero skips**, and **22 of them fail against `71b0c2b`**
+with the behaviour reverted and the two new modules left in place. That split is deliberate:
+removing the new modules makes the suite fail to *import*, so 0 of 57 run and nothing is
+attributable; keeping them separates "this test covers new code" from "this test covers a
+behaviour this item changed", which is the number worth reporting.
+
+**Two seam signatures changed, because the real function's did.** `send_discord` takes a
+channel, so `announce(..., send=...)` passes one — and a seam whose signature differs from the
+thing it stands in for is how a fixture comes to pass against behaviour that cannot happen. 32
+test lambdas were updated; one that I missed, `test_item51_auto_recertify.py:253`, showed up as
+a genuine **regression**: a 2-argument lambda raised, the send read as failed, and the refusal
+watermark never advanced. Found and fixed.
+
+**NOTHING PRIVATE, NO `.github` CHANGE, NO KEY OR PERCENTAGE OR ARMING TOUCHED.** A test asserts
+that no installed workflow carries item 74's marker — so this lane wrote nothing into
+`.github/`, which the land gate refuses by design — with a positive control that the pending
+files do carry it. `DECISIONS.md` is untouched.
+
+`valuation/saas/alert_routing.py`, `valuation/saas/notify.py`, `valuation/config.py`,
+`MA_DEPENDENCY_MAP.md` + `ma_dependency_edges.json` (regenerated),
+`valuation/saas/app_saas.py`, `valuation/edge/live_notify.py`, `valuation/edge/fleet_notify.py`,
+`valuation/edge/live_cycle.py`, `valuation/screener/rebalance_watch.py`,
+`scripts/check_staleness.py`, `tests/test_item74.py`, plus 12 files in `pending_workflows/`.

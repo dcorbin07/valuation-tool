@@ -2110,6 +2110,105 @@ def create_saas_app(cfg=CONFIG):
                     "reason": "the reported-benchmark sibling was not written: "
                               + safe_error(e)}
 
+    @app.route("/admin/rebalance-watch", methods=["GET", "POST"])
+    def admin_rebalance_watch():
+        """IS A REBALANCE LATE, REFUSED, OR COMING UP — and is the daily record complete?
+        [item 74]
+
+        **A GET COMPUTES AND RETURNS; ONLY A POST MAY POST TO DISCORD.** The same split every
+        other admin door here carries, for the same reason: a side-effecting GET is reachable by
+        a retry, a prefetch, a proxy or a pasted link, and none of those is a decision to tell
+        Don something is wrong. A GET is how a reader sees what WOULD be said.
+
+        **THE DATES ARE DERIVED, NEVER PASSED IN.** `next_rebalance` is 63 trading days from the
+        in-force event's own scan date, and `index_in_force` owns that arithmetic. A workflow
+        carrying its own copy of the date would be right for one quarter and silently wrong for
+        every quarter after it — the clock-shaped guard this project has repointed three times —
+        so the workflow is thin and this derives.
+
+        Owner-only via the same `X-Admin-Token` as every other admin route, inheriting `/admin/`
+        so no posture allowlist gains an entry. It places no order and writes no record.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge import live_notify as LN
+            from ..edge import track_meter as TM
+            from ..screener import rebalance_watch as RW
+
+            body = request.get_json(silent=True) or {}
+            as_of = request.args.get("as_of") or body.get("as_of")
+            refusal = body.get("refusal") if isinstance(body.get("refusal"), dict) else None
+
+            reb = RW.status(as_of=as_of, refusal=refusal)
+            try:
+                rec = RW.record_status(as_of=as_of, detail=TM.detail())
+            except Exception as e:                                      # noqa: BLE001
+                rec = {"ok": False, "alerts": [],
+                       "reason": "the contract meter could not be read (%s)" % type(e).__name__}
+            alerts = list(reb.get("alerts") or []) + list(rec.get("alerts") or [])
+            out = {"ok": True, "rebalance": reb, "record": rec,
+                   "n_alerts": len(alerts),
+                   "would_alert": [a["kind"] for a in alerts],
+                   "posted": False}
+
+            # **THE SAME NOISE DISCIPLINE AS THE LIVE CYCLE, AND THE SAME RECORD.** These are
+            # conditions, not events: a rebalance stays overdue every day until it is run. So
+            # they go through `live_notify`, which says a condition once, reminds once a day,
+            # and says one line when it clears — rather than this door inventing a second,
+            # differently-behaved notifier for the same kind of fact.
+            if request.method == "POST":
+                out["announced"] = LN.announce(alerts, cfg=cfg)
+                out["posted"] = bool(out["announced"].get("sent"))
+            else:
+                out["note"] = ("a GET computes and posts nothing. POST this door to announce "
+                               "what is listed in `would_alert`.")
+            return jsonify(out), 200
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
+    @app.route("/admin/alert-test", methods=["POST"])
+    def admin_alert_test():
+        """POST one test line to each channel, and report PRESENT OR ABSENT ONLY. [item 74]
+
+        The point of a test button is to prove the plumbing before it is needed, and the point
+        of reporting presence rather than values is that the reply travels through a workflow
+        log. **No webhook URL, no token and no key is ever returned or printed** — only whether
+        each name is set, which is the one thing Don needs to know while setting them up.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from . import alert_routing as AR
+            from .notify import send_discord
+
+            present = {
+                AR.ALERT_WEBHOOK_VAR: bool(getattr(cfg, "discord_alert_webhook_url", "")),
+                AR.ROUTINE_WEBHOOK_VAR: bool(getattr(cfg, "discord_webhook_url", "")),
+            }
+            stamp = _dt.datetime.now().replace(microsecond=0).isoformat()
+            results = {}
+            for ch, line in ((AR.ALERTS,
+                              "**Valquo alert-channel test** — this is a test, nothing is "
+                              "wrong. Sent %s." % stamp),
+                             (AR.ROUTINE,
+                              "**Valquo routine-channel test** — this is a test. Sent %s."
+                              % stamp)):
+                hook = AR.webhook(cfg, ch)
+                results[ch] = {
+                    "attempted": bool(hook["ok"]),
+                    "sent": (bool(send_discord(cfg, line, ch)) if hook["ok"] else False),
+                    # `reason` is written to be safe to print: it names variables, never values.
+                    "reason": hook["reason"],
+                    "fell_back_to_routine": (hook["channel_used"] == AR.ROUTINE
+                                             and ch == AR.ALERTS),
+                }
+            return jsonify({"ok": True, "configured": present, "channels": results,
+                            "note": ("present/absent only -- no webhook URL, token or key is "
+                                     "returned by this door")}), 200
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/track-rebalance", methods=["POST"])
     def admin_track_rebalance():
         """Append ONE rebalance event to the bound book. POST-only, append-only.

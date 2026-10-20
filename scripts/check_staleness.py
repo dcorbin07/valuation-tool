@@ -40,11 +40,40 @@ def _get(url: str) -> dict:
         return json.loads(r.read().decode())
 
 
+#: **THE WATCHDOG IS A PROBLEM REPORT, SO IT MOVES TO `#valquo-alerts` [item 74].** Don's
+#: ruling of 2026-10-18: *"The site watchdog (stale data, failed scan) moves to alerts. The
+#: recap stays routine."* This script only ever posts when it has found something wrong — its
+#: own `if not problems: return 0` is the proof — so every message it sends belongs there.
+#:
+#: IT CANNOT IMPORT `saas.alert_routing`, AND THAT IS THE POINT RATHER THAN A SHORTCUT. This
+#: runs on a GitHub runner against the standard library alone, deliberately: a watchdog that
+#: needed the application to import could not report that the application will not import. So
+#: the fallback rule is reimplemented in six lines, and `tests/test_item74.py` asserts the two
+#: copies agree about the variable names and the prefix — which is the only part that could
+#: drift, and the `B7` direction applied to a case where one definition is not reachable.
+ALERT_WEBHOOK_VAR = "DISCORD_ALERT_WEBHOOK_URL"
+ROUTINE_WEBHOOK_VAR = "DISCORD_WEBHOOK_URL"
+FALLBACK_PREFIX = "(alerts channel not set)"
+
+
+def _alert_webhook():
+    """`(url, prefix)` for the problems channel, with Don's fallback. Never a value in a log."""
+    alert = os.environ.get(ALERT_WEBHOOK_VAR, "").strip()
+    if alert:
+        return alert, ""
+    routine = os.environ.get(ROUTINE_WEBHOOK_VAR, "").strip()
+    if routine:
+        return routine, FALLBACK_PREFIX + " "
+    return "", ""
+
+
 def _post_discord(text: str) -> None:
-    url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+    url, prefix = _alert_webhook()
     if not url:
-        print("  (no DISCORD_WEBHOOK_URL — alert not sent)")
+        print("  (neither %s nor %s is set — alert not sent)"
+              % (ALERT_WEBHOOK_VAR, ROUTINE_WEBHOOK_VAR))
         return
+    text = prefix + text
     body = json.dumps({"content": text[:1900]}).encode()
     req = urllib.request.Request(url, data=body, method="POST",
                                  headers={"Content-Type": "application/json"})

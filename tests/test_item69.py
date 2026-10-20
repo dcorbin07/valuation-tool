@@ -157,7 +157,7 @@ class _Cycle(unittest.TestCase):
         """A real `run_cycle`, paper mode, with the REAL broker class on a recorded session."""
         out = LC.run_cycle(env={}, mode=LC.PAPER, now=OPEN_NOW, root=self.root,
                            book=(book or BOOK_DROPPED_MSFT), paper_client=broker(sess),
-                           notify_send=(lambda cfg, b: True))
+                           notify_send=(lambda cfg, b, ch=None: True))
         return out, (out.get("paper") or {})
 
 
