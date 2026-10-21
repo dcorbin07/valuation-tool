@@ -212,6 +212,10 @@ def run_hot() -> None:
         serve_rows = _copy.deepcopy(rows)
         _efv(serve_rows, peer_rows=serve_rows)
         _wh.withhold_implausible_fair_values(serve_rows)
+        # BOTH SIDES OF THE BAND [item 76 §2]. The precompute feeds the served dip rows, so
+        # omitting the low flag here would leave the cached path lopsided while the live path
+        # was not -- the two-copies-of-one-rule shape this project keeps paying for.
+        _wh.flag_implausibly_low_fair_values(serve_rows)
         dip_cache = _dip.precompute(
             serve_rows, lambda t: _value(t, CONFIG), scan_date=res["scan_date"])
         sh = dip_cache.get("shape") or {}

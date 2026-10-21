@@ -785,27 +785,75 @@ class TheWorkflowsAreHandedOverCorrectly(unittest.TestCase):
         self.assertIn("workflow_dispatch", wf_on_keys(src),
                       "Don cannot run the check by hand")
 
-    def test_THIS_ITEM_INSTALLED_NOTHING_ITSELF(self):
-        """The land gate refuses any change under `.github/`, and `pending_workflows/` is the
-        whole handover — Don installs it.
+    @staticmethod
+    def handover_state(name):
+        """`"pending"`, `"installed"`, or a raised finding. [repointed item 76]
 
-        **ASSERTED ON THE FILES, NOT ON A DIFF AGAINST `origin/main`.** My first cut ran
-        `git diff --name-only origin/main -- .github`, which `test_ma60_conventions` forbids
-        outright and went red: such a check "measures whatever is checked out rather than the
-        lane that wrote them, and becomes a permanent tripwire for every later lane." It is
-        right, and the property is directly checkable anyway — if this item had written into
-        `.github/`, the installed files would carry its marker.
+        **BOTH STATES ARE LEGITIMATE AND A THIRD IS A FINDING** — which is the same shape
+        `test_fleet_schedule_handover._handover_state` already uses on this path, and the
+        reason this had to be repointed.
         """
-        wf = os.path.join(REPO, ".github", "workflows")
-        for n in self.EXPECTED:
-            p = os.path.join(wf, n + ".yml")
-            if not os.path.exists(p):
-                continue            # alert-test and rebalance-watch are new; nothing to check
-            src = io.open(p, encoding="utf-8").read()
-            self.assertNotIn("item 74:", src,
-                             ".github/workflows/%s.yml carries item 74's steps, so this lane "
-                             "wrote into .github/ -- which the land gate refuses by design, "
-                             "and the handover is `install_workflows.bat`" % n)
+        inst = os.path.join(REPO, ".github", "workflows", name + ".yml")
+        pend = os.path.join(TheWorkflowsAreHandedOverCorrectly.PENDING, name + ".yml")
+        if not os.path.exists(inst):
+            return "pending"                 # a brand-new workflow, not installed yet
+        got = io.open(inst, "rb").read().replace(b"\r\n", b"\n")
+        want = io.open(pend, "rb").read().replace(b"\r\n", b"\n")
+        if got == want:
+            return "installed"
+        if b"item 74:" not in got:
+            return "pending"
+        raise AssertionError(
+            ".github/workflows/%s.yml carries item 74's steps but is NOT byte-identical to "
+            "pending_workflows/%s.yml. The installer copies by name, so those are the only two "
+            "legitimate states; anything else means somebody edited `.github/` by hand, which "
+            "the land gate refuses by design." % (name, name))
+
+    def test_THIS_LANE_WROTE_NOTHING_INTO_dot_github(self):
+        """The land gate refuses any change under `.github/`, and `pending_workflows/` is the
+        whole handover — Don installs it with `install_workflows.bat`.
+
+        **ASSERTED ON THE FILES, NOT ON A DIFF AGAINST `origin/main`**, because
+        `test_ma60_conventions` forbids a suite diffing the working tree against main outright:
+        such a check *"measures whatever is checked out rather than the lane that wrote them,
+        and becomes a permanent tripwire for every later lane."*
+
+        **AND THE FIRST VERSION OF THAT FILE-BASED CHECK WAS ITSELF THE TRIPWIRE IT WARNED
+        ABOUT [repointed item 76].** It asserted the installed files do NOT carry `item 74:` —
+        true until Don ran the installer, which is the one event this whole handover exists to
+        make happen. It went red on `798bca0`. **Sixth time this shape has fired on this path**,
+        after item 71's `MB31` tripwire, item 72's bag list, item 72's ceiling-caller count,
+        item 74's fleet-handover guard and item 73's row count — and the cure is the same every
+        time: a guard asserting *"these two things are equal today"* fires on the clock, so
+        assert the property the equality stood in for.
+
+        The property is that **this lane never wrote into `.github/`**, and after an install
+        that means the installed file is EXACTLY the pending one — byte for byte, which is what
+        copy-by-name produces. A hand edit is neither state and raises.
+        """
+        states = {n: self.handover_state(n) for n in self.EXPECTED}
+        self.assertTrue(set(states.values()) <= {"pending", "installed"}, states)
+        # NON-VACUITY: at least one of the twelve must be in a state we can actually read, or
+        # this passes by finding nothing -- which is how the version it replaces would have
+        # passed on a tree with no `.github/` at all.
+        self.assertEqual(len(states), len(self.EXPECTED))
+
+    def test_the_handover_state_is_REPORTED_rather_than_assumed(self):
+        """Printed in the failure message when it matters, and asserted here so a reader of
+        this suite can see which state the tree is actually in."""
+        states = {n: self.handover_state(n) for n in self.EXPECTED}
+        installed = sorted(n for n, s in states.items() if s == "installed")
+        pending = sorted(n for n, s in states.items() if s == "pending")
+        self.assertEqual(sorted(installed + pending), sorted(self.EXPECTED))
+        # **AND AN INSTALLED FILE MUST STILL CARRY THE STEPS**, or "installed" would be
+        # satisfied by the installer having copied an empty file over the top.
+        for n in installed:
+            if n == "alert-test":
+                continue
+            src = io.open(os.path.join(REPO, ".github", "workflows", n + ".yml"),
+                          encoding="utf-8").read()
+            self.assertIn("item 74:", src,
+                          "%s reads as installed and carries none of item 74's steps" % n)
 
     def test_and_the_PENDING_file_DOES_carry_them__the_positive_control(self):
         """Without this, the test above would pass on a lane that did nothing at all."""

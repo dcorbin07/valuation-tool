@@ -115,16 +115,28 @@ Sharadar panel existed, and read as though the research had never been done):
 - **Delisting-return handling** is in place via the corporate-actions mask, so names that went
   to zero, were acquired or were delisted carry their terminal return.
 
-The panel runs **2,531 names over 69 quarterly rebalances (2009–2026)**.
+The panel runs **9,645 names over 69 quarterly rebalances (2009–2026)**.
+
+> **RESTATED 2026-10-21 (item 76).** This said **2,531 names** — the panel in force until
+> October 2026, when the universe was found to be a subset of what the raw data holds and the
+> canonical panel moved to 9,645. The two panels share no rebalance dates, so figures measured
+> on one may not be compared with figures measured on the other. Every number on the public
+> pages is now read from `BACKTEST_RESULTS.json` rather than typed, which is the repair for the
+> class of defect this line was an instance of.
 
 ---
 
 ## The honest bottom line
 With good data and this protocol you get a *trustworthy* answer — which may well be "no reliable
 edge after costs". That is not a failure; it is the point. **On this project it is largely what
-happened:** the overwhelming majority of pre-registered tests came back NULL or REJECTED, and the
-one surviving claim clears its own placebo-calibrated floor while failing the stricter hurdle
-implied by counting every trial charged. Both halves ship in `BACKTEST_RESULTS.json`.
+happened:** the overwhelming majority of pre-registered tests came back NULL or REJECTED. The one
+surviving claim now clears **both** bars on the canonical panel — its own placebo-calibrated floor
+and the stricter hurdle implied by counting every trial charged — and that is a change, not a
+standing fact: on the superseded 2,531-name panel it cleared the first and failed the second.
+Read the second one with the caution it deserves. That hurdle prices *the best of N draws*, and
+this composite is flat 1/7 and was never tuned, so the trials behind it are overwhelmingly
+alternatives it rejected rather than candidates it beat. Both bars and the statistic ship in
+`BACKTEST_RESULTS.json`, which is where to read them rather than here.
 
 The tooling is built to find an edge if one exists and to say plainly when it does not, so that
 nobody bets real money on a curve fit.

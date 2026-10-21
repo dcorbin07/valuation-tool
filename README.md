@@ -26,7 +26,7 @@ more than any individual number:**
 
 | surface | what it does | evidential status |
 |---|---|---|
-| **Valuation engine** | Adaptive DCF for any ticker from live data, no API key | **A model, not a claim.** Its output is an estimate under stated assumptions; it has never been backtested as a return signal. |
+| **Valuation engine** | Adaptive DCF for any ticker from live data, no API key | **A model, not a claim — and its gap was tested, three ways, and is not alpha.** Its output is an estimate under stated assumptions. The fair-value gap *has* been backtested as a return signal: median rank IC **+0.0092 at t +0.99**, a null, and it would rank below every theme that carries weight (`HANDOFF_growth_calibration.md`, whose own standing instruction is *"do not weight the fair-value gap as alpha"*). As an **exit** rule it was NULL (`S23`); as an **entry** filter it was rejected and the names it would have dropped crashed at *half* the rate of those it kept (`S10`). So it is a framing and communication tool, not a signal to trade on. |
 | **Hot-stocks screener** | Ranks the market 1–100 on a 9-theme cross-sectional composite | **The one measured claim** — see the evidence section below. |
 | **Valquo Index** | A published, pre-registered forward paper track of the screener's picks | **Running, not yet evidence.** No verdict before **2031**. |
 | **Dip Detector** | Flags names well below their recent high that pass quality/health floors | **A screen, with a split verdict** — the *return* claim is NULL, the *risk* claim is measured. |
@@ -135,9 +135,24 @@ Index. Its terms were fixed before the data existed:
   against the strategy.
 - **An adopted change to scoring resets the clock.** The track is on its 4th vintage
   (inception 2026-08-13); improving the model costs elapsed evidence, on purpose.
-- **It is currently not recording.** The bound series has a known writer gap
-  (`recording_ok: false`), tracked as ledger row `PT-WRITER`. The operational gate cannot pass
-  while that is true, and the meter reports it rather than hiding it.
+- **It is recording — and the gate is still a separate, open question.** Measured on the live
+  service 2026-10-21: the bound series carries a row on **every one of the 20 trading days from
+  2026-09-23 to 2026-10-20**, no gaps, written unattended by `track-row.yml`. Ledger row
+  `PT-WRITER` closed 2026-08-18, when the writer first wrote for real end-to-end. Before that
+  it missed **18 trading days between 2026-08-03 and 2026-09-22**; the site shows those as
+  **reconstructed** and excludes them from the recorded-day count, the evidence meter, the
+  operational gate and every verdict — because §3 treats a *back-fill of the record* as voiding
+  the whole run, so a reconstruction may be displayed and may never be recorded. The track
+  therefore reads **58 days old, 39 recorded**.
+- **The operational gate is a different row, and it has not passed.** §3's tolerance covers
+  *missing a single day's write that is filled the same week*; vintage 4's **11** missed days
+  (2026-08-14, plus ten between 2026-09-02 and 2026-09-22) are not that, so under §3 they void
+  their own windows rather than being logged. §3's own remedy is that *"if the gate fails, the
+  clock restarts from the repair"* — and on the evidence the repair is 2026-09-23, which puts a
+  six-month gate at **2027-03-23** rather than 2027-02-13. Two other gate conditions are also
+  outstanding: one holding of 86 has been **unpriced since 2026-08-20** (33 rows), and the
+  gate's own realised-cost condition is written against **33.4 bps**, the superseded panel's
+  figure, where the canonical panel measures **77.0**. Only Don's signature changes that row.
 
 ---
 

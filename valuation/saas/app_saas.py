@@ -2602,6 +2602,13 @@ def create_saas_app(cfg=CONFIG):
                                              contact_email=cfg.contact_email,
                                              demo_available=demo_available,
                                              trials=_facts.trial_counts(),
+                                             # LIVE, NOT TYPED [item 76]. Same contract: a
+                                             # tracked artifact, no store, no clock. The
+                                             # literals these replace were the superseded
+                                             # 2,531-name panel's, and the cost pair's
+                                             # inference had inverted.
+                                             costs=_facts.costs(),
+                                             panel=_facts.panel(),
                                              optionable=_optionable.payload(),
                                              research_url=cfg.resolved_portfolio_path
                                              + "/research"))

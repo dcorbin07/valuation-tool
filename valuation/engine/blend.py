@@ -107,6 +107,13 @@ class FairValueBlend:
     # cap silently stopped firing the moment the guard did its job — a check that only
     # works when the unsafe thing is present. Never publish this; it is for guards only.
     withheld_value: Optional[float] = None
+    #: THE LOW SIDE OF THE PUBLICATION BAND [item 76 §2, Don's ruling 2026-10-21]. Set by
+    #: `pipeline` once the price is known -- the blend alone cannot compute a ratio. Carried on
+    #: the payload so the HERO can mark the number, not only the warnings list: above the band
+    #: the hero says "Not DCF-valuable" and below it the hero used to print the figure with
+    #: nothing beside it, which is the asymmetry the review found.
+    implausibly_low: Optional[bool] = None
+    low_note: str = ""
 
     def to_dict(self) -> dict:
         return {"value": self.value, "valuable": self.valuable, "reason": self.reason,
@@ -117,7 +124,8 @@ class FairValueBlend:
                 "confidence": self.confidence, "tv_share": self.tv_share,
                 "value_low": self.value_low,
                 "value_high": self.value_high, "lenses": self.lenses, "notes": self.notes,
-                "withheld_value": self.withheld_value}
+                "withheld_value": self.withheld_value,
+                "implausibly_low": self.implausibly_low, "low_note": self.low_note}
 
 
 def _usable(x) -> Optional[float]:

@@ -249,6 +249,17 @@ def attach_labels(book: dict, store=None) -> dict:
         _ta = _thin.assess(r)
         pos["thin_data_today"] = _ta["thin"]
         pos["themes_scored_today"] = _ta["themes_scored"]
+        # HOW MANY OF THE SEVEN [item 76 §5], beside the count above rather than replacing it.
+        # `themes_scored` counts the UNION of both weight dicts -- eight names, because
+        # `quality` and `growth` are bucket alternatives -- and the Index table's own thin flag
+        # renders it as "Scored on N of 7 themes", so it could say "8 of 7". The denominator
+        # here is this holding's own bucket's seven. `themes_scored_today` is unchanged because
+        # `MIN_THEMES` and `thin_data_today` are calibrated on it.
+        _s7 = _thin.scored_of_seven(r)
+        pos["themes_of_seven_today"] = _s7["n"]
+        pos["themes_of_seven_total"] = _s7["of"]
+        pos["themes_backtested_today"] = _s7["backtested"]
+        pos["themes_label_today"] = _s7["label"]
         if _ta["thin"]:
             n_thin_today += 1
         # ITEM 53 part 1 -- WHY IS THIS NAME HELD? The same per-theme decomposition the Hot

@@ -29,6 +29,7 @@ from .scoring import compute_score, ScoreResult
 # docstring for why (CONSOLIDATE-1: it had five independent implementations that disagreed).
 # `FV_BAND_HIGH` is re-exported here because `valuation/web/withhold.py` imports it from this
 # module; it is the SAME object, not a copy.
+from .publication import low_words as _low_words
 from .publication import (FV_BAND_HIGH, FV_BAND_LOW, decide as decide_publication,
                           PublicationVerdict)
 
@@ -544,9 +545,20 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
                                       f"certainly a data problem (currency or share count), not a real "
                                       f"opportunity. Verify the figures before trusting this valuation.")
         elif ratio < FV_BAND_LOW:
-            result.warnings.insert(0, f"Our valuation (${fv:,.2f}) is a fraction of the ${px:,.2f} price. "
-                                      f"For a pre-profit growth name that is a disagreement about future "
-                                      f"growth, not a data error — see the implied-growth read.")
+            # DON'S RULING 2026-10-21 (item 76 §2): the words come from `publication.low_words`
+            # so this page, the screener and the dip tab say one thing. The old wording opened
+            # "For a pre-profit growth name that is a disagreement about future growth", which
+            # is true and reads as reassurance where the high side reads as a refusal.
+            result.warnings.insert(0, _low_words(fv, px, ratio, growth_led=True)
+                                   + " See the implied-growth read.")
+
+        # THE HERO MUST MARK IT TOO, not only the warnings list. Set for EVERY low branch
+        # above, including the REIT one -- which keeps its own better-attributed sentence,
+        # because a mis-attributed warning is worse than none and that branch exists to say so.
+        if ratio < FV_BAND_LOW:
+            blend.implausibly_low = True
+            blend.low_note = (result.warnings[0] if result.warnings
+                              else _low_words(fv, px, ratio, growth_led=blend.growth_led))
 
     # Reinvestment sanity: `delta revenue / sales_to_capital` collapses toward zero when
     # revenue is flat, so a capex-heavy name is charged almost nothing to stand still.

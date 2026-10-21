@@ -54,11 +54,32 @@
   be quietly dropped after the fact.</p>
 
   <h3>Costs — quote the breakeven, not the net number</h3>
-  <p>Trading costs are modelled, not assumed away. The top decile's <b>breakeven cost is about
-  134 basis points one-way</b> against a <b>measured 33 bps</b> real-world cost profile, on
-  roughly 261% annual turnover. We lead with the breakeven deliberately: it requires you to
-  believe no particular cost estimate. Borrow cost is <i>not</i> modelled, which affects the
-  long/short statistic but not the long-only book that the Index actually is.</p>
+  {# EVERY FIGURE HERE IS READ FROM THE TRACKED ARTIFACT [item 76]. This paragraph carried
+     "134 basis points against a measured 33 bps ... roughly 261% annual turnover" — all three
+     figures from the superseded 2,531-name panel, still here after the canonical panel moved
+     to 9,645 names. The margin was called "fourfold"; it is nearer 1.6x. A word like
+     "fourfold" is a figure wearing prose, and it rots exactly as a number does. #}
+  {% if costs and costs.available %}
+  <p>Trading costs are modelled, not assumed away. The research decile's <b>breakeven cost is
+  about {{ costs.breakeven_bps|round(0)|int }} basis points one-way</b> against a
+  <b>measured {{ costs.realised_bps|round(0)|int }} bps</b> real-world cost profile, on
+  {{ costs.turnover_pct|round(0)|int }}% annual turnover — a margin of about
+  <b>{{ costs.margin|round(2) }}×</b>. We lead with the breakeven deliberately: it requires you
+  to believe no particular cost estimate.</p>
+  <p class="sub"><b>Which book this describes.</b> This is the <b>{{ costs.book }}</b> — the
+  ranking across the whole <b>{{ "{:,}".format(costs.n_names) }}-name</b> universe over
+  {{ costs.n_dates }} quarterly rebalances, at the <b>{{ costs.account }}</b> cadence. <b>It is
+  not the Valquo Index</b>, which is a narrower long-only book of large caps. The two are
+  different objects and their cost figures are not interchangeable. Borrow cost is <i>not</i>
+  modelled, which affects the long/short statistic but not the long-only book the Index is.</p>
+  {% else %}
+  <p>Trading costs are modelled, not assumed away, and we lead with the <b>breakeven</b> rather
+  than a net figure: it requires you to believe no particular cost estimate. The current
+  figures are not being shown because the backtest artifact could not be
+  read{% if costs and costs.reason %} ({{ costs.reason }}){% endif %} — a missing number is
+  better than a stale one. Borrow cost is <i>not</i> modelled, which affects the long/short
+  statistic but not the long-only book that the Index actually is.</p>
+  {% endif %}
 
   <h3>How we decide something is real</h3>
   <ul>
