@@ -143,3 +143,38 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "No verdict is read here. The first verdict read is five years after the first recorded row (PREREG_valuation_reads.md §4)." >> $GITHUB_STEP_SUMMARY
+
+      # ---- ITEM 74: TELL DON ON DISCORD IF THIS JOB FAILED -------------------------------
+      #
+      # GITHUB-SIDE, AND THAT IS THE POINT RATHER THAN A CONVENIENCE. The service often cannot
+      # post that the service is the thing that failed -- August's billing stoppage is the
+      # recorded case -- so this runs on the runner with nothing but curl. A non-200 from the
+      # service is a failure of the step that called it, so it lands here too.
+      #
+      # Falls back to the routine webhook with a visible prefix when the alerts one is not set
+      # yet, so nothing goes quiet during setup and nobody mistakes the fallback for the
+      # finished configuration. Neither value is ever echoed.
+      - name: "item 74: tell Don this failed"
+        if: failure()
+        env:
+          ALERT_HOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ROUTINE_HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -u
+          HOOK="${ALERT_HOOK:-}"; PREFIX=""
+          if [ -z "$HOOK" ]; then
+            HOOK="${ROUTINE_HOOK:-}"; PREFIX="(alerts channel not set) "
+          fi
+          if [ -z "$HOOK" ]; then
+            echo "::warning::neither DISCORD_ALERT_WEBHOOK_URL nor DISCORD_WEBHOOK_URL is set -- Don was NOT told this failed"
+            exit 0
+          fi
+          RUN="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          WF=$(printf '%s' "$GITHUB_WORKFLOW" | tr -d '"\\')
+          JB=$(printf '%s' "$GITHUB_JOB" | tr -d '"\\')
+          # Three short lines: what broke, what it means, what to do.
+          BODY=$(printf '{"content": "%s**%s / %s failed**\\nWhile this is failing that part of the Index machinery is not running.\\nOpen the run and read the failed step: %s"}' \
+                 "$PREFIX" "$WF" "$JB" "$RUN")
+          curl -sS -m 20 -H 'Content-Type: application/json' -d "$BODY" "$HOOK" >/dev/null \
+            || echo "::warning::the Discord post itself failed"
+

@@ -58,6 +58,24 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
+      # ---- ITEM 74: HEALTHCHECKS, SO SILENCE IS DETECTABLE FROM OUTSIDE ------------------
+      #
+      # Nothing inside GitHub can report that GitHub stopped running jobs, and it has happened
+      # once (August, a billing hiccup). healthchecks.io expects a ping on this schedule and
+      # tells Don when one does not arrive. Absent key = a warning and carry on; a monitor is
+      # not allowed to stop the job it monitors.
+      - name: "item 74: healthchecks start (track-backup)"
+        if: always()
+        env:
+          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
+        run: |
+          set -u
+          if [ -z "${HC_PING_KEY:-}" ]; then
+            echo "::warning::HC_PING_KEY is not set -- no outside monitor is watching track-backup"
+            exit 0
+          fi
+          curl -sS -m 10 --retry 2 "https://hc-ping.com/${HC_PING_KEY}/track-backup/start" \
+            >/dev/null || true
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -175,3 +193,55 @@ jobs:
             curl -fsS -X POST "$HOOK" -H "Content-Type: application/json" \
               -d '{"content":"⚠️ Valquo **track backup FAILED**. The forward paper record is the one dataset that cannot be rebuilt — check the Actions run."}' || true
           fi
+
+      # ---- ITEM 74: TELL DON ON DISCORD IF THIS JOB FAILED -------------------------------
+      #
+      # GITHUB-SIDE, AND THAT IS THE POINT RATHER THAN A CONVENIENCE. The service often cannot
+      # post that the service is the thing that failed -- August's billing stoppage is the
+      # recorded case -- so this runs on the runner with nothing but curl. A non-200 from the
+      # service is a failure of the step that called it, so it lands here too.
+      #
+      # Falls back to the routine webhook with a visible prefix when the alerts one is not set
+      # yet, so nothing goes quiet during setup and nobody mistakes the fallback for the
+      # finished configuration. Neither value is ever echoed.
+      - name: "item 74: tell Don this failed"
+        if: failure()
+        env:
+          ALERT_HOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ROUTINE_HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -u
+          HOOK="${ALERT_HOOK:-}"; PREFIX=""
+          if [ -z "$HOOK" ]; then
+            HOOK="${ROUTINE_HOOK:-}"; PREFIX="(alerts channel not set) "
+          fi
+          if [ -z "$HOOK" ]; then
+            echo "::warning::neither DISCORD_ALERT_WEBHOOK_URL nor DISCORD_WEBHOOK_URL is set -- Don was NOT told this failed"
+            exit 0
+          fi
+          RUN="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          WF=$(printf '%s' "$GITHUB_WORKFLOW" | tr -d '"\\')
+          JB=$(printf '%s' "$GITHUB_JOB" | tr -d '"\\')
+          # Three short lines: what broke, what it means, what to do.
+          BODY=$(printf '{"content": "%s**%s / %s failed**\\nWhile this is failing that part of the Index machinery is not running.\\nOpen the run and read the failed step: %s"}' \
+                 "$PREFIX" "$WF" "$JB" "$RUN")
+          curl -sS -m 20 -H 'Content-Type: application/json' -d "$BODY" "$HOOK" >/dev/null \
+            || echo "::warning::the Discord post itself failed"
+
+      # ---- ITEM 74: HEALTHCHECKS END -----------------------------------------------------
+      # `if: always()` and the real job status, so a failure pings /fail rather than simply not
+      # pinging -- "failed" and "never ran" are different facts and the monitor must be able to
+      # tell them apart.
+      - name: "item 74: healthchecks end (track-backup)"
+        if: always()
+        env:
+          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -u
+          [ -n "${HC_PING_KEY:-}" ] || exit 0
+          SUFFIX="/fail"
+          if [ "${JOB_STATUS:-}" = "success" ]; then SUFFIX=""; fi
+          curl -sS -m 10 --retry 2 "https://hc-ping.com/${HC_PING_KEY}/track-backup${SUFFIX}" \
+            >/dev/null || true
+
