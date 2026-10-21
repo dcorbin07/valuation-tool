@@ -23021,3 +23021,169 @@ breakpoints. The fair-value gap as a ranking signal (`MA55`) is r1's. **No key, 
 `valuation/screener/index_in_force.py`, `valuation/screener/settings.py`,
 `valuation/saas/app_saas.py`, `scripts/ci_scan.py`, `tests/test_item76.py`, `README.md`,
 `DATA_AND_METHODS.md`, `VALQUO_LEDGER.md`.
+
+## ITEM 77 — the auditor's three blockers: a missing percentage sold the book, each switch worked once, and a price move traded the difference
+
+The eighth review's three blockers, all fixed, with the two non-blocking items in the same
+item. **The live slot is at 0% and holds nothing, so none of this could have hurt Don today —
+and all three had to be fixed before he raises a percentage.** No key, no percentage, no
+arming change, no `.github` change.
+
+**EVERY REPRODUCTION IS A TEST THAT FAILS ON THE PRE-FIX TREE, AND THAT IS MEASURED RATHER THAN
+CLAIMED.** `python -m scripts.i77_before` rolls the three live-path modules back to the commit
+before the fix, runs the same four test classes, and reports **11 of 16 failing**. The five that
+pass on both trees are named in that script with the reason each is a control rather than a
+check that stopped biting.
+
+### Blocker A — an absent or misnamed percentage read as 0% and sold the book
+
+`slot_pct` returns `0.0, stated=False` for a missing value; `armed` read the `0.0` and never
+the `stated`. On a slot holding its book, each of the auditor's three reproductions — the
+variable **removed**, **empty**, and **misspelled** (`ALPACA_ACCOUNT_1_PCT` for `..._LIVE_PCT`,
+which they had got wrong themselves in an earlier review) — gave `armed=True, sell_only=True`
+and **transmitted both sells**, reported as *"sent 2 order(s) for pct:10.0->0.0"* and
+indistinguishable from an exit Don asked for.
+
+**THE ARGUMENT AGAINST IT WAS ALREADY WRITTEN IN THE FUNCTION IT WAS IN.** `slot_pct`'s own
+refusal says *"treating it as 0 would SELL THE BOOK ON A TYPO"* — and it was applied to the typo
+that fails to PARSE and not to the one that leaves the variable ABSENT. So the code refused
+`LIVE_PCT=oops` and liquidated on `LIVE_PCT` being deleted. The one-line docstring (*"a missing
+value is 0, never a default-on"*) was true when written and **item 71 falsified it** by making
+0% an instruction to sell; the absent branch was never revisited. It is rewritten to what the
+code does, which is the tenth message on this path to assert a property the code did not have.
+
+Fixed: a wind-down requires `stated=True`. An absent, empty or unparseable percentage on a slot
+that **holds** refuses, sends nothing, and alerts naming the variable —
+*"slot 1 has keys but no ALPACA_ACCOUNT_1_LIVE_PCT ... nothing will trade until it is set"*. A
+slot at 0% holding **nothing** is the ordinary dormant state and stays silent, or every
+unconfigured slot would alert on every cycle. A **stated** zero still winds down, which is the
+positive control: Don's documented way out is untouched.
+
+New `unknown_slot_vars` names any `ALPACA_ACCOUNT_<n>_<SUFFIX>` whose suffix this project never
+reads, once per cycle, **carrying no value** — one of those could be a mistyped secret and the
+payload is printed. A closed set of KNOWN suffixes can report every unknown one; a list of
+anticipated typos only reports the ones somebody thought of.
+
+### Blocker B — the on-switch and the off-switch each worked once
+
+`event_key` named a percentage event `pct:<from>-><to>` with nothing to tell two occurrences
+apart, while its own docstring promised *"a genuinely new event produces a new key"*. Both
+halves of the auditor's chain are fixed:
+
+- **`0 -> 5%`, `5 -> 0%`, then 5% again was refused for ever** — *"this slot has already
+  processed pct:0.0->5.0"* — with `last_pct` stuck at 0 so every later cycle refused
+  identically. Each occurrence now carries its own number (`pct:0.0->5.0#2`), **derived from
+  `processed` rather than counted**, and occurrence 1 keeps the old unsuffixed spelling so
+  nothing already recorded is orphaned.
+- **The dangerous half: setting 0% again after a rebalance had re-established the positions
+  planned nothing, placed nothing and raised NO ALERT**, with the slot holding the book while
+  the dashboard read 0% — because `last_pct` was already 0, so nothing had *changed*.
+  `event_for` now treats **0% while the slot's own record still holds something** as a STANDING
+  instruction rather than a one-off change. `armed` already called that state a wind-down; only
+  the event machinery disagreed, so the two halves of one decision were answering different
+  questions. It cannot loop: the condition is the slot's own holdings.
+
+**A COUNTER BUMPED PER CYCLE WAS MY FIRST DESIGN AND IT WAS WRONG.** A cycle that refuses
+*before* the event is recorded would have bumped it again next cycle, so the key would change
+every cycle, `note_no_progress` would count one attempt-day per key, and **the ceiling could
+never accumulate or escalate**. Deriving the number from `processed` makes it stable for exactly
+as long as an occurrence is unrecorded, which is the window the ceiling measures. The cost is
+stated rather than hidden: the `processed` guard is now unreachable for percentage keys, so it
+is kept for REBALANCE keys where it is both reachable and load-bearing, and the restart
+protection for percentage events is `last_pct` + `open_event`, written in the same atomic state
+write. On a percentage key that guard's only reachable effect **was** the blocker.
+
+One comment elsewhere had to be repointed in the same commit because this change falsifies it:
+`PLAN_RESTING`'s note ended *"because `last_pct` is written to 0 the sell-out cannot re-fire"*,
+which was correct when written and is the reason that outcome exists.
+
+### Blocker C — a price move inside an open event traded the difference
+
+Item 73 froze the dollar TARGETS, which closed the **equity** channel. The gap was still
+`frozen_target − have_qty × CURRENT mark`, so the **mark** channel stayed open — and item 73's
+own test (double the marks, require the targets not to move) passes straight through it, because
+the targets genuinely did not move and the holdings' value did.
+
+**THE FIX IS TO FREEZE SHARES AND RE-EXPRESS THEM AT TODAY'S MARK.** Store
+`qty = target_value / mark_at_open`; each later cycle passes `qty × mark_now` as the dollar
+target. Inside the planner the mark then cancels:
+
+    delta = qty_frozen × mark − have_qty × mark = (qty_frozen − have_qty) × mark
+    order qty = |delta| / mark = |qty_frozen − have_qty|
+
+so **the planned quantity and the side are both independent of the price**. Done by converting
+the target rather than by changing `order_plan`, so the planner keeps one dollar-denominated
+contract. The auditor's four-price test, measured:
+
+| mark | frozen DOLLARS (before) | frozen SHARES (after) |
+|---|---|---|
+| 100 | buy 1.000000 | buy 1.000000 |
+| 130 | **sell 1.307692** | buy 1.000000 |
+| 70 | buy 5.285714 | buy 1.000000 |
+| 300 | **sell 5.666667** | buy 1.000000 |
+
+What a price move can still do is lift a buy over `LIVE_MIN_TOPUP` or push it under. The
+quantity is identical either way — the same order, gated or not — so *"a price move never
+creates a new sell or a bigger buy"* holds.
+
+**A DEFECT IN MY OWN FIX, FOUND BY THE TEST'S POSITIVE HALF.** `parity` compares each name's
+target as a SHARE of the slot's own value, and I left `slot_value` as the freshly-derived
+figure: at a mark of 130 the frozen targets read 325 each against a slot value of 500, giving
+0.65 where the paper book says 0.50, so **parity blocked the send on every price move** — which
+would have stalled the very event the freeze exists to let finish. The first version of
+*"no price creates a sell"* passed on that, because nothing was planned at three of the four
+prices; the companion assertion that the **quantity is the same at every price** is what caught
+it. Item 73 never hit it because a frozen dollar map and a re-derived slot value agree exactly
+as long as nothing moves.
+
+### The two non-blocking items
+
+**An order that never fills alongside a cash gap now spends a ceiling day.** Don's ruling has
+two halves and only the first was implemented: *"Waiting for cash ... does not burn the ceiling.
+**The ceiling still applies to orders that are sent and never fill.**"* The cash-wait branch
+returned above the ceiling, so a resting order on one name alongside a cash gap on another never
+escalated. The cash wait itself still spends nothing.
+
+**`frozen_targets` and `frozen_target_qty` are pruned to the event in hand.** They carry about
+86 numbers per event and the close paths only ever delete the key they are closing, so an event
+ABANDONED rather than closed left its map behind for ever. Only one event is ever open and a
+frozen map is only ever read for the event being acted on, so both are now bounded at one entry.
+
+### The paper slot
+
+Stated per blocker rather than as a blanket claim, because the answer differs. **A cannot reach
+it** — it is handed a literal `armed_state`, so `armed()` is never consulted for it (asserted on
+the syntax tree: exactly one call site). **B cannot reach it** — the standing wind-down fires
+only at 0% while holding, and the paper slot runs at 100%. **C does bind on it, and should**:
+drift trading on a price move is wrong on the paper book too, and the paper book is what the
+live slot's parity is measured against, so freezing one and not the other would make the two
+disagree on every price move by construction.
+
+### Two fixture defects of my own, both found by running the tests
+
+The item-77 cases paired `BOOK_OLD` with a record whose `last_event_date` did not match it, so a
+**rebalance** preempted the percentage event they were about — caught by the second-round-trip
+case recording `rebalance:2026-08-01` instead of the key it was asserting. And
+*"never silently nothing"* first read the CYCLE's alert list, which carries the **paper** slot's
+two routine `live_order_sent` lines, so it passed on the pre-fix tree while slot 1 did nothing
+and said nothing — the exact state it exists to forbid. Both found by running against the
+rolled-back tree, which is what that control is for.
+
+### Three of the project's own guards went red, all three correctly, all three repointed here
+
+**THE CEILING-CALLER COUNT, in `test_item70.py` and `test_item72.py`.** Both pin the number of
+`note_no_progress` call sites at four, and item 77's cash-wait call makes five. Item 70's own
+docstring anticipated it — *"If a fifth appears, this is where it has to be acknowledged"* — so
+the guard worked exactly as designed: it caught a new branch that holds an event open and forced
+it to be stated. Both are updated with which branch the fifth is and why.
+
+**THE ALERT REGISTRY, in `test_item74.py`.** It recognises an alert as a dict carrying both
+`kind` and `reason`, and `event_for`'s standing-wind-down branch writes `"kind": "sell-out"`
+inline beside a `"reason"` — the same shape. The older branches build that value through a local
+variable, so no literal pair had ever appeared in the tree. Declared in `NOT_ALERT_KINDS`, which
+is the escape the guard already provides, rather than worked around by routing the value through
+a variable: the heuristic is right and this is a dict that merely shares its shape.
+
+`valuation/edge/live_slots.py`, `valuation/edge/live_cycle.py`,
+`valuation/saas/alert_routing.py`, `tests/test_item71_table.py`, `tests/test_item70.py`,
+`tests/test_item72.py`, `scripts/i77_before.py`.

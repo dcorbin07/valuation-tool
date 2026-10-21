@@ -94,6 +94,48 @@ RETIRED_VARS = ("ALPACA_LIVE_PCT",)
 
 _SLOT_RX = re.compile(r"^ALPACA_ACCOUNT_(\d+)_KEY_ID$")
 
+#: Every suffix this project reads off a slot. Anything else matching the slot shape is a
+#: MISSPELLING and is named [item 77, auditor review 8].
+#:
+#: **WHY A LIST OF WHAT IS KNOWN RATHER THAN A LIST OF TYPOS.** The auditor's own reproduction
+#: was `ALPACA_ACCOUNT_1_PCT` instead of `..._LIVE_PCT` -- a mistake they had made themselves
+#: in an earlier review -- and the environment accepted it in silence, because nothing reads a
+#: variable it does not know the name of. A closed set of KNOWN names can report every
+#: unknown one; a list of anticipated typos can only report the ones somebody thought of.
+SLOT_VAR_SUFFIXES = ("KEY_ID", "SECRET_KEY", "LIVE_PCT", "HOLDER")
+
+_SLOT_ANY_RX = re.compile(r"^ALPACA_ACCOUNT_(\d+)_([A-Z0-9_]+)$")
+
+
+def unknown_slot_vars(env=None) -> list:
+    """Every `ALPACA_ACCOUNT_<n>_<SUFFIX>` whose suffix this project does not read. [item 77]
+
+    Returns `[{"name", "slot", "suffix", "reason"}]`, empty when the environment is clean. The
+    VALUE is never returned or logged -- one of these could be a mistyped secret, and this is
+    read by surfaces that print what they are given.
+
+    **IT IS A REPORT, NOT A REFUSAL.** An unknown variable is evidence that something was
+    meant and did not happen; it is not itself evidence that the slot is unsafe, and refusing
+    on it would let a stray variable stop a wind-down Don had asked for.
+    """
+    e = env if env is not None else os.environ
+    out = []
+    for name in sorted(e):
+        m = _SLOT_ANY_RX.match(name or "")
+        if not m:
+            continue
+        suffix = m.group(2)
+        if suffix in SLOT_VAR_SUFFIXES:
+            continue
+        n = int(m.group(1))
+        out.append({
+            "name": name, "slot": n, "suffix": suffix,
+            "reason": ("%s is not a variable this project reads. The ones it reads for a slot "
+                       "are %s -- so this is almost certainly a misspelling, and whatever it "
+                       "was meant to set is NOT set." % (name, ", ".join(SLOT_VAR_SUFFIXES))),
+        })
+    return out
+
 #: How a holder's authorization is recognised in the contract, read the way
 #: `index_track.gate_state()` reads its own row: a table row, matched on the slot number, whose
 #: verdict cell is an explicit YES. Anything unrecognised is NOT authorized.
@@ -155,7 +197,25 @@ def discover_slots(env=None) -> list:
 
 
 def slot_pct(n: int, env=None) -> dict:
-    """The slot's percentage, 0-100, or a refusal. A missing value is 0, never a default-on."""
+    """The slot's percentage, 0-100, or a refusal. `{ok, pct, stated, reason}`.
+
+    **AN ABSENT VALUE READS AS `pct=0.0, stated=False`, AND THE TWO FIELDS SAY DIFFERENT
+    THINGS. `stated` IS THE ONE THAT MATTERS TO A CALLER THAT CAN SELL** -- see `armed`, which
+    now requires it for a wind-down.
+
+    **THE OLD ONE-LINE DOCSTRING WAS TRUE WHEN IT WAS WRITTEN AND ITEM 71 MADE IT FALSE
+    [item 77, auditor review 8].** It said *"a missing value is 0, never a default-on"*, which
+    was the whole story while 0% could only ever mean "do nothing": a missing percentage armed
+    nothing, so reading it as 0 was safe. Item 71 then made `0%` an instruction to SELL OUT --
+    correctly, because Don's documented way out did not otherwise exist -- and the absent
+    branch was never revisited. From that day a removed, empty or misspelled variable meant
+    *"sell everything"*, which is a default-ON of the most consequential kind.
+
+    The refusal below has carried the argument against that the whole time: *"treating it as 0
+    would SELL THE BOOK ON A TYPO"*. It was applied to the typo that fails to PARSE and not to
+    the typo that leaves the variable ABSENT, so the code refused `LIVE_PCT=oops` and
+    liquidated on `LIVE_PCT` being deleted or misnamed. `stated` existed and no caller read it.
+    """
     e = env if env is not None else os.environ
     raw = (e.get("ALPACA_ACCOUNT_%d_LIVE_PCT" % n, "") or "").strip()
     if raw == "":
@@ -280,6 +340,31 @@ def armed(n: int, env=None, contract_text: str = None, *, holds: bool = False) -
                              "nothing to sell and a 0%% target licenses no buy. The cycle "
                              "computes and logs the orders it would place and sends none."
                              % n)
+            return out
+        # **A WIND-DOWN REQUIRES THE PERCENTAGE TO HAVE BEEN STATED [item 77, blocker A].**
+        #
+        # `slot_pct` returns `0.0, stated=False` when the variable is absent, empty or
+        # misspelled, and this function read the 0.0 and never the `stated`. On a slot holding
+        # its book that gave `armed=True, sell_only=True` and TRANSMITTED BOTH SELLS --
+        # reported as "sent 2 order(s) for pct:10.0->0.0" and indistinguishable from an exit
+        # Don asked for. The auditor reproduced it three ways: the variable removed, the
+        # variable empty, and the variable's NAME wrong.
+        #
+        # **DELETING A VARIABLE IS NOT AN INSTRUCTION.** An instruction to sell is somebody
+        # typing a zero; an absent variable is the absence of an instruction, and the two must
+        # not have the same effect. So this refuses, sends nothing, and says what is missing.
+        #
+        # It is checked HERE rather than at the top because a slot at 0% that holds NOTHING is
+        # the ordinary dormant state and must stay quiet whether or not the variable is set --
+        # refusing there would alert on every slot Don has not configured yet.
+        if not p.get("stated"):
+            out["reason"] = ("slot %d has keys but no %s, so the slot is at an ASSUMED 0%% "
+                             "while its own record still holds position(s). An absent "
+                             "percentage is not an instruction to sell: nothing will trade "
+                             "until it is set, and setting it to 0 is how a wind-down is "
+                             "asked for."
+                             % (n, "ALPACA_ACCOUNT_%d_LIVE_PCT" % n))
+            out["pct_unstated_while_holding"] = True
             return out
         # **0% AND STILL HOLDING: A WIND-DOWN.** Armed to SELL ONLY -- see `run_slot`, which
         # withholds every buy in this state and alerts if one was planned. A 0% target is an
@@ -671,12 +756,29 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
 def event_for(slot_state: dict, book: dict, pct) -> dict:
     """Which of the three events, if any, applies this cycle.
 
-    `slot_state` is the slot's own last-acted record: `{last_event_date, last_pct}`.
+    `slot_state` is the slot's own last-acted record: `{last_event_date, last_pct, holdings}`.
+
+    **0% WHILE STILL HOLDING IS AN EVENT EVEN WHEN THE PERCENTAGE DID NOT MOVE [item 77,
+    blocker B].** This used to ask only *"did the number change?"*, and the dangerous half of
+    the auditor's blocker B is the state where it had not: `5 -> 0` sells out and writes
+    `last_pct = 0`, a quarterly rebalance then re-establishes the positions, and Don setting
+    0% again is not a CHANGE -- so no event fired, nothing was planned, nothing was placed and
+    **no alert was raised**, with the slot holding the book while the dashboard read 0%.
+
+    `armed` already called that state a wind-down and armed to sell; only this function
+    disagreed, so the two halves of one decision were answering different questions. A 0%
+    target is a standing instruction to hold nothing, not a one-off edge, and it is satisfied
+    when the holdings are gone rather than when the number is written down.
+
+    It cannot loop: the condition is the slot's OWN holdings, so it stops being true when they
+    are sold, and while the sell-out is in flight the open event takes the remainder path.
     """
     last_ev = str((slot_state or {}).get("last_event_date") or "")
     last_pct = _f((slot_state or {}).get("last_pct"))
     formed = str((book or {}).get("formed_on") or "")
     now_pct = _f(pct)
+    holds = any((_f(q) or 0.0) > 0
+                for q in ((slot_state or {}).get("holdings") or {}).values())
     if formed and formed != last_ev:
         return {"act": True, "event": "rebalance",
                 "reason": "the Index book in force was formed %s and this slot last acted on "
@@ -687,6 +789,14 @@ def event_for(slot_state: dict, book: dict, pct) -> dict:
         return {"act": True, "event": "pct_change", "kind": kind,
                 "reason": "the slot's percentage moved from %s to %s (%s)"
                           % ("unset" if last_pct is None else last_pct, now_pct, kind)}
+    if now_pct is not None and now_pct == 0 and holds:
+        # THE STANDING WIND-DOWN. See the docstring: the instruction is "hold nothing", and it
+        # is outstanding for as long as this slot's own record holds something.
+        return {"act": True, "event": "pct_change", "kind": "sell-out", "standing": True,
+                "reason": ("the slot is at 0%% and its own record still holds position(s), so "
+                           "the wind-down is outstanding: a 0%% target is an instruction to "
+                           "hold nothing, and it is satisfied when the holdings are gone "
+                           "rather than when the number is first written down")}
     return {"act": False, "event": "none",
             "reason": ("no rebalance since %s and no percentage change, so the slot does "
                        "nothing -- which is the whole point" % (last_ev or "inception"))}

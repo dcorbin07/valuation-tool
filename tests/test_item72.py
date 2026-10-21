@@ -138,9 +138,15 @@ class AStaleOpenEventNoLongerClaimsOrdersAreWorking(T71._Live):
         calls = [n for n in ast.walk(ast.parse(src))
                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
                  and n.func.id == "note_no_progress"]
-        self.assertEqual(len(calls), 4,
-                         "the blocked, resting, send and open-event branches: found %d"
-                         % len(calls))
+        # **FIVE SINCE ITEM 77**, which added the CASH-WAIT branch: it holds the event open and
+        # returned above the ceiling, so a resting order that never fills alongside a cash gap
+        # could never escalate. Don's ruling has both halves -- the cash wait does not burn the
+        # ceiling, *"the ceiling still applies to orders that are sent and never fill"* -- and
+        # only the first was implemented. The new call is conditional on this slot's own
+        # resting orders, so a pure cash wait still spends nothing.
+        self.assertEqual(len(calls), 5,
+                         "the blocked, resting, send, open-event and cash-wait branches: "
+                         "found %d" % len(calls))
 
 
 class TheEventScopedStateIsOneList(unittest.TestCase):

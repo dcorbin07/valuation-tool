@@ -58,6 +58,7 @@ order: the live client is injected through `live_client_factory` and its host is
 """
 from __future__ import annotations
 
+import ast
 import datetime as _dt
 import hashlib
 import io
@@ -89,6 +90,11 @@ BOOK = {"ok": True, "formed_on": FORMED, "reason": "",
                       {"ticker": "BBB", "status": "held", "weight": 0.5}]}
 #: The PREVIOUS book, for events that are not a rebalance.
 BOOK_OLD = dict(BOOK, formed_on="2026-08-01")
+#: ITS formation date. A record whose `last_event_date` does not match the book it is handed
+#: produces a REBALANCE, which preempts every percentage event -- so an item-77 case that wants
+#: a pure percentage event must pair `BOOK_OLD` with this. (Caught by the second round trip
+#: recording `rebalance:2026-08-01` instead of the percentage key it was asserting.)
+OLD_FORMED = BOOK_OLD["formed_on"]
 
 ACCOUNT = {"id": "acct-live-1", "account_number": "L1", "equity": "10000", "cash": "10000",
            "buying_power": "10000", "non_marginable_buying_power": "10000",
@@ -126,7 +132,7 @@ class Rec:
 
     def __init__(self, *, holdings, resting=(), account=None, slot="1",
                  orders_read="ok", positions_read="ok", quotes_read="ok",
-                 broker_extra=None):
+                 broker_extra=None, mark=100.0):
         self.holdings, self.resting = dict(holdings), list(resting)
         # **A POSITION IN THE ACCOUNT THAT THIS SLOT'S RECORD DOES NOT KNOW ABOUT [item 72].**
         # The auditor's own noted gap: this fixture otherwise DERIVES the broker's positions
@@ -140,6 +146,11 @@ class Rec:
         self.orders_read = orders_read
         self.positions_read = positions_read
         self.quotes_read = quotes_read
+        # **THE PRICE, AS AN AXIS [item 77, blocker C].** Every quote in this fixture was
+        # bid 99 / ask 101, so no row could vary the MARK -- and the auditor's blocker C is
+        # entirely about what a price move does inside an open event. Defaulted to the old
+        # pair so every existing row is byte-for-byte unchanged.
+        self.mark = float(mark)
         self.placed, self.cancelled, self.calls = [], [], []
 
     def _orders(self):
@@ -190,7 +201,7 @@ class Rec:
         if "quotes/latest" in url:
             if self.quotes_read == "none":
                 return T63.Reply({"quotes": {}})
-            q = {s: {"bp": 99.0, "ap": 101.0, "t": "x"}
+            q = {s: {"bp": self.mark - 1.0, "ap": self.mark + 1.0, "t": "x"}
                  for s in ("AAPL", "BBB", "MSFT", "SPY")}
             if self.quotes_read == "one_missing":
                 # ONE-SIDED, which is the real IEX failure: a bid and no ask gives no mid.
@@ -1035,6 +1046,410 @@ class TheThreeReadsAreCrossedFullyOnOneCell(unittest.TestCase):
         # AND AT LEAST ONE COMBINATION MUST BE THE CLEAN ONE, or the line above never ran.
         self.assertEqual(acted, 1,
                          "exactly one of the 36 is all-ok and it must have traded: %d" % acted)
+
+
+# --------------------------------------------------------------------------------------- #
+# ITEM 77 — THE AUDITOR'S EIGHTH REVIEW, REPRODUCED
+# --------------------------------------------------------------------------------------- #
+#
+# Every case below is one the auditor drove on the shipped code and watched do the wrong
+# thing. They use the same recorded `Rec` session, the same real `_LiveClient` and
+# `AlpacaPaperBroker`, and the same `run_cycle` as the table above; nothing touches a network.
+#
+# **EACH ONE FAILS ON THE PRE-ITEM-77 TREE**, which is measured rather than asserted:
+# `scripts/i77_before.py` restores the three sources from git and runs exactly these cases.
+def _run77(*, env, record, book, resting=(), account=None, mark=100.0, root=None,
+           mode="live", pct=None, broker_extra=None):
+    """One cycle, with the environment and the mark under the caller's control.
+
+    `run_row` fixes both -- the percentage is always set and the mark is always 100 -- which
+    is why neither of the two axes item 77 is about could be reached from the table.
+    """
+    own = root is None
+    root = root or tempfile.mkdtemp()
+    try:
+        p = LC.state_path("1", root)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with io.open(p, "w", encoding="utf-8") as fh:
+            json.dump(record, fh, sort_keys=True)
+        live = Rec(holdings=record.get("holdings") or {}, resting=resting,
+                   account=account, mark=mark, broker_extra=broker_extra)
+        paper = Rec(holdings={}, account=PAPER_ACCOUNT, slot="paper", mark=mark)
+        got = LC.run_cycle(
+            env=dict(env), mode=mode, may_write=True, now=OPEN_NOW, root=root, book=book,
+            paper_client=AB.AlpacaPaperBroker(key_id="PKFIX", secret_key="s" * 24,
+                                              session=paper),
+            live_client_factory=(lambda n: LS._LiveClient(n, "k", "s" * 24, session=live)),
+            notify_send=(lambda cfg, b, ch=None: True))
+        slot = next((x for x in (got.get("slots") or [])
+                     if str(x.get("slot")) == "1"), {}) or {}
+        return {
+            "placed": [(o["symbol"], o["side"], float(o.get("qty") or 0))
+                       for o in live.placed],
+            "sides": sorted({o["side"] for o in live.placed}),
+            "alerts": [a["kind"] for a in (got.get("alerts") or [])],
+            "slot_alerts": [a["kind"] for a in (slot.get("alerts") or [])],
+            # EVERY ALERT'S WORDS, cycle-level and slot-level together: an alert raised by the
+            # slot loop lands on the CYCLE's list, and a test reading only the slot's own
+            # would pass on silence.
+            "alert_text": " ".join((a.get("reason") or "")
+                                   for a in list(got.get("alerts") or [])
+                                   + list(slot.get("alerts") or [])),
+            "armed": bool(slot.get("armed")),
+            "sell_only": bool(slot.get("sell_only")),
+            "reason": slot.get("reason") or "",
+            "state": LC.read_state("1", root),
+            "slot": slot,
+        }
+    finally:
+        if own:
+            shutil.rmtree(root, True)
+
+
+#: A slot holding its whole book, at a declared 10%, with nothing outstanding.
+def _holding_record(pct_recorded=10.0):
+    return {"slot": "1", "account_id": "acct-live-1", "processed": [],
+            "holdings": {"AAPL": 5.0, "BBB": 5.0},
+            "last_pct": pct_recorded, "last_event_date": OLD_FORMED}
+
+
+_KEYS = {"LIVE_PILOT_ENABLED": "1", "ALPACA_ACCOUNT_1_KEY_ID": "k",
+         "ALPACA_ACCOUNT_1_SECRET_KEY": "s" * 24}
+
+
+class BlockerAAnAbsentPercentageMustNotLiquidate(unittest.TestCase):
+    """**A MISSING OR MISNAMED PERCENTAGE READ AS 0% AND SOLD THE BOOK.** [item 77]
+
+    `slot_pct` returns `0.0, stated=False` for an absent value and `armed` read the 0.0 and
+    never the `stated`, so on a slot holding its book each of these gave `armed=True,
+    sell_only=True` and TRANSMITTED BOTH SELLS -- reported as *"sent 2 order(s) for
+    pct:10.0->0.0"* and indistinguishable from an exit Don asked for.
+
+    The argument against it was already written in the function it was in: *"treating it as 0
+    would SELL THE BOOK ON A TYPO"*. That refusal was applied to the typo that fails to PARSE
+    and not to the one that leaves the variable ABSENT.
+    """
+
+    THREE = (("removed", {}),
+             ("empty", {"ALPACA_ACCOUNT_1_LIVE_PCT": ""}),
+             ("misspelled", {"ALPACA_ACCOUNT_1_PCT": "0"}))
+
+    def test_none_of_the_three_transmits_anything(self):
+        for name, extra in self.THREE:
+            got = _run77(env=dict(_KEYS, **extra), record=_holding_record(), book=BOOK_OLD)
+            self.assertEqual(got["placed"], [],
+                             "%s: TRANSMITTED %r" % (name, got["placed"]))
+            self.assertFalse(got["armed"], name)
+            self.assertFalse(got["sell_only"], name)
+
+    def test_each_one_alerts_in_plain_words_naming_the_variable(self):
+        # A slot that silently stops acting looks exactly like a slot with nothing to do, so
+        # refusing is only half the fix.
+        for name, extra in self.THREE:
+            got = _run77(env=dict(_KEYS, **extra), record=_holding_record(), book=BOOK_OLD)
+            self.assertIn("pct_unstated_while_holding", got["alerts"], name)
+            self.assertIn("ALPACA_ACCOUNT_1_LIVE_PCT", got["alert_text"], name)
+
+    def test_the_misspelling_is_NAMED_rather_than_silently_ignored(self):
+        # The percentage IS set correctly here, so the slot is healthy -- the only finding is
+        # the stray variable, which must still be reported by name.
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_PCT="0",
+                              ALPACA_ACCOUNT_1_LIVE_PCT="10"),
+                     record=_holding_record(), book=BOOK_OLD)
+        self.assertIn("unknown_slot_variable", got["alerts"])
+        self.assertIn("ALPACA_ACCOUNT_1_PCT", got["alert_text"])
+        # AND NO VALUE IS CARRIED: one of these could be a mistyped secret.
+        self.assertNotIn("s" * 24, got["alert_text"])
+
+    def test_a_STATED_zero_still_winds_down(self):
+        # THE POSITIVE CONTROL, and it is what stops the fix being "refuse everything". Don's
+        # documented way out must still work: a typed 0 on a holding slot sells it out.
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="0"),
+                     record=_holding_record(), book=BOOK_OLD)
+        self.assertTrue(got["armed"])
+        self.assertTrue(got["sell_only"])
+        self.assertEqual(got["sides"], ["sell"], got["placed"])
+        self.assertEqual(len(got["placed"]), 2, got["placed"])
+
+    def test_a_slot_that_holds_NOTHING_stays_quiet_with_no_percentage(self):
+        # The ordinary dormant state: a slot with keys and no percentage yet. It must not
+        # alert, or every unconfigured slot alerts on every cycle.
+        rec = dict(_holding_record(), holdings={})
+        got = _run77(env=dict(_KEYS), record=rec, book=BOOK_OLD)
+        self.assertEqual(got["placed"], [])
+        self.assertNotIn("pct_unstated_while_holding", got["alerts"])
+
+
+class BlockerBEachPercentageEventWorksMoreThanOnce(unittest.TestCase):
+    """**THE ON-SWITCH AND THE OFF-SWITCH EACH WORKED ONCE.** [item 77]
+
+    `event_key` named a percentage event `pct:<from>-><to>` with nothing to tell two
+    occurrences apart, while its docstring promised *"a genuinely new event produces a new
+    key"*.
+    """
+
+    def test_the_second_round_trip_is_not_refused_for_ever(self):
+        # THE AUDITOR'S CHAIN: 0 -> 5% buys in, 5 -> 0% sells out, and 5% AGAIN was refused
+        # with "this slot has already processed pct:0.0->5.0", for ever, with `last_pct`
+        # stuck at 0 so every later cycle refused identically.
+        root = tempfile.mkdtemp()
+        try:
+            rec = {"slot": "1", "account_id": "acct-live-1",
+                   "processed": ["pct:0.0->5.0", "pct:5.0->0.0"],
+                   "holdings": {}, "last_pct": 0.0, "last_event_date": OLD_FORMED}
+            got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="5"),
+                         record=rec, book=BOOK_OLD, root=root)
+            self.assertNotIn("already processed", got["reason"], got["reason"])
+            self.assertEqual(got["sides"], ["buy"], got["placed"])
+            self.assertEqual(len(got["placed"]), 2, got["placed"])
+            # AND THE NEW OCCURRENCE IS RECORDED UNDER ITS OWN KEY, so the one after it is
+            # new too rather than colliding with this one.
+            self.assertIn("pct:0.0->5.0#2", got["state"].get("processed") or [])
+        finally:
+            shutil.rmtree(root, True)
+
+    def test_setting_zero_again_after_a_rebalance_sells_out(self):
+        # **THE DANGEROUS HALF.** With `pct:5.0->0.0` already processed and the position
+        # re-established by a rebalance, Don setting 0% again gave `armed=True,
+        # sell_only=True, key=None, nothing planned, nothing placed, NO ALERT` -- the slot
+        # holding the book while the dashboard read 0%.
+        rec = {"slot": "1", "account_id": "acct-live-1",
+               "processed": ["pct:5.0->0.0"],
+               "holdings": {"AAPL": 5.0, "BBB": 5.0},
+               "last_pct": 0.0, "last_event_date": OLD_FORMED}
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="0"),
+                     record=rec, book=BOOK_OLD)
+        self.assertTrue(got["armed"])
+        self.assertTrue(got["sell_only"])
+        self.assertEqual(got["sides"], ["sell"], got["placed"])
+        self.assertEqual(len(got["placed"]), 2, got["placed"])
+
+    def test_or_it_refuses_and_alerts_but_never_silently_nothing(self):
+        # THE RULE, as the brief states it: *"Setting 0% while this slot holds its own
+        # positions must always sell them out, or refuse and alert. Never silently nothing."*
+        # Asserted as the DISJUNCTION, so a future change that makes this state refuse for a
+        # good reason still passes -- and silence still fails.
+        rec = {"slot": "1", "account_id": "acct-live-1", "processed": ["pct:5.0->0.0"],
+               "holdings": {"AAPL": 5.0, "BBB": 5.0},
+               "last_pct": 0.0, "last_event_date": OLD_FORMED}
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="0"),
+                     record=rec, book=BOOK_OLD)
+        # **SCOPED TO THIS SLOT, and the first cut was not.** It read the CYCLE's alert list,
+        # which carries the PAPER slot's two routine `live_order_sent` lines -- so on the
+        # pre-item-77 tree it passed while slot 1 did nothing and said nothing, which is the
+        # exact state it exists to forbid. Caught by running it against that tree.
+        sold = bool(got["placed"]) and got["sides"] == ["sell"]
+        refused_and_said_so = bool(got["slot_alerts"]) and not got["placed"]
+        self.assertTrue(sold or refused_and_said_so,
+                        "silently nothing: placed=%r slot_alerts=%r reason=%r"
+                        % (got["placed"], got["slot_alerts"], got["reason"]))
+
+    def test_a_restart_still_never_repeats_the_SAME_occurrence(self):
+        # The other half of the requirement. An occurrence already recorded and finished --
+        # `last_pct` written, nothing open -- must not fire again.
+        rec = {"slot": "1", "account_id": "acct-live-1", "processed": ["pct:0.0->5.0"],
+               "holdings": {"AAPL": ON_TARGET, "BBB": ON_TARGET},
+               "last_pct": 5.0, "last_event_date": OLD_FORMED}
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="5"),
+                     record=rec, book=BOOK_OLD)
+        self.assertEqual(got["placed"], [], got["placed"])
+
+    def test_the_occurrence_number_is_stable_while_the_event_is_unrecorded(self):
+        # **A COUNTER BUMPED PER CYCLE WAS THE FIRST DESIGN AND IT WAS WRONG.** A cycle that
+        # refuses BEFORE recording would bump it again next cycle, so the key would change
+        # every cycle and `note_no_progress` could never accumulate a ceiling. Derived from
+        # `processed`, it is stable for exactly as long as the occurrence is unrecorded.
+        st = {"processed": ["pct:0.0->5.0"]}
+        ev = {"act": True, "event": "pct_change", "from_pct": 0.0}
+        seqs = {LC.next_pct_seq(st, ev, 5.0, remainder=False) for _ in range(5)}
+        self.assertEqual(seqs, {2})
+        self.assertEqual(LC.event_key(ev, BOOK_OLD, 5.0, seq=2), "pct:0.0->5.0#2")
+        # OCCURRENCE 1 KEEPS THE OLD SPELLING, so nothing already recorded is orphaned.
+        self.assertEqual(LC.event_key(ev, BOOK_OLD, 5.0, seq=1), "pct:0.0->5.0")
+
+
+class BlockerCAPriceMoveInsideAnOpenEventDoesNotTrade(unittest.TestCase):
+    """**THE AUDITOR'S FOUR-PRICE TEST: 100 / 130 / 70 / 300.** [item 77]
+
+    Item 73 froze the dollar TARGETS, which closed the equity channel. The gap was still
+    `frozen_target - have_qty x CURRENT mark`, so the MARK channel stayed open: the same slot
+    with the event OPEN transmitted `[AAA sell 0.153846, BBB sell 0.153846]` at 130 and
+    2.333333 each at 300, against nothing at all when the event was closed.
+    """
+
+    PRICES = (100.0, 130.0, 70.0, 300.0)
+
+    #: **THE TOP-UP THRESHOLD IS LOWERED FOR THESE CASES, AND THE REASON IS THAT IT HID THEM.**
+    #: The remainder here is $50 against item 73's $250 default, so every price produced NO
+    #: ORDERS AT ALL -- and "no sells" passed on a cycle that planned nothing, which is the
+    #: vacuous pass this file exists to catch. It was caught by the positive half below, which
+    #: is why that half is there. `LIVE_MIN_TOPUP` still gates buys and is tested where it
+    #: belongs (item 73's own suite); this isolates the property item 77 is about.
+    ENV = dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="5", LIVE_MIN_TOPUP="1")
+
+    def _open_event_record(self):
+        # 90% filled on a rebalance whose remainder is waiting, so the event is OPEN and the
+        # frozen quantities are the ones it was authorised with.
+        key = "rebalance:" + FORMED
+        return {"slot": "1", "account_id": "acct-live-1", "processed": [key],
+                "open_event": key,
+                "holdings": {"AAPL": 2.25, "BBB": 2.25},
+                "last_pct": 5.0, "last_event_date": OLD_FORMED,
+                "frozen_targets": {key: {"AAPL": 250.0, "BBB": 250.0}},
+                "frozen_target_qty": {key: {"AAPL": 2.5, "BBB": 2.5}}}
+
+    def test_no_price_creates_a_sell(self):
+        for mk in self.PRICES:
+            got = _run77(env=self.ENV, record=self._open_event_record(),
+                         book=BOOK, mark=mk)
+            sells = [o for o in got["placed"] if o[1] == "sell"]
+            self.assertEqual(sells, [],
+                             "mark %.0f planned SELLS inside an open event: %r"
+                             % (mk, got["placed"]))
+
+    def test_the_quantity_is_the_same_at_every_price(self):
+        # **THE POSITIVE HALF, and it is what makes the test above non-vacuous**: a tree that
+        # simply stopped trading would pass "no sells" and fail this.
+        qtys = {}
+        for mk in self.PRICES:
+            got = _run77(env=self.ENV, record=self._open_event_record(),
+                         book=BOOK, mark=mk)
+            buys = sorted((t, round(q, 6)) for t, s, q in got["placed"] if s == "buy")
+            qtys[mk] = buys
+        first = qtys[self.PRICES[0]]
+        self.assertTrue(first, "no buy was planned at any price: %r" % (qtys,))
+        for mk in self.PRICES[1:]:
+            self.assertEqual(qtys[mk], first,
+                             "the planned quantity moved with the price: %r" % (qtys,))
+
+    def test_the_mark_cancels_in_the_planner_itself(self):
+        # THE MECHANISM, asserted directly on the shipped planner so the property is pinned
+        # where it lives rather than only through a cycle: with the SHARE COUNT frozen, the
+        # order quantity is `|qty_frozen - have_qty|` and the mark cancels.
+        held, frozen_qty = {"AAA": 9.0}, {"AAA": 10.0}
+        seen = set()
+        for mk in (100.0, 130.0, 70.0, 300.0):
+            tgt = {t: q * mk for t, q in frozen_qty.items()}
+            plan = LS.order_plan(tgt, dict(held), {t: {"mid": mk} for t in frozen_qty})
+            seen.add(tuple(sorted((o["ticker"], o["side"], round(o["qty"], 9))
+                                  for o in plan["orders"])))
+        self.assertEqual(len(seen), 1, "the plan varied with the mark: %r" % (seen,))
+        self.assertEqual(seen.pop(), (("AAA", "buy", 1.0),))
+
+    def test_the_OLD_dollar_freeze_really_did_sell_which_is_the_control(self):
+        # **THE CONTROL.** Without it the three tests above would pass on a tree that never
+        # traded at all. This reproduces the pre-item-77 arithmetic from the same shipped
+        # planner -- a frozen DOLLAR target against `have_qty x current mark` -- and requires
+        # it to do the wrong thing, which is what the fix changed.
+        held, frozen_dollars = {"AAA": 9.0}, {"AAA": 1000.0}
+        sells = {}
+        for mk in (130.0, 300.0):
+            plan = LS.order_plan(dict(frozen_dollars), dict(held), {"AAA": {"mid": mk}})
+            sells[mk] = [(o["side"], round(o["qty"], 6)) for o in plan["orders"]]
+        self.assertEqual(sells[130.0][0][0], "sell", sells)
+        self.assertEqual(sells[300.0][0][0], "sell", sells)
+
+
+class TheTwoNonBlockingRepairs(unittest.TestCase):
+    """An unfilled order alongside a cash gap, and the frozen maps not growing for ever."""
+
+    def test_an_order_that_never_fills_beside_a_cash_gap_still_spends_a_ceiling_day(self):
+        # Don's ruling has two halves and only the first was implemented: *"Waiting for cash
+        # ... does not burn the ceiling. The ceiling still applies to orders that are sent and
+        # never fill."* The cash-wait branch returned above the ceiling, so a resting order on
+        # one name alongside a cash gap on another never escalated.
+        key = "rebalance:" + FORMED
+        rec = {"slot": "1", "account_id": "acct-live-1", "processed": [key],
+               "open_event": key, "holdings": {"AAPL": 1.0},
+               "last_pct": 5.0, "last_event_date": OLD_FORMED}
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="5"),
+                     record=rec, book=BOOK, account=BROKE_ACCOUNT,
+                     resting=(("BBB", "buy", 2.5, 0.0, key),))
+        slot = got["slot"]
+        if slot.get("send_outcome") in LC.SEND_OUTCOMES_THAT_DO_NOT_SPEND_A_CEILING_DAY:
+            self.assertTrue(slot.get("ceiling_day_spent_on_resting_order"),
+                            "a resting order alongside a cash gap spent no ceiling day: %r"
+                            % (slot.get("reason"),))
+
+    def test_the_frozen_maps_are_pruned_to_the_event_in_hand(self):
+        # They carry one entry per name per event -- about 86 numbers for the Index book --
+        # and the close paths only delete the key they are closing, so an event ABANDONED
+        # rather than closed left its map behind for ever.
+        stale = {"rebalance:2026-01-01": {"OLD": 1.0},
+                 "pct:0.0->5.0": {"OLDER": 2.0}}
+        rec = {"slot": "1", "account_id": "acct-live-1", "processed": [],
+               "holdings": {}, "last_pct": 5.0, "last_event_date": "2026-08-01",
+               "frozen_targets": dict(stale), "frozen_target_qty": dict(stale)}
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="5"),
+                     record=rec, book=BOOK)
+        for bag in ("frozen_targets", "frozen_target_qty"):
+            keys = sorted((got["state"].get(bag) or {}))
+            self.assertLessEqual(len(keys), 1, "%s kept %r" % (bag, keys))
+            for k in keys:
+                self.assertNotIn(k, stale, "%s kept a stale event: %r" % (bag, k))
+
+
+class ThePaperSlotIsUnaffectedExceptWhereTheseRulesBind(unittest.TestCase):
+    """The brief's own requirement, and the answer differs per blocker. [item 77]
+
+    **A AND B DO NOT REACH THE PAPER SLOT AT ALL. C DOES, AND SHOULD.** Saying "the paper slot
+    is unaffected" as a blanket claim would be false of C and would hide the thing a reader
+    most needs to know -- so each is stated separately with its reason.
+    """
+
+    def test_blocker_A_cannot_reach_the_paper_slot_because_it_is_never_ARMED(self):
+        # The paper slot is handed a literal `armed_state` -- *"the paper slot is always armed:
+        # it is paper money on the paper host"* -- so `armed()` is never consulted for it and
+        # the `stated` gate item 77 added to that function cannot apply. Asserted on the
+        # source, because this is a statement about which code runs.
+        src = io.open(os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "valuation", "edge", "live_cycle.py"),
+            encoding="utf-8").read()
+        tree = ast.parse(src)
+        armed_calls = [n for n in ast.walk(tree)
+                       if isinstance(n, ast.Call)
+                       and getattr(n.func, "attr", None) == "armed"]
+        self.assertEqual(len(armed_calls), 1,
+                         "`armed` is called %d times; the paper slot must not be one of them"
+                         % len(armed_calls))
+        # ... and behaviourally: with NO percentage variable at all, the paper slot still runs.
+        got = _run77(env={"LIVE_PILOT_ENABLED": "1"}, record=_holding_record(),
+                     book=BOOK, mode="paper")
+        self.assertNotIn("pct_unstated_while_holding", got["alerts"])
+
+    def test_blocker_B_cannot_reach_the_paper_slot_because_it_is_not_at_zero(self):
+        # The standing wind-down fires only at 0% while holding. The paper slot runs at 100%,
+        # so `event_for` returns exactly what it returned before item 77 for it.
+        st = {"last_event_date": OLD_FORMED, "last_pct": 100.0,
+              "holdings": {"AAPL": 1.0}, "processed": []}
+        ev = LS.event_for(st, BOOK_OLD, 100.0)
+        self.assertFalse(ev["act"])
+        self.assertEqual(ev["event"], "none")
+        # AND THE ONE STATE THAT WOULD FIRE IS ONE THE PAPER SLOT IS NEVER IN.
+        ev0 = LS.event_for(dict(st, last_pct=0.0), BOOK_OLD, 0.0)
+        self.assertTrue(ev0["act"])
+        self.assertTrue(ev0.get("standing"))
+
+    def test_blocker_C_DOES_bind_on_the_paper_slot_and_that_is_correct(self):
+        # The freeze is applied in `run_slot`, which both slots share, so the paper slot's
+        # targets are frozen as quantities too. That is the intended answer rather than an
+        # accident: drift trading on a price move is wrong on the paper book as well, and the
+        # paper book is the one the live slot's parity is measured against -- freezing one and
+        # not the other would make the two disagree on every price move by construction.
+        src = io.open(os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "valuation", "edge", "live_cycle.py"),
+            encoding="utf-8").read()
+        self.assertIn("frozen_target_qty", src)
+        # ONE freeze site, shared, rather than a live-only branch.
+        self.assertEqual(src.count('st["frozen_target_qty"] = _frozen_qty'), 1)
+
+    def test_the_paper_slot_still_trades_normally_through_all_of_it(self):
+        # THE POSITIVE CONTROL for this whole class: a tree where the paper slot had stopped
+        # working would satisfy every assertion above.
+        got = _run77(env=dict(_KEYS, ALPACA_ACCOUNT_1_LIVE_PCT="0"),
+                     record=dict(_holding_record(), holdings={}), book=BOOK, mode="paper")
+        self.assertTrue(any(a == "live_order_sent" for a in got["alerts"]),
+                        "the paper slot transmitted nothing: %r" % (got["alerts"],))
 
 
 if __name__ == "__main__":
