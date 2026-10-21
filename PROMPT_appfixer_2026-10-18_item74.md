@@ -1,6 +1,7 @@
 # PROMPT — app fixer — 2026-10-18 — item 74: send every breakage, and every rebalance that can't happen, to Don on Discord
 
-**Start after item 72 is landed and item 73 is landed.** One item at a time; don't mix commits.
+**Do this BEFORE item 73** (sequencing changed 2026-10-19). The alerts should be live before the 2026-10-22
+rebalance, and the live slot stays at 0% either way. One item at a time; don't mix commits.
 
 Read `C:\Users\donni\Downloads\valuation-tool\DECISIONS.md` (this exact path) first. **Do not edit
 `DECISIONS.md`.**
