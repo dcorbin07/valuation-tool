@@ -111,6 +111,66 @@ def theme_count(row) -> int:
     return sum(1 for k, v in fac.items() if v is not None and k not in ZERO_WEIGHT)
 
 
+def bucket_weights(row, settings=None) -> dict:
+    """The weight dict THIS row was scored against — established or speculative.
+
+    `WEIGHTS_ESTABLISHED` and `WEIGHTS_SPECULATIVE` are 7 non-zero themes each, and they differ
+    in exactly one: `quality` against `growth`. So the union is 8 and no single name is ever
+    scored on more than 7.
+    """
+    if settings is None:
+        from . import settings as settings                               # noqa: PLW0127
+    spec = str((row or {}).get("bucket") or "").lower().startswith("spec")
+    attr = "WEIGHTS_SPECULATIVE" if spec else "WEIGHTS_ESTABLISHED"
+    w = getattr(settings, attr, None) or {}
+    return {k: v for k, v in w.items() if v and str(k) not in ZERO_WEIGHT}
+
+
+def scored_of_seven(row, settings=None) -> dict:
+    """How many of the SEVEN weighted themes fed this row's score today.  [item 76 §5]
+
+    `{n, of, missing, names, bucket, backtested, label}`.
+
+    **WHY THIS IS NOT `themes_scored`, AND IT IS A FINDING RATHER THAN A REFINEMENT.**
+    `theme_count` above counts `extra.factors` against the UNION of both weight dicts, which is
+    **eight** names because `quality` and `growth` are bucket alternatives. Measured on the live
+    scan of 2026-10-20, `themes_scored` reads **8 on 35 of the 100 served rows** — a count of
+    eight out of seven, which cannot be shown to a reader. So the denominator here is the row's
+    OWN bucket's seven, and the numerator counts only themes in that bucket.
+
+    **`theme_count` IS DELIBERATELY NOT CHANGED.** `MIN_THEMES = 4` and the thin-data rule are
+    calibrated on it, `index_in_force` stamps it onto every position as
+    `themes_scored_today`, and item 53's own 800-cell discriminator study is about it. Moving
+    that number would re-point a shipped floor; this adds the figure the public copy needs
+    beside it. Two numbers, one of them new, rather than one number quietly redefined.
+
+    **`backtested` IS THE LABEL DON'S §5 ASKED FOR.** False below seven, because a ranking
+    running on fewer than seven themes has not been backtested on its own — which the
+    methodology page already says in prose and no row said in data.
+    """
+    w = bucket_weights(row, settings=settings)
+    of = len(w)
+    try:
+        fac = ((row or {}).get("extra") or {}).get("factors") or {}
+    except Exception:                                                       # noqa: BLE001
+        fac = {}
+    if not isinstance(fac, dict) or not fac:
+        # UNKNOWN IS NOT ZERO (`C5`). An older snapshot carries no factor dict, and reporting
+        # "0 of 7 themes fed this score" about a row we simply cannot count is worse than
+        # saying nothing. `n` is None and every caller must render that as "not known".
+        return {"n": None, "of": of, "missing": None, "names": [], "bucket": None,
+                "backtested": None,
+                "label": "how many themes fed this score is not recorded for this scan"}
+    names = sorted(k for k in w if fac.get(k) is not None)
+    n = len(names)
+    spec = str((row or {}).get("bucket") or "").lower().startswith("spec")
+    return {"n": n, "of": of, "missing": of - n, "names": names,
+            "bucket": "speculative" if spec else "established",
+            "backtested": bool(n >= of),
+            "label": ("%d of %d themes fed this score" % (n, of)) +
+                     ("" if n >= of else " — not the backtested model")}
+
+
 def assess(row) -> dict:
     """Is this row thin, and on what count? Never raises.
 
@@ -147,6 +207,15 @@ def mark(rows) -> dict:
         r["thin_data"] = a["thin"]
         r["thin_rule"] = a["rule"]
         r["themes_known"] = a["known"]
+        # HOW MANY OF THE SEVEN FED THIS SCORE [item 76 §5]. Stamped at the same site as
+        # `themes_scored` so the two cannot reach different surfaces, and additive: nothing
+        # above changes. See `scored_of_seven` for why this is a second number rather than a
+        # redefinition of the first.
+        s7 = scored_of_seven(r)
+        r["themes_of_seven"] = s7["n"]
+        r["themes_of_seven_total"] = s7["of"]
+        r["themes_backtested"] = s7["backtested"]
+        r["themes_label"] = s7["label"]
         if a["known"]:
             n_known += 1
         if a["thin"]:

@@ -22784,3 +22784,240 @@ that transmits.
 `valuation/edge/settlement.py`, `valuation/edge/live_cycle.py`,
 `valuation/saas/alert_routing.py`, `tests/test_item73.py`, `tests/test_item67.py`,
 `tests/test_item71_table.py`, `tests/test_item74.py`.
+
+## ITEM 76 — what the outside review found: stale public figures, a lopsided band, false precision
+
+An outside review of valquo.co (2026-10-21, repo @ `2be2745`) checked against the code by the
+manager. **This changes what users see and read. It changes no scoring, ranking, weight,
+fair-value arithmetic, Index construction, rebalance path or live-trading code** — and that is
+structural rather than promised: §2 flags and never withholds, §3's point value is read from the
+valuation the page already has, §4's band is derived FROM the rank it cannot reorder, and §5 adds
+a number beside `themes_scored` rather than redefining it.
+
+### §1 — the stale figures, and one of them had an inference built on top of it
+
+**THE COST PAIR.** `methodology.html:58` and `portfolio.html:489` said **breakeven 134 bps
+against a measured 33 bps**, on **261% annual turnover**, a margin of **"about fourfold"**. All
+four are the superseded 2,531-name panel's. The canonical universe moved to 9,645 names at item
+47 and the tracked artifact has read **123 against 77, a 1.60× margin on 247% turnover** ever
+since. Every figure on both pages is now READ from `BACKTEST_RESULTS.json` through
+`web/live_facts.costs()` and `live_facts.panel()`, and stamped inline with the book it describes
+— the **research decile**, the 9,645-name universe, 69 rebalances, the **taxable** cadence, and
+"**it is not the Valquo Index**".
+
+**A CORRECTION TO THE BRIEF, AND IT MATTERS BECAUSE IT WOULD HAVE PUBLISHED A THIRD WRONG PAIR.**
+§1 gives the corrected figure as **"98 against 55 (a 1.78× margin)"**. That is
+`DECISION_canonical_universe.md`'s UNIVERSE-BIAS part 2 **exploratory** corrected run of
+2026-10-06, not the landed panel. The tracked artifact and `CANONICAL_MOVE_TABLE.md` both say
+**123.457 / 76.973 = 1.60×**, and turnover is **246.8%** rather than 261%. The prompt's own rule
+is *"read every number from the tracked artifact, never retype one"*, which is what was done; the
+98/55 pair appears nowhere on the site. **`CANONICAL_MOVE_TABLE.md`'s "DELIBERATELY NOT SWAPPED"
+line is also stale** — the swap landed at item 47 (`60871ac`). Reported, not edited: it is not
+this lane's file.
+
+**THE ONE THAT WAS NOT MERELY STALE.** `portfolio.html`'s "What survives" section stated a
+long-short *t* of **2.84**, a Newey–West **2.62**, a seven-grid range of **2.70–3.52** and a
+long-only **4.38**, and then drew a conclusion from them: that the headline sits **BELOW** the
+Harvey–Liu–Zhu hurdle. On the canonical panel the Newey–West *t* is **4.594** against a hurdle of
+**3.362** and it **CLEARS, by 1.23**. So the page was telling readers the opposite of what the
+artifact says. **A stale figure with an inference built on top of it is worse than a stale
+figure, because correcting the number silently inverts the sentence around it** — which is why
+`live_facts.panel()` carries `hlz_clears` and the template branches on it rather than on prose.
+The clearing is shown with its caution attached: the hurdle prices *the best of N draws*, and
+this composite is flat 1/7 and was never tuned.
+
+**AND THE LONG-ONLY NEWEY–WEST *t* DOES NOT EXIST ON THIS PANEL.** `top_decile_alpha_tstat_hac`
+is **`null`** in the artifact; the naive one is 4.884. `R9` made the autocorrelation-corrected
+figure the one this project quotes, so printing 4.884 under the words "Newey–West" would be the
+wrong-object family. The page says which estimator it has and does not claim the other, and
+`panel()` returns `None` there rather than filling it in from the naive figure.
+
+**WHAT ELSE MOVED.** `portfolio.html:137` said the backtest runs over "2,531 US names" — now
+read live. `README.md:29` said the valuation engine *"has never been backtested as a return
+signal"*, which is false: the fair-value gap was tested at median rank IC **+0.0092, t +0.99** (a
+null, and below every weighted theme — `HANDOFF_growth_calibration.md:15`'s own standing
+instruction is *"do not weight the fair-value gap as alpha"*), it was NULL as an exit rule
+(`S23`), and rejected as an entry filter (`S10`, where the names it would have dropped crashed at
+*half* the rate of those it kept). `DATA_AND_METHODS.md:118` said 2,531 and its bottom line said
+the surviving claim fails the trial-count hurdle — both restated. `settings.py:180`'s
+`MEASURED_BASIS` prose named a 2,531-name panel **while the correction note directly beneath it
+said the size is deliberately not typed there**; the size is now absent from the prose, as that
+note always intended.
+
+**TWO 33.4 bps SITES WERE CHECKED AND LEFT.** `web/proof.py:725` and `_proof_body.html:398` name
+it as the figure the corrected universe moved AWAY from — a quotation, and both are inside a
+docstring and a Jinja comment, so neither renders. That is also why `tests/test_item76.py`
+asserts against the **rendered** page rather than the source: a source grep cannot tell a
+quotation from a claim, and several of these sources must keep the old numbers to record what was
+corrected.
+
+### §2 — the publication band was lopsided, and the measured answer is worse than the example
+
+Above `FV_BAND_HIGH` (5.0×) the value is stripped from the wire and the row states its cause.
+Below `FV_BAND_LOW` (0.2×) the row said **nothing at all** on Hot Stocks, on the Dip Detector or
+on the Index holdings, and on the valuation page it got one line part-way down a drivers list.
+
+**DON'S RULING (2026-10-21): FLAG LOW VALUES LOUDLY, DO NOT HIDE THEM.** Implemented as ONE
+definition — `publication.PublicationVerdict.implausible_low` and `publication.low_words`, with
+the threshold imported from the same module as `FV_BAND_HIGH` and never retyped — reached by
+every surface through `withhold.flag_implausibly_low_fair_values`, called at **each of the four
+sites that already apply the high side** (`web/app.py`, `web/dip.py`, `web/unified.py`,
+`scripts/ci_scan.py`), pinned by a test that reads those sources and fails if a site applies one
+side and not the other. **It flags and does not withhold**, which is `FV_BAND_LOW`'s own recorded
+reason: a value far below the price is not the failure the high side guards against, and
+suppressing it would hide legitimate "this is expensive" verdicts. `publish` stays `True` and
+`reason` stays empty, so no existing caller's refusal test changes behaviour.
+
+**MEASURED, BECAUSE §2 ASKED FOR THE COUNT RATHER THAN A SECOND TIER.** Read off the live service
+2026-10-21. Of **103 served names carrying both a fair value and a price**:
+
+| band | count | where |
+|---|---|---|
+| above 5.0× (withheld) | **0** | — |
+| below 0.2× (now flagged loudly) | **2** | KOD 0.026×, TER 0.197× |
+| **0.2× to 0.5× (nothing fires)** | **17** | 5 Hot Stocks, 12 Dip Detector, no overlap |
+
+**AND THE PART THE REVIEW DID NOT REACH: eleven of those seventeen are served
+`confidence: high`** — ISRG at 0.270×, MPWR at 0.208×, GE at 0.389×. The review's own example,
+AppLovin at **$130.08 against $272.46 = 0.477×**, is one of the seventeen and is `medium`. **No
+threshold was added there**: §2 says add none, so the tier is Don's call and this is the number to
+decide it on.
+
+**THE INDEX HOLDINGS SHOW NO FAIR VALUE AT ALL**, so there is nothing to flag there — its table
+is ticker/company/sector/weight/return. Reported rather than solved by adding a fair-value column
+to a book surface, which would be a product change §2 did not ask for.
+
+### §3 — how much the value depends on one input
+
+KO reads **$73.61 at beta 0.02, $58.65 at its ladder beta of 0.318, and $44.97 at beta 0.618**
+(measured live, 2026-10-21; the review's ~$58.50 at 0.32 reproduces). The strip is labelled *"how
+much this value depends on one input"*, the point value does not change, and the anchor's value is
+READ from the valuation the page already has so the middle point cannot disagree with the headline
+above it.
+
+**IT DELEGATES TO `engine/average_risk.average_risk_read`, AND THE FIRST DRAFT DID NOT — WHICH IS
+THE FINDING.** Item 53 part 3 already built this machinery to answer the same question at beta
+1.0, and its function already takes a `beta` parameter. A first cut of `web/beta_sensitivity.py`
+called `value_from_company` directly and would have reintroduced two defects that module solves
+and documents: **`value_from_company` appends to `cd.quality_notes`**, which becomes the result's
+`warnings`, so a second pass duplicates every note **on the first result** — a number already
+shown to the reader changing because a sensitivity strip was drawn — and **the Monte Carlo is the
+slow part**, paid twice per page view for a distribution the strip never reads. Verified after the
+rewrite: KO's `quality_notes` is the same length before and after the strip. `B7`: one definition
+of the second pass.
+
+**BOUNDED BY THE ENGINE'S OWN LIMITS, IMPORTED.** `wacc.BETA_HIGH_CAP` (3.0) and strictly
+positive, so the ±0.3 points are clamped rather than run at a beta the ladder would refuse, and
+the strip reports the beta it actually used. A clamp that collapses two points onto one beta
+deduplicates, because printing "3.00 and 3.00" as two sensitivities claims to vary something it
+did not. **Computed on the single-name route and NOT in the engine payload**, which a scan builds
+1,500 times.
+
+**A DEFECT CAUGHT BY WRITING ITS OWN TEST.** `averageRisk()` returns early whenever the beta-1.0
+sentence is immaterial — correct for that sentence, which exists to avoid printing the same number
+twice — and it would have **suppressed §3's strip on exactly the names whose beta is already near
+1.0**, which is where "how sensitive is this" is most worth asking. The two blocks are now
+independent and each is gated by the server separately.
+
+### §4 and §5 — bands instead of per-name precision, and how many themes fed the score
+
+**§4.** Lists now show the band (`top 10%` / `top 25%` / `top half` / `bottom half`) rather than a
+per-name score; the cuts and labels are the server's, in `web/score_confidence.py` beside the
+calibrated copy, and the primary cut **is** `PRIMARY_RANK` rather than a new threshold. The sort
+order is untouched — the band is derived FROM the rank. Two false-precision sites went with it:
+the Hot Stocks theme columns rendered `toFixed(2)` and the **Index holdings rendered the composite
+at `toFixed(1)`**. A whole-number score stays in the detail view and now carries
+`DETAIL_SCORE_SENTENCE` beside it, as §4 requires.
+
+**§5, AND IT TURNED UP A LIVE DEFECT.** `themes_scored` counts `extra.factors` against the UNION
+of both weight dicts — **eight** names, because `quality` and `growth` are bucket alternatives and
+each bucket's weight dict holds exactly **seven** non-zero themes. Two shipped surfaces render
+that count as **"N of 7"**: the Hot Stocks thin group and the Index holdings' thin flag. Measured
+on the live scan of 2026-10-20, **`themes_scored` reads 8 on 35 of the 100 served rows** — so both
+could print **"8 of 7"**. New `thin_data.scored_of_seven` counts against the row's **own bucket's**
+seven, is stamped at the same site as the old count so the two cannot reach different surfaces,
+and labels anything below seven *"not the backtested model"*. **`theme_count` is deliberately
+unchanged**: `MIN_THEMES = 4`, the thin-data rule and `index_in_force`'s `themes_scored_today` are
+all calibrated on it, and item 53's 800-cell discriminator study is about it — adding a number
+beside it is safe, redefining it would re-point a shipped floor. `n` is `None`, never `0`, on a
+snapshot carrying no factor dict (`C5`).
+
+**TWO OF MY OWN GUARDS FIRED AGAINST CORRECT CODE, BOTH THE SAME FAMILY, BOTH IN THE SAME HOUR.**
+One banned the substring `"0.2"` in the low-side flag's source and failed because its docstring
+quotes the measured 0.2×–0.5× count; the other banned `"** "` in the sensitivity module and failed
+because the docstring is markdown and markdown bold is two asterisks. **The substring-ban family,
+with a standing rule against it already on the record.** Both now read the syntax tree — numeric
+literals in the function's code, and `ast.Pow` nodes — each with a positive control proving the
+guard can still see the thing it bans.
+
+### §6 — the writer sign-off, answered
+
+**(a) What §7.2 requires for "verified".** An **automated daily write** of the Index's cumulative
+Valquo and SPY levels, on every trading day, running unattended — not rows produced by hand. §7.2
+sets its own one-day test: *"If 2026-08-11 shows no row for 2026-08-10, the writer is not
+running."* `track_meter.gap_report` is the instrument and names every missing trading day.
+
+**(b) Has `track-row.yml` met it since 2026-09-23? On the record the live service serves, yes —
+20 of 20.** Measured read-only off `/api/index-track`, 2026-10-21: the bound series carries a row
+on **every one of the 20 trading days from 2026-09-23 to 2026-10-20**, no gaps, Columbus Day
+included (the stock market is open). That is a month of unattended writes. What has *not* happened
+is anyone writing down how long a clean run has to be before the writer counts as verified — **the
+writer works and no threshold exists to declare it so**, which is the real gap in (a).
+
+**(c) Do vintage 4's missed days still let the gate pass? No, not on the window as it stands.**
+Vintage 4 missed **11** trading days — 2026-08-14, plus ten between 2026-09-02 and 2026-09-22.
+§3's tolerance is *"missing a single day's write that is filled the same week"*; these were never
+filled at all, and the September ones are runs of two to four consecutive days, so under §3 they
+fall under *"missing days"* → **VOIDS the affected window**, not LOGGED. The gate's own text is
+*"daily rows with no gaps"*, so it cannot pass on a window containing them. **The run itself is
+NOT voided**, and the distinction is doing real work: all 18 missed days across both vintages carry
+a **reconstructed** point, and the site excludes every one from the recorded-day count, the
+evidence meter, the operational gate and every verdict — precisely because §3 treats a *back-fill
+of the record* as voiding the whole run. A reconstruction may be displayed and may never be
+recorded. The track reads **58 days old, 39 recorded**.
+
+**(d) What would have to happen.** §3's own remedy: *"If the gate fails, the clock restarts from
+the repair, and that restart is logged with its reason."* So —
+
+1. **Log the repair date with its reason.** On the evidence it is **2026-09-23**, the first day of
+   the unbroken run.
+2. **The six-month clock then lands on 2027-03-23**, not 2027-02-13.
+3. **The writer keeps going with no gaps through it.** One day filled the same week is tolerated;
+   a run of them is not.
+4. **The gate's other three conditions must also hold at that date**, and two are outstanding
+   today: **one holding of 86 has been unpriced since 2026-08-20** (33 rows, the site flags it),
+   and **the gate's own realised-cost condition is written against 33.4 bps** — the superseded
+   panel's figure, where the canonical panel measures **77.0**. That is §1's subject inside the
+   gate's own text.
+5. **Don signs the row.** Nothing else changes it.
+
+**THE GATE ROW WAS NOT EDITED and `PAPER_TRACK_CONTRACT.md` was not touched.**
+
+**A PREMISE CORRECTION: `PT-WRITER` IS NOT OPEN.** §6 says it is; the ledger closed it
+**DONE 2026-08-18** when the writer first wrote for real end-to-end. The two have different
+remedies — the writer is code and is closed, the gate is Don's signature and is pending — so
+conflating them points the work at the wrong lane. **But that row's own gap list was stale by
+eight-fold**: written 2026-08-18, it names "vintage-4 gaps 2026-08-14..08-16", three calendar days
+of which one is a trading day, against the 11 vintage-4 trading days now on the record. The
+September run did not exist when the row was written. **A status cell naming a gap list rots on
+the clock — the clock-shaped record, one level up from the clock-shaped guard this project has
+repointed six times.** The row is updated and the README's *"it is currently not recording"* is
+replaced with what is measured.
+
+### Not in this item
+
+The review's model suggestions are construction changes to the valuation engine and each needs
+its own tested change if Don wants it: reinvestment floor, dilution-aware growth lens, correlated
+Monte Carlo, a bear case that moves WACC, estimated sector constants, calibrated health
+breakpoints. The fair-value gap as a ranking signal (`MA55`) is r1's. **No key, no percentage, no
+`.github` change.**
+
+`valuation/web/live_facts.py`, `valuation/web/beta_sensitivity.py`,
+`valuation/web/score_confidence.py`, `valuation/web/withhold.py`, `valuation/web/app.py`,
+`valuation/web/dip.py`, `valuation/web/unified.py`, `valuation/web/static/app.js`,
+`valuation/web/templates/methodology.html`, `valuation/web/templates/portfolio.html`,
+`valuation/engine/publication.py`, `valuation/engine/pipeline.py`, `valuation/engine/scoring.py`,
+`valuation/engine/blend.py`, `valuation/screener/thin_data.py`,
+`valuation/screener/index_in_force.py`, `valuation/screener/settings.py`,
+`valuation/saas/app_saas.py`, `scripts/ci_scan.py`, `tests/test_item76.py`, `README.md`,
+`DATA_AND_METHODS.md`, `VALQUO_LEDGER.md`.

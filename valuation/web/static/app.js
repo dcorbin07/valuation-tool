@@ -367,11 +367,18 @@ function render(d) {
   const fvs = d.fair_value_scenarios || {};
   const notValuable = (d.base_fair_value == null && fvb.valuable === false);
   const asRange = (!notValuable && fvb.growth_led && fvs.bear != null && fvs.bull != null);
-  const fvCell = notValuable
+  // THE LOW SIDE OF THE BAND MARKS THE HERO [item 76 §2, Don's ruling 2026-10-21]. Above the
+  // band this cell reads "Not DCF-valuable"; below it, it printed the figure with nothing
+  // beside it and the only warning sat further down the page. The flag and its words come from
+  // the engine (`blend.implausibly_low`); the threshold is not compared here.
+  const fvLow = fvb.implausibly_low
+    ? `<div class="neg" style="font-weight:700;font-size:12px;margin-top:3px">⚠ unreliable — see the warning below</div>`
+    : "";
+  const fvCell = (notValuable
     ? `<span class="nv">Not DCF-valuable</span>`
     : (asRange
       ? `<span style="color:var(--navy)">${money(fvs.bear, 0)}–${money(fvs.bull, 0)}</span>`
-      : `<span style="color:var(--navy)">${money(d.base_fair_value)}</span>`);
+      : `<span style="color:var(--navy)">${money(d.base_fair_value)}</span>`)) + fvLow;
   document.getElementById("heroMetrics").innerHTML =
     metric("Price", money(c.price)) +
     metric(notValuable ? "Fair value" : (asRange ? "Fair value range" : "Base fair value"), fvCell) +
@@ -459,13 +466,53 @@ function averageRisk(d) {
   const el = document.getElementById("avgRisk");
   if (!el) return;
   const a = d.average_risk || {};
-  if (!a.available || !a.is_material || !a.sentence) { el.innerHTML = ""; return; }
+  /* THE BETA-1.0 SENTENCE AND THE SENSITIVITY STRIP ARE INDEPENDENT [item 76 §3].
+     This used to return early whenever the beta-1.0 read was immaterial — correct for that
+     sentence, which exists to avoid saying the same number twice — but §3's strip answers a
+     different question ("how much does this depend on one input") and must not be suppressed
+     because the answer at beta exactly 1.0 happened to be close. The server decides each
+     block's availability separately. */
+  const strip = _betaStrip(d);
+  const show = a.available && a.is_material && a.sentence;
+  if (!show && !strip) { el.innerHTML = ""; return; }
   const dir = (a.relative_change_pct != null)
     ? ` That is ${a.relative_change_pct > 0 ? "higher" : "lower"} than the base value above by
         ${Math.abs(a.relative_change_pct).toFixed(0)}%.` : "";
   el.innerHTML = `<div class="avg-risk">
-    <b>${esc(a.sentence)}</b>${esc(dir)}
-    <div class="avg-risk-w">${esc(a.why || "")}</div></div>`;
+    ${show ? `<b>${esc(a.sentence)}</b>${esc(dir)}
+      <div class="avg-risk-w">${esc(a.why || "")}</div>` : ""}
+    ${strip}</div>`;
+}
+
+/* ---------- ITEM 76 §3: HOW MUCH THIS VALUE DEPENDS ON ONE INPUT ----------
+   KO reads about $58.50 at its vendor beta of 0.32 and about $35.11 at beta 1.0, and nothing
+   beside the headline said so. The block above answers that at beta 1.0 only; this shows the
+   same model at the ladder's own beta ±0.3, which is the question "how sensitive is this".
+
+   IT SITS INSIDE `averageRisk` ON PURPOSE. The two are one idea at two resolutions and they
+   read off the same second pass (`engine/average_risk.average_risk_read`), so putting them in
+   two places on the page would invite a reader to treat them as two pieces of evidence.
+
+   PRESENTATION ONLY: the point value does not change, the server decides availability, and
+   this renders nothing when it cannot re-solve. The label and the caveat are the server's. */
+function _betaStrip(d) {
+  const b = d.beta_sensitivity || {};
+  if (!b.available || !(b.points || []).length) return "";
+  const cells = b.points.map(p => {
+    const v = p.value == null
+      ? `<span class="muted">—</span>`
+      : money(p.value, 0) + (p.is_anchor ? "" :
+          ` <span class="${p.pct_vs_anchor >= 0 ? 'pos' : 'neg'}" style="font-size:11px">${
+            p.pct_vs_anchor == null ? "" :
+            (p.pct_vs_anchor >= 0 ? "+" : "") + pct(p.pct_vs_anchor, 0)}</span>`);
+    return `<div class="m"><div class="k">beta ${p.beta.toFixed(2)}${
+      p.is_anchor ? " (this name)" : ""}${p.clamped ? " · capped" : ""}</div>
+      <div class="v">${v}</div></div>`;
+  }).join("");
+  return `<div class="avg-risk-w" style="margin-top:8px">
+    <b>${esc(b.label || "")}</b>
+    <div class="metricline" style="margin:4px 0">${cells}</div>
+    ${esc(b.caveat || "")}</div>`;
 }
 
 function metric(k, v) {
@@ -986,6 +1033,16 @@ function renderWhatDo(d) {
         : `<span class="muted">no</span>`)}
       ${metric("Options alerts", o.withheld ? "—" : (o.n_logged || 0))}
     </div>`;
+    /* §4 PERMITS A WHOLE-NUMBER SCORE IN A DETAIL VIEW AND REQUIRES THIS SENTENCE WITH IT
+       [item 76, Don's ruling 2026-10-21]. The lists now show a band instead of a number; this
+       is the one place the number still appears, and it does not appear without the limit.
+       The sentence is the server's (`score_confidence.DETAIL_SCORE_SENTENCE`), for the same
+       reason the rest of this module's score copy is: it is calibrated prose, and a renderer
+       that writes its own version of it is a second claim about the same measurement. */
+    const _dsent = (window.SCORE_CONFIDENCE || {}).detail_sentence || "";
+    if (_dsent) {
+      stats += `<div class="note" style="margin:-6px 0 12px;font-size:12px">${esc(_dsent)}</div>`;
+    }
   }
 
   // The same attribution the Hot tab shows, on the name the reader is already looking at —
@@ -1616,7 +1673,7 @@ function renderHot(d) {
   loadRegime();
   const NCOLS = 14;
   let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>' +
-    '<th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>' +
+    '<th class="num">Price</th><th class="num">Market cap</th><th class="num">Band</th>' +
     '<th></th><th class="num">Value</th><th class="num">Qual</th>' +
     '<th class="num">Grow</th><th class="num">Mom</th><th class="num">Fair val</th></tr>';
   /* ITEM 54 PART 3 — A NAME SCORED ON TOO FEW THEMES IS NOT RANKED AT THE TOP.
@@ -1637,7 +1694,7 @@ function renderHot(d) {
       <td><span class="pill ${r.bucket === 'established' ? 'est' : 'spec'}">${r.bucket || ''}</span></td>
       <td class="num">${money(r.price)}</td>
       <td class="num">${mcap(r.market_cap)}</td>
-      <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${r.hot_score == null ? '—' : r.hot_score.toFixed(0)}</td>
+      <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${_bandCell(r)}</td>
       <td><button class="whybtn" id="whybtn-${r.ticker}" aria-expanded="false"
             onclick="toggleWhy('${r.ticker}')" title="Break this score into the themes that produced it">why?</button></td>
       <td class="num">${z(r.z_value)}</td><td class="num">${z(r.z_quality)}</td>
@@ -1648,7 +1705,14 @@ function renderHot(d) {
   });
   html += "</table>";
   /* The thin group: same columns, same why? panel, its own heading and the calibrated
-     sentence from `score_confidence` rather than a fresh one written here. */
+     sentence from `score_confidence` rather than a fresh one written here.
+
+     ITS "N of 7" COLUMN NOW READS `themes_of_seven`, NOT `themes_scored` [item 76 §5].
+     `themes_scored` counts the UNION of both weight dicts — eight names, because `quality` and
+     `growth` are bucket alternatives — so on the live scan of 2026-10-20 this column could
+     print "8 of 7" on 35 of the 100 served rows. The denominator is now the row's own bucket's
+     seven and the numerator counts only themes in it. `themes_scored` itself is deliberately
+     unchanged: `MIN_THEMES` and the thin-data rule are calibrated on it. */
   if (_thinRows.length) {
     html += `<div class="thin-group">
       <div class="thin-head"><b>${esc(_thin.label || "Scored on too little data to rank")}</b>
@@ -1657,7 +1721,7 @@ function renderHot(d) {
       <div class="note">${esc(_thin.note || "")}</div>
       <div class="note"><b>Why this matters:</b> ${esc((window.SCORE_CONFIDENCE || {}).thin_data || "")}</div>
       <table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>
-        <th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>
+        <th class="num">Price</th><th class="num">Market cap</th><th class="num">Band</th>
         <th></th><th class="num">Themes</th><th class="num">Fair val</th></tr>`;
     _thinRows.forEach(r => {
       const up = r.upside;
@@ -1668,12 +1732,11 @@ function renderHot(d) {
         <td><span class="pill ${r.bucket === 'established' ? 'est' : 'spec'}">${r.bucket || ''}</span></td>
         <td class="num">${money(r.price)}</td>
         <td class="num">${mcap(r.market_cap)}</td>
-        <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${
-          r.hot_score == null ? '—' : r.hot_score.toFixed(0)}</td>
+        <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${_bandCell(r)}</td>
         <td><button class="whybtn" id="whybtn-${r.ticker}" aria-expanded="false"
               onclick="toggleWhy('${r.ticker}')"
               title="Break this score into the themes that produced it">why?</button></td>
-        <td class="num"><b>${r.themes_scored == null ? "—" : r.themes_scored}</b> of 7</td>
+        <td class="num"><b>${r.themes_of_seven == null ? "—" : r.themes_of_seven}</b> of ${r.themes_of_seven_total || 7}</td>
         <td class="num">${_fairValCell(r, up)}</td></tr>
         <tr class="whyrow" id="why-${r.ticker}" style="display:none"><td colspan="11">${
           attributionPanel(r, { of: d.scored })}</td></tr>`;
@@ -1773,7 +1836,38 @@ function renderHot(d) {
   renderSectors(d.sectors);
   buildPortfolio();
 }
-function z(x) { return (x == null || isNaN(x)) ? "—" : (x >= 0 ? "+" : "") + x.toFixed(2); }
+/* ONE DECIMAL IN A LIST, NOT TWO [item 76 §4, Don's ruling 2026-10-21].
+
+   This rendered `toFixed(2)`. The ruling is that a name's position inside the top decile is not
+   distinguishable from chance on this project's own test, so a list may not print precision it
+   cannot support — and a theme z-score at two decimals is the same false precision as a
+   two-decimal composite, one level down. The full-precision figures are still one click away in
+   the "why?" panel, which is a detail view and is where §4 permits them. */
+function z(x) { return (x == null || isNaN(x)) ? "—" : (x >= 0 ? "+" : "") + x.toFixed(1); }
+
+/* THE BAND A LIST SHOWS INSTEAD OF A PER-NAME SCORE [item 76 §4].
+
+   The label and the cuts are the SERVER'S (`web/score_confidence.py::band_for`, stamped onto
+   the row as `score_band`), for this project's standing reason about calibrated copy: a
+   renderer that computes its own band is a second definition of the one thing this module
+   exists to state carefully. The numeric score is NOT shown here; it stays in the detail view
+   with the sentence §4 requires beside it.
+
+   THE SORT ORDER IS UNTOUCHED. The rows arrive ranked and this changes one cell's text. */
+function _bandCell(r) {
+  const band = r.score_band
+    ? `<span class="pill" title="The top decile beats a chance-assembled book as a group. Where a name sits inside it is not distinguishable from chance, so no per-name score is shown in this list.">${esc(r.score_band)}</span>`
+    : (r.hot_score == null ? "—" : `<span class="muted">unranked</span>`);
+  // HOW MANY OF THE SEVEN THEMES FED IT [item 76 §5]. Everywhere a score shows. `null` means
+  // the scan recorded no factor dict for this row, which is not the same as zero themes.
+  let themes = "";
+  if (r.themes_of_seven != null) {
+    const full = r.themes_backtested;
+    themes = `<div class="muted" style="font-size:10.5px${full ? "" : ";font-weight:700"}"
+      title="${esc(r.themes_label || "")}">${r.themes_of_seven}/${r.themes_of_seven_total || 7}${full ? "" : " themes"}</div>`;
+  }
+  return band + themes;
+}
 function _fairValCell(r, up) {
   // A withheld estimate is not a missing one. "—" reads as "we don't have this yet" and
   // invites someone to fill it back in; this says the number existed and was refused, and
@@ -1794,7 +1888,16 @@ function _fairValCell(r, up) {
   const mark = est ? `<span class="est-mark" title="Peer-relative estimate, not the full DCF">e</span>` : "";
   const upHtml = up == null ? "" :
     ` <span class="${up >= 0 ? 'pos' : 'neg'}">(${up >= 0 ? '+' : ''}${pct(up, 0)})</span>`;
-  return money(r.fair_value) + mark + upHtml;
+  // THE LOW SIDE OF THE BAND, AS VISIBLE AS THE HIGH SIDE [item 76 §2, Don's ruling
+  // 2026-10-21]. Above the band the cell says "withheld" in bold; below it, the cell used to
+  // show the number with nothing beside it on this surface at all. The flag and its words come
+  // from `withhold.flag_implausibly_low_fair_values`; the threshold is NOT compared here,
+  // because a renderer comparing the band itself is the second definition this project's
+  // publication module exists to prevent.
+  const lowMark = r.fair_value_implausibly_low
+    ? ` <span class="neg" style="font-weight:700" title="${esc(r.fair_value_implausibly_low_note || "")}">⚠ unreliable</span>`
+    : "";
+  return money(r.fair_value) + mark + upHtml + lowMark;
 }
 function gotoValue(t) {
   switchTab("single");
@@ -2014,9 +2117,7 @@ function renderDip(d) {
       <th class="num" title="${esc(rk.not_a_probability || "")}">Past group rate</th>
       <th>Checks</th></tr>`;
   rows.forEach(r => {
-    const fv = r.fair_value_withheld_reason
-      ? `<span class="muted" title="${esc(r.fair_value_withheld_reason)}">withheld</span>`
-      : (r.fair_value == null ? "—" : money(r.fair_value));
+    const fv = _dipFvCell(r);
     html += `<tr>
       <td><a href="#" onclick="gotoValue('${esc(r.ticker)}');return false"><b>${esc(r.ticker)}</b></a>
         <div class="muted" style="font-size:11px">${esc(String(r.name || "").slice(0, 28))}</div></td>
@@ -2066,6 +2167,27 @@ function renderDip(d) {
    IT IS A SEPARATE TABLE AND NOT A FLAG ON A MAIN ROW. A badge inside the healthy table is read
    as a footnote on a name that passed; the ruling is that these names are never counted as
    healthy anywhere, and a reader scanning the healthy list must not find them in it. */
+/* The dip tab's fair-value cell. ONE definition, used by both dip tables.
+
+   EXTRACTED 2026-10-21 (item 76 §2). The two tables carried byte-identical copies of this
+   expression, which is how the low-side flag would have reached one table and not the other —
+   and it is the same argument `engine/publication.py` makes about the band itself.
+
+   THE LOW SIDE IS AS VISIBLE AS THE HIGH SIDE, which is Don's ruling. Above the band the cell
+   says "withheld"; below it, it used to print the number with nothing beside it. The review's
+   own example was a row on this tab: a $130.08 model value against a $272.46 price, labelled
+   healthy. The words are the server's, from `withhold.flag_implausibly_low_fair_values`; the
+   threshold is never compared here. */
+function _dipFvCell(r) {
+  if (r.fair_value_withheld_reason) {
+    return `<span class="muted" title="${esc(r.fair_value_withheld_reason)}">withheld</span>`;
+  }
+  if (r.fair_value == null) return "—";
+  const low = r.fair_value_implausibly_low
+    ? `<div class="neg" style="font-weight:700;font-size:11px" title="${esc(r.fair_value_implausibly_low_note || "")}">⚠ unreliable</div>`
+    : "";
+  return money(r.fair_value) + low;
+}
 function _dipUnscoredGroup(d) {
   const rows = (d || {}).rows_health_not_scored || [];
   if (!rows.length) return "";
@@ -2078,9 +2200,7 @@ function _dipUnscoredGroup(d) {
       <th class="num" title="${esc(rk.not_a_probability || "")}">Past group rate</th>
       <th>Checks</th></tr>`;
   rows.forEach(r => {
-    const fv = r.fair_value_withheld_reason
-      ? `<span class="muted" title="${esc(r.fair_value_withheld_reason)}">withheld</span>`
-      : (r.fair_value == null ? "—" : money(r.fair_value));
+    const fv = _dipFvCell(r);
     html += `<tr>
       <td><a href="#" onclick="gotoValue('${esc(r.ticker)}');return false"><b>${esc(r.ticker)}</b></a>
         <div class="muted" style="font-size:11px">${esc(String(r.name || "").slice(0, 28))}</div></td>
@@ -2222,11 +2342,11 @@ function renderPortfolio(pf) {
   let html = `<div class="metricline" style="margin:6px 0 10px">
     ${metric("Names", s.n_names)} ${metric("Sectors", s.n_sectors)}
     ${metric("Eff. names", s.effective_names)} ${metric("Wtd hot", s.weighted_hot_score)}</div>`;
-  html += '<table><tr><th>Ticker</th><th>Company</th><th>Sector</th><th class="num">Weight</th><th class="num">Hot</th></tr>';
+  html += '<table><tr><th>Ticker</th><th>Company</th><th>Sector</th><th class="num">Weight</th><th class="num">Band</th></tr>';
   pf.positions.forEach(p => {
     html += `<tr><td><b>${p.ticker}</b></td><td>${esc((p.name || '').slice(0, 24))}</td>
       <td>${esc((p.sector || '—').slice(0, 16))}</td>
-      <td class="num">${pct(p.weight, 1)}</td><td class="num">${p.hot_score == null ? '—' : p.hot_score.toFixed(0)}</td></tr>`;
+      <td class="num">${pct(p.weight, 1)}</td><td class="num">${_bandCell(p)}</td></tr>`;
   });
   html += "</table>";
   html += `<div class="note">Max sector weight ${pct(s.max_sector_weight, 0)} (cap ${pct(s.max_sector_cap, 0)}). Exposures — value ${z(s.exposure_value)}, quality ${z(s.exposure_quality)}, growth ${z(s.exposure_growth)}, momentum ${z(s.exposure_momentum)}.</div>`;
@@ -3372,11 +3492,25 @@ function _renderValquoIndex(d, cfg) {
           /* ITEM 54 part 3: the Index tab's TODAY'S HOT SCORE carries the same mark. It is
              a label on a display figure -- the book is fixed, `build_index` is untouched, and
              no holding's weight or membership depends on it. */
-          + `<td class="num">${(hasToday ? p.hot_score_today : p.hot_score) == null ? "—"
-               : (hasToday ? p.hot_score_today : p.hot_score).toFixed(1)}${
+          /* THE BAND, NOT A ONE-DECIMAL SCORE [item 76 §4, Don's ruling 2026-10-21]. This
+             printed `toFixed(1)`, and §4's rule is that a list shows the band while the
+             number stays in a detail view with the sentence that says a position inside the
+             band is not meaningful. `_bandCell` reads the server's label; the holding carries
+             `score_band` from `index_in_force`.
+             AND ITS THIN FLAG SAID "of 7" OFF A COUNT THAT CAN REACH 8 [item 76 §5] --
+             `themes_scored_today` is the union of both weight dicts -- so it now reads
+             `themes_of_seven_today` against that holding's own bucket's seven. */
+          + `<td class="num">${_bandCell({
+                 score_band: p.score_band, hot_score: (hasToday ? p.hot_score_today : p.hot_score),
+                 themes_of_seven: p.themes_of_seven_today,
+                 themes_of_seven_total: p.themes_of_seven_total,
+                 themes_backtested: p.themes_backtested_today,
+                 themes_label: p.themes_label_today})}${
                p.thin_data_today ? `<span class="thin-flag" title="${esc(
                  (window.SCORE_CONFIDENCE || {}).thin_data || "")} Scored on ${
-                 p.themes_scored_today} of 7 themes.">thin</span>` : ""}</td>`
+                 p.themes_of_seven_today == null ? "an unrecorded number of"
+                   : p.themes_of_seven_today} of ${
+                 p.themes_of_seven_total || 7} themes.">thin</span>` : ""}</td>`
           + `<td><button class="whybtn" id="whybtn-ix-${p.ticker}" aria-expanded="false"
                 onclick="toggleWhy('ix-${p.ticker}')"
                 title="Break this score into the themes that produced it">why?</button></td>`

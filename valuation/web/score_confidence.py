@@ -148,6 +148,47 @@ def decile_width_caveat() -> str:
             f"where a name sits inside the decile.")
 
 
+#: THE BANDS A LIST MAY SHOW INSTEAD OF A SCORE.  [item 76 §4, Don's ruling 2026-10-21]
+#:
+#: **WHY A BAND AND NOT A NUMBER.** This module's own verdict is `NOT DISTINGUISHABLE`: the top
+#: decile beats a chance-assembled book as a GROUP, and where a name sits INSIDE that decile is
+#: not distinguishable from chance. A list that prints a per-name score invites exactly the
+#: reading `NO_LONGER_SAYABLE` forbids -- that the gap between #3 and #12 means something. The
+#: band says the thing the evidence supports and no more.
+#:
+#: **THE CUTS ARE THE DECILE AND ITS MULTIPLES, NOT A NEW THRESHOLD.** 10% is `PRIMARY_RANK`,
+#: the bucket every measured claim in this module is about; the rest are plain quarters of the
+#: list, carried only so a name outside the decile is placed rather than unlabelled. Nothing
+#: here is fitted and nothing gates on it -- it is a display vocabulary.
+SCORE_BANDS = ((0.10, "top 10%"), (0.25, "top 25%"), (0.50, "top half"), (1.00, "bottom half"))
+
+#: The one sentence a DETAIL view must carry beside a whole-number score. §4 permits the number
+#: there and requires this with it.
+DETAIL_SCORE_SENTENCE = (
+    "The score places this name in a band. Where it sits WITHIN that band is not "
+    "distinguishable from chance on this project's own test, so a one- or two-point "
+    "difference between two names is not a reason to prefer one.")
+
+
+def band_for(rank, of) -> dict:
+    """`{band, label, fraction}` for a 1-based `rank` out of `of` scored names.
+
+    Returns `band: None` when either input is missing -- a list that cannot place a row shows
+    no band rather than guessing one, the same rule `live_facts` applies to every figure.
+    """
+    try:
+        r, n = int(rank), int(of)
+    except (TypeError, ValueError):
+        return {"band": None, "label": "", "fraction": None}
+    if r < 1 or n < 1:
+        return {"band": None, "label": "", "fraction": None}
+    frac = r / float(n)
+    for cut, label in SCORE_BANDS:
+        if frac <= cut:
+            return {"band": label, "label": label, "fraction": frac}
+    return {"band": SCORE_BANDS[-1][1], "label": SCORE_BANDS[-1][1], "fraction": frac}
+
+
 def for_template() -> dict:
     """Everything a surface needs to state the score's precision honestly.
 
@@ -166,4 +207,9 @@ def for_template() -> dict:
         "group_dates": {"held": GROUP_DATES[0], "of": GROUP_DATES[1]},
         "source": SOURCE,
         "register": REGISTER,
+        # [item 76 §4] The band vocabulary and the detail-view sentence, injected site-wide so
+        # `app.js` reads the same strings as the legend rather than writing its own.
+        "bands": [b for _c, b in SCORE_BANDS],
+        "band_cuts": [{"upto": c, "label": b} for c, b in SCORE_BANDS],
+        "detail_sentence": DETAIL_SCORE_SENTENCE,
     }

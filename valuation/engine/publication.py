@@ -108,11 +108,33 @@ class PublicationVerdict:
     ratio: Optional[float]           # observed fair value / price
     band: float                      # the bar it was measured against
     reason: str                      # empty when publishable
+    #: THE LOW-SIDE FLAG, and it is a SEPARATE field from `reason` on purpose. `reason` is
+    #: documented as "empty when publishable", and the low side PUBLISHES — so putting the
+    #: low-side words in `reason` would make every surface that tests `if v.reason:` start
+    #: refusing names the band deliberately does not refuse. Empty unless the low flag fires.
+    low_note: str = ""
 
     @property
     def implausible_high(self) -> bool:
         """The >band case specifically — the one that also caps the opportunity score."""
         return self.ratio is not None and self.ratio > self.band
+
+    @property
+    def implausible_low(self) -> bool:
+        """The mirror. `< FV_BAND_LOW`, and the threshold is imported, never retyped.
+
+        **DON'S RULING, 2026-10-21: FLAG LOW VALUES LOUDLY, DO NOT HIDE THEM.** An outside
+        review found the band lopsided — above `FV_BAND_HIGH` the value is withheld outright,
+        below `FV_BAND_LOW` it got a line in a drivers list on one surface and nothing at all on
+        the other three. This property exists so the flag has ONE definition that every surface
+        reads, which is the same argument this module already makes about the band itself.
+
+        **IT STILL DOES NOT REFUSE, AND THAT IS DELIBERATE.** See `FV_BAND_LOW`'s own note: a
+        fair value far below the price is not the failure the high side guards against, the
+        product is not telling anyone to buy, and suppressing it would hide legitimate "this is
+        expensive" verdicts. Loud is not the same as silent.
+        """
+        return self.ratio is not None and self.ratio < FV_BAND_LOW
 
 
 def _currency_refusal(cd) -> str:
@@ -158,7 +180,33 @@ def decide(value, price, *, cd=None, growth_led: bool = False) -> PublicationVer
             f"Cannot value this name: the model's ${v:,.2f} is {ratio:.1f}x the ${px:,.2f} "
             f"price. That gap is a data problem (currency or share count), not an "
             f"opportunity, so no fair value is published.")
+    # THE LOW SIDE PUBLISHES AND NOW SAYS SO LOUDLY. `publish` stays True and `reason` stays
+    # empty, so no caller's refusal test changes behaviour; the words go in `low_note`.
+    if ratio < FV_BAND_LOW:
+        return PublicationVerdict(True, v, None, ratio, band, "",
+                                  low_note=low_words(v, px, ratio, growth_led=growth_led))
     return PublicationVerdict(True, v, None, ratio, band, "")
+
+
+def low_words(value: float, price: float, ratio: float, *, growth_led: bool = False) -> str:
+    """The words for a below-band fair value. ONE wording, as prominent as the refusal's.
+
+    Separate from `decide` so a surface holding only a number and a price — a screener row, a
+    dip row — can reach the same sentence without constructing a verdict. The rule in this
+    module's header still applies: import this, do not write your own words for it.
+    """
+    pct = ratio * 100.0
+    base = (f"Treat this fair value as unreliable: the model's ${value:,.2f} is only "
+            f"{pct:.0f}% of the ${price:,.2f} price.")
+    if growth_led:
+        return (base + " On a growth name that can be a genuine disagreement with the market "
+                       "about future growth rather than a data error — but it is as far outside "
+                       "the plausible band on this side as a value we would refuse to publish "
+                       "is on the other, and it is not a signal to sell.")
+    return (base + " A gap that size is usually a data problem (currency, share count, or a "
+                   "one-off) rather than a verdict on the company — the same cause the model "
+                   "refuses to publish a value for when the gap runs the other way. It is not "
+                   "a signal to sell.")
 
 
 def _f(x) -> Optional[float]:

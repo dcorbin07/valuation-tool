@@ -214,6 +214,73 @@ def withhold_implausible_fair_values(rows, band: float = None) -> int:
     return n
 
 
+#: Row keys the low-side flag writes. Named here so a test can assert a surface carries them
+#: and `strip_derived_fields` is never asked to clear them -- a low row still PUBLISHES.
+ROW_LOW_FLAG = "fair_value_implausibly_low"
+ROW_LOW_NOTE = "fair_value_implausibly_low_note"
+ROW_LOW_RATIO = "fair_value_price_ratio"
+
+
+def flag_implausibly_low_fair_values(rows) -> int:
+    """Mark every row whose fair value is below the band's LOW side. Mutates. [item 76 §2]
+
+    **DON'S RULING, 2026-10-21: FLAG LOW VALUES LOUDLY, DO NOT HIDE THEM.** An outside review
+    found the publication band lopsided. Above `FV_BAND_HIGH` the value is stripped from the
+    wire by the function above and the row states its cause; below `FV_BAND_LOW` the row said
+    **nothing at all** on Hot Stocks, on the Dip Detector or on the Index holdings, and on the
+    valuation page it got one line part-way down a drivers list. The review's example was a dip
+    row showing a $130.08 model value against a $272.46 price, labelled healthy.
+
+    **THE THRESHOLD IS IMPORTED, NEVER RETYPED** -- `publication.FV_BAND_LOW`, the same module
+    `FV_BAND_HIGH` comes from, and the verdict is `PublicationVerdict.implausible_low` so the
+    comparison itself has one definition too. This module's header rule applies as written: do
+    not read the band and compare it yourself.
+
+    **IT FLAGS, IT DOES NOT WITHHOLD, AND THAT IS NOT A SOFTENING.** `FV_BAND_LOW`'s own note
+    records why: a fair value far below the price is not the failure the high side guards
+    against -- the product is not telling anyone to buy -- and stripping it would hide
+    legitimate "this is expensive" verdicts, including the honest net-cash floor on a
+    revenue-less shell. So `fair_value` and `upside` survive and the row carries a loud note
+    beside them. Don's ruling was to flag, not to suppress.
+
+    **NO NEW THRESHOLD IS ADDED.** The review asked whether a second, softer tier should cover
+    the 0.2x-0.5x range. That is Don's call and §2 asked only for the count, so nothing here
+    fires between the two. Measured on the live service 2026-10-21, for the record: of 103
+    served names carrying both a fair value and a price, **17 sit between 0.2x and 0.5x** (5 on
+    Hot Stocks, 12 on the Dip Detector, no overlap) and **2 sit below 0.2x**. Eleven of the
+    seventeen were being served `confidence: high`.
+
+    Returns the number of rows flagged.
+    """
+    from ..engine.publication import decide as _decide
+
+    n = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        # A row the HIGH side already withheld has no fair value left to flag, and marking it
+        # would put two different refusals on one row.
+        if r.get(ROW_WITHHELD):
+            continue
+        fv, px = r.get("fair_value"), r.get("price")
+        if fv is None or not px:
+            continue
+        v = _decide(fv, px, growth_led=bool(r.get("growth_led")))
+        if v.ratio is not None:
+            r[ROW_LOW_RATIO] = v.ratio
+        if not v.implausible_low:
+            continue
+        r[ROW_LOW_FLAG] = True
+        r[ROW_LOW_NOTE] = v.low_note
+        # THE CONFIDENCE LABEL MOVES TOO. The measurement that prompted this found names at a
+        # fifth of their price served as `confidence: high`, which is the label doing the
+        # opposite of its job. Set rather than defaulted: whatever the lens blend concluded,
+        # a value this far outside the band is not high-confidence.
+        r["fair_value_confidence"] = "low"
+        n += 1
+    return n
+
+
 def is_withheld_result(result) -> bool:
     """The same question asked of a ValuationResult object rather than its payload.
 

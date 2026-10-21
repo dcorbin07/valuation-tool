@@ -177,7 +177,7 @@ BOOK_CONFIGS = {
 #: THE BASIS EVERY BACKTESTED FIGURE ON AN INDEX SURFACE MUST CARRY (MC10).
 #:
 #: Every number `measured()` returns is a property of the SAME object, and naming it is the
-#: difference between a figure and a claim: the full-universe 2,531-name point-in-time panel,
+#: difference between a figure and a claim: the full-universe point-in-time panel,
 #: 69 quarterly dates, ~18 years, the EQUAL-WEIGHTED decile book, gross of nothing and net of
 #: the modelled cost table. It is NOT the served score-weighted large-cap book a user sees on
 #: the site, and it is NOT the concentrated top-25 book.

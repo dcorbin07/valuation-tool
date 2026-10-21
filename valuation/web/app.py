@@ -213,6 +213,9 @@ def methodology():
     return render_template("methodology.html", disclaimer=RISK_DISCLAIMER,
                            payoff=_payoff.payoff_summary(),
                            trials=_facts.trial_counts(),
+                           # LIVE, NOT TYPED [item 76]. The cost paragraph carried three
+                           # figures from the superseded 2,531-name panel.
+                           costs=_facts.costs(),
                            universe=_facts.universe_size(_store()))
 
 
@@ -651,6 +654,19 @@ def api_value():
         # base value, so a withheld name carries `available: false` and the page prints
         # nothing rather than handing back a number the refusal withheld.
         payload["average_risk"] = dict(getattr(result, "average_risk", None) or {})
+        # ITEM 76 §3: HOW MUCH THE VALUE DEPENDS ON ONE INPUT — the same model re-solved at the
+        # ladder's own beta ±0.3, bounded by the engine's beta limits. Attached in the SAME
+        # place and for the same reason as `average_risk` above, which it delegates to rather
+        # than reimplementing: a withheld name carries `available: false` and the page prints
+        # nothing, so a refusal cannot be undone by a sensitivity strip. Computed on this
+        # single-name route and NOT in the engine payload, because the engine payload is also
+        # built 1,500 times by a scan and this costs two extra valuations.
+        try:
+            from . import beta_sensitivity as _bsens
+            payload["beta_sensitivity"] = _bsens.strip(result, cfg=CONFIG)
+        except Exception:                                                   # noqa: BLE001
+            payload["beta_sensitivity"] = {"available": False,
+                                           "reason": "the sensitivity could not be computed"}
         return jsonify(payload)
     except Exception as e:
         log_exception()
@@ -943,6 +959,18 @@ def api_valquo_index():
         # ITEM 21 -- the four display columns. See `IF.attach_labels` for why the hot
         # score arrives under a different key than the preview payload uses.
         IF.attach_labels(book, st)
+        # THE SCORE BAND ON EACH HOLDING [item 76 §4, Don's ruling 2026-10-21]. Stamped HERE
+        # and not inside `index_in_force`, because the band's label and cuts live in
+        # `web/score_confidence.py` -- the module that owns the calibrated score copy -- and a
+        # `screener/` module importing `web/` would be the one import direction this package
+        # does not have anywhere else. `attach_labels` supplies `rank` and `n_scored`; this
+        # turns them into the label. DISPLAY ONLY: the book is fixed and no weight moves.
+        from . import score_confidence as _sc
+        for _p in (book.get("positions") or []):
+            if isinstance(_p, dict):
+                _b = _sc.band_for(_p.get("rank"), _p.get("n_scored"))
+                _p["score_band"] = _b["band"]
+                _p["score_band_fraction"] = _b["fraction"]
         # THE FULL `config_block`, not a hand-rolled subset. Consumers already read
         # `config.rebalance_months` and friends off this payload, and replacing it with three
         # keys would break them for no gain -- the account type still describes how the NEXT
@@ -1282,11 +1310,25 @@ def api_hotstocks():
     # state — a peer estimate that breached the band — is the withheld rows carrying no `kind`,
     # counted separately below. See `web/refusals.py`.
     _band_withheld = withhold.withhold_implausible_fair_values(rows)
+    # THE LOW SIDE OF THE SAME BAND [item 76 §2, Don's ruling]. Flags, never withholds, and it
+    # runs at the same site so the two sides of one band cannot reach different surfaces.
+    _band_low = withhold.flag_implausibly_low_fair_values(rows)
     from ..engine.publication import ROW_WITHHELD as _RW, ROW_WITHHELD_KIND as _RWK
     _peer_only = sum(1 for r in rows
                      if isinstance(r, dict) and r.get(_RW) and not r.get(_RWK))
     scans = st.list_scans()
     meta = next((s for s in scans if s["scan_date"] == scan_date), {})
+    # THE SCORE BAND [item 76 §4, Don's ruling 2026-10-21]. Stamped on the served rows so a
+    # list can show "top 10%" rather than a per-name score. DERIVED from the row's own rank
+    # against this scan's own `scored` count -- the renderer never computes it and the cuts are
+    # never typed there. DISPLAY ONLY: no score, rank or sort position changes.
+    from . import score_confidence as _sc
+    _scored_n = meta.get("scored")
+    for _r in rows:
+        if isinstance(_r, dict):
+            _b = _sc.band_for(_r.get("rank"), _scored_n)
+            _r["score_band"] = _b["band"]
+            _r["score_band_fraction"] = _b["fraction"]
     try:
         params = _json.loads(meta.get("params") or "{}")
     except Exception:

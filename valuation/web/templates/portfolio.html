@@ -134,8 +134,8 @@
     <h1>A quantitative equity and options research system, and&nbsp;the&nbsp;record of what it failed to prove.</h1>
     <p>
       Valquo is a personal research project, free and open to anyone: a point-in-time
-      fundamental backtest over 2,531 US
-      names and 69 quarterly rebalances from 2008 to 2026, an options study built on a mined
+      fundamental backtest over {% if panel and panel.available %}{{ "{:,}".format(panel.n_names) }}{% else %}thousands of{% endif %} US
+      names and {{ panel.n_dates if panel and panel.available else 69 }} quarterly rebalances from 2008 to 2026, an options study built on a mined
       contract history, and a live Flask app that scores the market daily. This page is about
       how questions get settled inside it — not about a return number.
     </p>
@@ -470,29 +470,78 @@
 <section>
   <h2>What survives</h2>
   <p class="lede">Three results, each stated at the strength the evidence actually supports.</p>
+  {# RESTATED 2026-10-21 (item 76), AND THIS ONE WAS NOT MERELY STALE — IT SAID THE OPPOSITE
+     OF WHAT THE ARTIFACT SAYS. Every figure below used to be a literal from the superseded
+     2,531-name panel: a long-short t of 2.84, a Newey-West 2.62, a seven-grid range of
+     2.70-3.52, a long-only 4.38, and the conclusion that the headline sits BELOW the
+     Harvey-Liu-Zhu hurdle. On the canonical 9,645-name panel the Newey-West t is 4.59 against
+     a hurdle of 3.36 and it CLEARS. A stale number with an inference built on top of it is
+     worse than a stale number, because correcting the figure inverts the sentence. Read from
+     BACKTEST_RESULTS.json now; `live_facts.panel()`. #}
+  {% if panel and panel.available %}
   <p>
-    <b>The composite's long-short spread has a t-statistic of 2.84</b> on the full 2,531-name,
-    69-date panel — <b>below</b> the multiple-testing hurdle Harvey, Liu and Zhu's method sets
-    at this project's own trial count, about <span class="num">3.3</span> at {% if trials
-    and trials.available %}{{ trials.equity }}{% else %}today's{% endif %} equity trials
-    (the familiar 3.0 is the same formula at roughly 90). Three things travel with that number, and they point in
-    both directions. An autocorrelation test rejects independence, so the figure this project
-    quotes is the Newey–West one, <span class="num">t 2.62</span> — lower still. The rebalance
-    grid is arbitrary, and re-run on seven equally valid ones the t ranges
-    <span class="num">2.70 to 3.52</span>, straddling the hurdle rather than sitting on either
-    side of it. But the long-<em>short</em> is not the object the Index actually is: the
-    long-only top decile is much better measured, at
-    <span class="num">t 4.38</span> Newey–West.
+    <b>The composite's long-short spread has a Newey–West t-statistic of
+    <span class="num">{{ panel.ls_t_nw|round(2) }}</span></b> on the full
+    {{ "{:,}".format(panel.n_names) }}-name, {{ panel.n_dates }}-date panel. Two bars travel
+    with it and it now clears both. The multiple-testing hurdle Harvey, Liu and Zhu's method
+    sets at this project's own trial count is
+    <span class="num">{{ panel.hlz_hurdle|round(2) }}</span> at
+    {% if panel.hlz_trials %}the {{ panel.hlz_trials }} equity trials that run was charged{% elif trials and trials.available %}{{ trials.equity }} equity trials{% else %}today's equity trials{% endif %}
+    (the familiar 3.0 is the same formula at roughly 90; the live count is higher than the
+    backtest's and the hurdle rises with it), and the floor measured
+    against this project's own placebo is <span class="num">{{ panel.x7_floor|round(2) }}</span>.
+    {% if panel.hlz_clears %}It clears the trial-count hurdle by
+    <span class="num">{{ (panel.ls_t_nw - panel.hlz_hurdle)|round(2) }}</span>.{% else %}It does
+    <b>not</b> clear the trial-count hurdle.{% endif %}
+    Read that with the caution it deserves rather than as a win: the hurdle prices the best of
+    N draws, and this composite is flat 1/7 and was never tuned, so most of those trials are
+    alternatives it rejected rather than candidates it beat.
+    An autocorrelation test rejects independence, which is why the Newey–West figure is the one
+    quoted; the uncorrected statistic is <span class="num">{{ panel.ls_t|round(2) }}</span>.
+    But the long-<em>short</em> is not the object the Index actually is. The long-only top
+    decile earns <span class="num">{{ (panel.decile_alpha * 100)|round(2) }}%</span> a year over
+    the equal-weighted universe
+    {% if panel.decile_alpha_t_hac %}at a Newey–West
+    <span class="num">t {{ panel.decile_alpha_t_hac|round(2) }}</span>.
+    {% else %}at an <em>uncorrected</em>
+    <span class="num">t {{ panel.decile_alpha_t|round(2) }}</span> — the canonical run does not
+    carry an autocorrelation-corrected t for the long-only book, so that is the estimator we
+    have and we are not going to call it something it is not.{% endif %}
   </p>
+  {% else %}
   <p>
-    <b>It survives trading costs, by about fourfold.</b> The top decile's breakeven is
-    <span class="num">134 bps</span> one-way against a <em>measured</em> cost profile of
-    <span class="num">33 bps</span>, on 261% annual turnover. The breakeven is the number worth
-    quoting because it requires no belief in any particular cost calibration — and the 33 is
-    now measured from the panel's own market-cap cost table rather than assumed, which is not
-    true of every cost figure this project has published. Borrow cost is not modelled, which
-    affects the long-short statistic and not the long-only book.
+    <b>The composite's long-short spread.</b> The backtest artifact could not be read, so the
+    t-statistics and the universe size are not shown here rather than being quoted from memory.
   </p>
+  {% endif %}
+  {% if costs and costs.available %}
+  <p>
+    <b>It survives trading costs, by about
+    {{ costs.margin|round(1) }}×.</b> The research decile's breakeven is
+    <span class="num">{{ costs.breakeven_bps|round(0)|int }} bps</span> one-way against a
+    <em>measured</em> cost profile of
+    <span class="num">{{ costs.realised_bps|round(0)|int }} bps</span>{% if costs.turnover_pct %},
+    on {{ costs.turnover_pct|round(0)|int }}% annual turnover{% endif %}. The breakeven is the
+    number worth quoting because it requires no belief in any particular cost calibration — and
+    the measured figure comes from the panel's own market-cap cost table rather than being
+    assumed, which is not true of every cost figure this project has published. Borrow cost is
+    not modelled, which affects the long-short statistic and not the long-only book.
+  </p>
+  <p class="sub">
+    <b>Which book that pair describes.</b> It is the {{ costs.book }} — the ranking across the
+    whole {% if panel and panel.available %}{{ "{:,}".format(panel.n_names) }}-name{% endif %}
+    universe, {{ panel.n_dates if panel and panel.available else "quarterly" }} rebalances, at
+    the <b>{{ costs.account }}</b> cadence. <b>It is not the Valquo Index</b>, which is a
+    narrower book that trades differently and carries its own costs. A Roth top-25 book's
+    breakeven is a different number again, and lower.
+  </p>
+  {% else %}
+  <p>
+    <b>Trading costs.</b> We lead with the <em>breakeven</em> cost rather than a net return,
+    because the breakeven requires no belief in any particular cost calibration. The figures
+    could not be read from the backtest artifact on this deploy, so none is shown.
+  </p>
+  {% endif %}
   <p>
     <b>And it replicates abroad, on another vendor's data, untuned.</b> Five themes were mapped
     one-to-one onto public global factor data — Jensen, Kelly and Pedersen's Global Factor Data

@@ -1551,6 +1551,10 @@ def screen_snapshot(store, get_result: Callable[[str], object], min_drawdown=Non
     from . import withhold as _withhold
     estimate_fair_values(rows, peer_rows=rows)
     _withhold.withhold_implausible_fair_values(rows)
+    # THE LOW SIDE OF THE SAME BAND [item 76 §2, Don's ruling]. The review's own example was a
+    # dip row -- a $130.08 model value against a $272.46 price, labelled healthy -- so this is
+    # the surface the ruling was written about. Flags, never withholds.
+    _withhold.flag_implausibly_low_fair_values(rows)
 
     # SERVE FROM THE NIGHTLY PRECOMPUTE WHEN IT DESCRIBES THIS SNAPSHOT.
     #

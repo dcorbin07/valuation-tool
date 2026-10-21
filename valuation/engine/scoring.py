@@ -23,7 +23,7 @@ from typing import Optional
 
 from ..data.models import CompanyData
 # The band is imported, never restated — see engine/publication.py (CONSOLIDATE-1).
-from .publication import FV_BAND_HIGH, FV_BAND_LOW
+from .publication import FV_BAND_HIGH, FV_BAND_LOW, low_words as _low_words
 from .classify import Classification
 
 # Regime -> weights for (valuation, quality, growth, health, momentum)
@@ -553,10 +553,16 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
                               f"issue (currency, share count, or a one-off). Capped and flagged unreliable, "
                               f"not a recommendation.")
         elif ratio < FV_BAND_LOW:
+            # DON'S RULING 2026-10-21 (item 76 section 2): FLAG IT LOUDLY. This branch is the
+            # `growth_led` one -- the non-growth case is handled above, where the score is also
+            # capped -- and it used to open with the mild "On a growth name that is a
+            # disagreement with the market". The WORDS now come from `publication.low_words`
+            # so this surface and the screener and the dip tab say the same thing, which is
+            # this module's own standing rule about the band: import the decision, do not
+            # write your own words for it. The ⚠ marks it as plainly as the branch above.
             confidence = "low"
-            drivers.insert(0, f"Model fair value is {ratio*100:.0f}% of the price. On a growth name that is "
-                              f"a disagreement with the market about future growth, not necessarily a data "
-                              f"error — see the implied-growth read.")
+            drivers.insert(0, "⚠ " + _low_words(checked_fv, cd.price, ratio, growth_led=True)
+                           + " See the implied-growth read.")
 
     bq_phrase, bq_score = business_quality(subs, weights)
 
