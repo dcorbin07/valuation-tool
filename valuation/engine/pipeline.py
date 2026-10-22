@@ -369,7 +369,7 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     # Archetype-adaptive headline value: DCF for established/profitable names, a
     # growth-scaled REVENUE multiple for growth/pre-profit ones, P/B-ROE for financials —
     # and nothing at all rather than a negative DCF figure when no lens genuinely applies.
-    from .blend import blended_fair_value, terminal_share_cap
+    from .blend import blended_fair_value, price_ratio_cap as _price_ratio_cap, terminal_share_cap
     from .growth import maturity_from_company, build_growth_scenarios, mature_discount_rate
 
     maturity, maturity_parts = maturity_from_company(cd, growth=cls.blended_growth)
@@ -559,6 +559,17 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
             blend.implausibly_low = True
             blend.low_note = (result.warnings[0] if result.warnings
                               else _low_words(fv, px, ratio, growth_led=blend.growth_led))
+
+        # **THE CONFIDENCE CEILING BELOW HALF THE PRICE [item 79 section 1, Don's ruling
+        # 2026-10-22].** HERE, for the same reason `implausibly_low` is set here: the blend
+        # alone cannot compute a ratio, so the price is the thing this function adds. The
+        # valuation page's own card reads `blend.confidence` in preference to the score's
+        # (`app.py`'s wrong-object note), so capping the blend is what the page actually shows.
+        #
+        # ONE FUNCTION, no threshold written here, no warning text added -- Don's ruling is
+        # "nothing hidden, nothing revalued, no new wording". `blend.value` is untouched and
+        # `result.warnings` gains nothing on this line.
+        blend.confidence = _price_ratio_cap(blend.confidence, ratio)
 
     # Reinvestment sanity: `delta revenue / sales_to_capital` collapses toward zero when
     # revenue is flat, so a capex-heavy name is charged almost nothing to stand still.

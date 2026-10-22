@@ -205,6 +205,29 @@ def record_status(*, as_of=None, detail: dict = None) -> dict:
             "kind": "recording_not_ok", "slot": "-",
             "reason": ("the contract's own recording gate reads FALSE (%d missing trading day "
                        "row(s)), so the forward record is not complete for the open vintage. "
-                       "The operational gate cannot pass while this is false. See /api/track."
-                       % len(missing))})
+                       "The operational gate%s cannot pass while this is false. See /api/track."
+                       % (len(missing), _gate_phrase()))})
     return out
+
+
+def _gate_phrase() -> str:
+    """" (2027-03-23)" once Amendment 4 is signed, and "" while it is not. [item 79 part 2]
+
+    **IT NAMES THE DATE ONLY WHEN A DOCUMENT SAYS WHAT THE DATE IS.** The brief asks the alert
+    to name the new gate date once signed; naming it while the amendment is unsigned would put
+    2027-03-23 in a Discord line while `/api/track` still reads 2027-02-13, which is two
+    surfaces disagreeing about the one fact the gate turns on.
+
+    DERIVED through `track_meter.gate_window`, never typed. A date hard-coded in an alert string
+    is the clock-shaped record this project has repointed more than once -- and this one would
+    rot the moment Don moved the row.
+
+    Never raises: an unreadable contract degrades to the sentence without a date, which is the
+    message as it reads today.
+    """
+    try:
+        from ..edge import track_meter as _tm
+        gw = _tm.gate_window()
+    except Exception:                                                   # noqa: BLE001
+        return ""
+    return (" (%s)" % gw["gate_date"]) if gw.get("moved") and gw.get("gate_date") else ""

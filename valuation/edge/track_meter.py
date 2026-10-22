@@ -280,10 +280,103 @@ def _months_after(d: _dt.date, n: int) -> _dt.date:
 GATE_MONTHS = 6
 VERDICT_MONTHS = 60
 
-INCEPTION = current_vintage()["opened"]                       # 2026-08-10 (vintage 2)
-OPERATIONAL_GATE = _months_after(INCEPTION, GATE_MONTHS)      # 2027-02-10; also FIRST RENDER
+INCEPTION = current_vintage()["opened"]                       # derived from the open vintage
+OPERATIONAL_GATE = _months_after(INCEPTION, GATE_MONTHS)      # also FIRST RENDER
 FIRST_RENDER = OPERATIONAL_GATE
-VERDICT_DATE = _months_after(INCEPTION, VERDICT_MONTHS)       # 2031-08-10
+VERDICT_DATE = _months_after(INCEPTION, VERDICT_MONTHS)
+
+# --------------------------------------------------------------------------------------- #
+# AMENDMENT 4 — the operational-gate window starts at the repair.  DRAFTED, NOT SIGNED.
+# --------------------------------------------------------------------------------------- #
+#
+# **THE THREE CONSTANTS ABOVE ARE THE UNSIGNED BEHAVIOUR AND ARE NOT TOUCHED BY THIS.** The
+# amendment moves ONE thing -- the window the OPERATIONAL GATE is measured over -- and
+# `VERDICT_DATE`, `INCEPTION` and every meter parameter stay derived from the vintage exactly
+# as they are. A reader comparing a signed service against an unsigned one should find
+# precisely one date different, and `amendment_4()` is the only thing that can move it.
+#
+# The field names are the rows a human sets in `PAPER_TRACK_CONTRACT.md` section 5a-4, read
+# through `index_track.contract_rows` -- the one parser, the same door the operational gate and
+# Amendment 3 already use.
+AMENDMENT_4_FIELD = "Amendment 4 signed"
+AMENDMENT_4_FROM_FIELD = "Amendment 4 operational-gate window starts"
+AMENDMENT_4_YES = ("yes", "signed", "true")
+
+
+def amendment_4(path: str = None) -> Dict:
+    """Is Amendment 4 in force, and from which date does the gate's window run?
+
+    `{"signed", "window_starts", "gate_date", "reason"}`. **ANYTHING OTHER THAN A CLEAN
+    SIGNATURE IS NOT SIGNED** -- absent, blank, `NO`, hedged prose, or two rows disagreeing,
+    which is a broken register rather than an approval. Identical resolution to the operational
+    gate's own row and to Amendment 3's, for the identical reason: the failure direction has to
+    be "the old window still applies", never "a new one quietly started".
+
+    **A SIGNATURE WITH NO USABLE START DATE IS NOT IN FORCE**, which is Amendment 3's rule
+    applied to the other kind of date. A start the code had to guess could only be guessed as
+    the inception, which is the window the amendment exists to replace -- so the missing half
+    refuses rather than defaulting to the answer that makes the change invisible.
+    """
+    out = {"signed": False, "window_starts": None, "gate_date": None, "reason": ""}
+    try:
+        from ..screener import index_track as _it
+    except Exception as ex:                                             # noqa: BLE001
+        out["reason"] = "the contract could not be read: %r" % (ex,)
+        return out
+    vals = list((_it.contract_rows(AMENDMENT_4_FIELD, path).get("values") or []))
+    if not vals:
+        out["reason"] = ("the contract carries no '%s' row, so the operational gate is still "
+                         "measured from this vintage's inception" % AMENDMENT_4_FIELD)
+        return out
+    tokens = [_it._verdict_token(v) in AMENDMENT_4_YES for v in vals]
+    if not all(tokens):
+        out["reason"] = (("the contract carries conflicting '%s' rows (%r), resolved as NOT "
+                          "signed" % (AMENDMENT_4_FIELD, vals)) if any(tokens) else
+                         ("the contract records '%s' as %r, which is not a signature"
+                          % (AMENDMENT_4_FIELD, vals[0])))
+        return out
+    starts = list((_it.contract_rows(AMENDMENT_4_FROM_FIELD, path).get("values") or []))
+    day = None
+    if len(starts) == 1:
+        try:
+            day = _dt.date.fromisoformat(str(starts[0])[:10])
+        except ValueError:
+            day = None
+    if day is None:
+        out["reason"] = ("Amendment 4 is signed and its '%s' row is %s, so there is no window "
+                         "to measure the gate over and it stays dormant"
+                         % (AMENDMENT_4_FROM_FIELD,
+                            ("missing" if not starts else "ambiguous (%r)" % starts)))
+        return out
+    out.update(signed=True, window_starts=day.isoformat(),
+               gate_date=_months_after(day, GATE_MONTHS).isoformat(),
+               reason=("Amendment 4 is in force: the operational gate is measured from %s and "
+                       "falls on %s" % (day.isoformat(),
+                                        _months_after(day, GATE_MONTHS).isoformat())))
+    return out
+
+
+def gate_window(path: str = None) -> Dict:
+    """The window the OPERATIONAL GATE is measured over, and the date it falls.
+
+    `{"starts", "gate_date", "basis", "amendment_4", "moved"}`. One function, so a surface can
+    never show the gate date from one rule and its window from another -- which is the shape
+    that let the contract's own section 5 rows and the live vintage disagree about 2027-02-10
+    versus 2027-02-13 for two months.
+
+    **THE VERDICT DATE IS DELIBERATELY NOT HERE.** Amendment 4 moves the gate and nothing else;
+    `VERDICT_DATE` stays derived from the vintage's inception and any caller wanting it reads
+    that. Putting both behind one amendment-aware helper is how the 60-month clock would come
+    to move by accident.
+    """
+    a4 = amendment_4(path)
+    if a4.get("signed") and a4.get("window_starts"):
+        return {"starts": a4["window_starts"], "gate_date": a4["gate_date"],
+                "basis": "Amendment 4 (signed): the window starts at the recording repair",
+                "amendment_4": a4, "moved": True}
+    return {"starts": INCEPTION.isoformat(), "gate_date": OPERATIONAL_GATE.isoformat(),
+            "basis": "this vintage's inception (Amendment 4 is not signed)",
+            "amendment_4": a4, "moved": False}
 
 # sigma: the backtest's own tracking error vs SPY, inflated for autocorrelation.
 _TRACKING_ERROR_ANNUAL_PP = 11.40             # benchmarks.spy, corrected 69-date panel
@@ -726,7 +819,23 @@ def detail(series: Sequence[dict] = None, as_of: _dt.date = None,
     try:
         v = current_vintage()
         m = meter(series, as_of=as_of)
-        gaps = m["gaps"]
+        # NO PATH IS PASSED: `meta_path` is the INDEX record's path and the contract is a
+        # different file. `gate_window` resolves the contract itself, the same way `gate_state`
+        # does -- threading the wrong one here would be the wrong-object family on the document
+        # that governs the record.
+        _gw = gate_window()
+        # **THE GATE'S OWN WINDOW, WHICH IS WHAT `recording_ok` ANSWERS ABOUT [item 79 part 2].**
+        # `m["gaps"]` is the VINTAGE's window and stays exactly that -- it is the audit trail,
+        # and Amendment 4's own terms are that the missed days stay visible and are never
+        # backfilled. What the amendment changes is the window the GATE is measured over, so
+        # once signed `recording_ok` answers about the repaired run instead of about a window
+        # containing eleven days nobody can ever fill.
+        #
+        # Unsigned, `_gate_starts` IS the inception and this is `m["gaps"]` recomputed from the
+        # same arguments -- identical by construction rather than by assertion.
+        _gate_starts = _d(_gw["starts"]) or INCEPTION
+        gaps = (m["gaps"] if not _gw["moved"]
+                else gap_report(series, as_of=as_of, inception=_gate_starts))
         out = {
             "available": True,
             "contract_version": CONTRACT_VERSION,
@@ -738,7 +847,14 @@ def detail(series: Sequence[dict] = None, as_of: _dt.date = None,
             # printing one never means re-deriving the other by hand.
             "vintage_label": vintage_label(),
             "inception": v["opened"].isoformat(),
-            "operational_gate_date": OPERATIONAL_GATE.isoformat(),
+            # THE GATE DATE COMES FROM `gate_window`, WHICH READS THE CONTRACT [item 79 part 2].
+            # Unsigned it returns `OPERATIONAL_GATE` unchanged, so this line is the same string
+            # it was; signed it returns Amendment 4's. The BASIS ships beside it, because a date
+            # that can move for a documented reason and says nothing about why is the shape that
+            # had section 5 and the live vintage disagreeing for two months.
+            "operational_gate_date": _gw["gate_date"],
+            "operational_gate_basis": _gw["basis"],
+            "operational_gate_window_starts": _gw["starts"],
             "verdict_date": VERDICT_DATE.isoformat(),
             "meter": m,
             "as_operated": as_operated(series, as_of=as_of),
@@ -793,6 +909,7 @@ def detail(series: Sequence[dict] = None, as_of: _dt.date = None,
 
 def frozen_parameters() -> Dict:
     """Everything the contract fixed, in one auditable dict."""
+    _gw = gate_window()
     return {
         "contract_version": CONTRACT_VERSION,
         "vintages": [{**v, "opened": v["opened"].isoformat(),
@@ -800,8 +917,17 @@ def frozen_parameters() -> Dict:
                      for v in VINTAGES],
         "current_vintage": current_vintage()["vintage"],
         "inception": INCEPTION.isoformat(),
-        "operational_gate": OPERATIONAL_GATE.isoformat(),
-        "first_render": FIRST_RENDER.isoformat(),
+        # [item 79 part 2] The gate and the first render follow Amendment 4 when it is signed;
+        # `section 5`'s own words make the first render the gate ("first renders at the 6-month
+        # operational gate"), so it is DERIVED from the gate rather than being a second date
+        # that could disagree with it. The vintage's own six months stay here under their own
+        # name, because a reader needs to see both to check the amendment moved what it said.
+        "operational_gate": _gw["gate_date"],
+        "first_render": _gw["gate_date"],
+        "operational_gate_basis": _gw["basis"],
+        "operational_gate_window_starts": _gw["starts"],
+        "vintage_six_months": OPERATIONAL_GATE.isoformat(),
+        "amendment_4": _gw["amendment_4"],
         "verdict_date": VERDICT_DATE.isoformat(),
         "sigma_monthly_pp": SIGMA_MONTHLY_PP,
         "sigma_derivation": {"tracking_error_annual_pp": _TRACKING_ERROR_ANNUAL_PP,

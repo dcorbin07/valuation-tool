@@ -339,9 +339,62 @@ def terminal_share_cap(confidence: str, tv_share) -> tuple:
     # The note tracks the FACT, not the label delta: a name already marked "low" for another
     # reason still deserves to have this one stated, or the reader learns nothing from the
     # cases where two weaknesses coincide.
-    rank = min(_CONF_RANK.get(confidence, 1), _CONF_RANK[ceiling])
-    capped = next(k for k, v in _CONF_RANK.items() if v == rank)
-    return capped, note
+    #
+    # DELEGATES TO `cap_to` [item 79]: one implementation of "mark down, never up".
+    return cap_to(confidence, ceiling), note
+
+
+def cap_to(confidence: str, ceiling: str) -> str:
+    """Mark a confidence label down to at most `ceiling`. Never up. One definition.
+
+    Extracted from `terminal_share_cap` so item 79's price-ratio cap is the SAME arithmetic
+    rather than a second copy of `min` over the same rank table (`B7` -- this project has paid
+    for two implementations of one rule four times). `terminal_share_cap` delegates, so the
+    two caps compose: a name capped to "medium" by its terminal share and to "medium" by its
+    price ratio is "medium", and either one alone still bites.
+    """
+    rank = min(_CONF_RANK.get(str(confidence or "").lower(), 1),
+               _CONF_RANK.get(str(ceiling or "").lower(), 1))
+    return next(k for k, v in _CONF_RANK.items() if v == rank)
+
+
+def price_ratio_cap(confidence: str, ratio) -> str:
+    """Cap a confidence label when the fair value is below half the price. Returns a label.
+
+    **DON'S RULING, 2026-10-22 (item 79 section 1), option 1 of the three the review offered.**
+    A fair value below `publication.CONFIDENCE_CAP_RATIO` of the market price is never shown as
+    "high confidence"; the label is capped one level down. Item 76 section 2 measured 17 served
+    names in that band with ELEVEN carrying `confidence: high`.
+
+    **IT RETURNS A LABEL AND NOTHING ELSE, which is the one way it differs from its sibling
+    `terminal_share_cap` -- and the difference is Don's instruction, not an omission.** The
+    ruling is explicit: *no new warning text.* So there is deliberately nothing for a surface to
+    render beside the capped label, and `valuation_verdict.CONFIDENCE_MEANS` already says what
+    the capped label means. A reader sees a different word and no new sentence.
+
+    PURE, for the same reason the sibling is: it takes a label and a number and returns a label.
+    It cannot see a company, a score or a fair value, so "labels only, no value changes" is a
+    structural property of this change rather than something a sweep failed to catch.
+
+    MONOTONE DOWNWARD -- it can only ever mark a valuation down, so it can never rescue one and
+    a name already "low" is left alone. An unreadable ratio changes nothing.
+    """
+    from .publication import CONFIDENCE_CAP_CEILING, PublicationVerdict
+
+    try:
+        r = float(ratio)
+    except (TypeError, ValueError):
+        return confidence
+    if r != r or r in (float("inf"), float("-inf")):
+        return confidence
+    # THE COMPARISON IS THE VERDICT'S, NEVER A LITERAL HERE. `publication`'s header rule:
+    # import the decision, do not restate the threshold. Built with only the fields the
+    # property reads, because this function has no access to a value or a band.
+    v = PublicationVerdict(publish=True, value=None, withheld_value=None, ratio=r,
+                           band=0.0, reason="")
+    if not v.caps_confidence:
+        return confidence
+    return cap_to(confidence, CONFIDENCE_CAP_CEILING)
 
 
 def _no_value_reason(cd, dcf_per_share, comps_fair_value, growth_value=None) -> str:

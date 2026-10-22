@@ -23406,3 +23406,223 @@ the rule untested in the files where the old assumption lived.
 `valuation/screener/rebalance_watch.py`, `tests/test_item78.py`, `scripts/i78_before.py`,
 `tests/test_item58b.py`, `tests/test_item67.py`, `tests/test_item69.py`,
 `tests/test_item71_table.py`, `tests/test_item74.py`.
+
+## ITEM 79 — no "high confidence" below half the price, and Amendment 4 drafted for signature
+
+Two independent parts. Part 1 is a display judgment Don chose; part 2 is a document he signs.
+**Nothing in part 2 is in force** — the signature row reads `NO` and the site keeps today's
+behaviour exactly, pinned in both states. No key, no percentage, no `.github` change, and
+`DECISIONS.md` was not edited.
+
+**EVERY REPRODUCTION FAILS ON THE PRE-ITEM-79 TREE AND THAT IS MEASURED.**
+`python -m scripts.i79_before` rolls the eleven changed sources **and the contract itself** back
+and runs `tests/test_item79.py` against them: **36 of 45 fail — 14 on BEHAVIOUR**, the other 22
+because the function or constant they name did not exist yet, which the script separates by name
+so an `AttributeError` is never read as a measured defect. Two cases pass on both trees and say
+why.
+
+### 1 — a fair value below half the price is never labelled "high confidence"
+
+**Don's ruling of 2026-10-22, option 1 of the three the review offered.** Item 76 §2 measured 17
+served names between 0.2× and 0.5×, eleven of them `confidence: high`.
+
+**MEASURED TODAY, BY HANDING THE LIVE ROWS TO THE SHIPPED FUNCTION rather than to a filter
+written here — which is the difference between measuring the change and measuring my own
+re-implementation of it. SEVEN served names change label**, all on the Dip Detector, all
+`high → medium`:
+
+| | ratio | | ratio |
+|---|---|---|---|
+| FIX | 0.340× | OR | 0.262× |
+| GE | 0.395× | RMBS | 0.456× |
+| LRCX | 0.359× | STRL | 0.355× |
+| MPWR | 0.203× | | |
+
+Of 105 distinct served names carrying both a fair value and a price, **18 sit below 0.5×** (15 in
+the new band, 3 below 0.2× where item 76's loud flag already forces "low"), and **two of the 18
+carry no confidence label at all** (INSW, JXN) — **left absent rather than given one, because
+`C5`'s rule is that absent is not a measured value and writing a label here would be inventing a
+claim rather than capping one.**
+
+**0.5 IS DEFINED ONCE, BESIDE `FV_BAND_LOW`, AND COMMENTED AS WHAT IT IS.**
+`publication.CONFIDENCE_CAP_RATIO`, with its own note saying **a display judgment Don chose, not
+a measured threshold** — nothing was fitted to produce it and it may not be quoted as evidence
+about anything. `publication.CONFIDENCE_CAP_CEILING = "medium"` names the level rather than
+inlining it, the comparison is a `PublicationVerdict.caps_confidence` property so no surface
+writes `ratio < 0.5` of its own, and the module **asserts `FV_BAND_LOW < CONFIDENCE_CAP_RATIO`**
+rather than assuming it: if the two ever crossed, this cap would be unreachable and the loud flag
+would be doing both jobs silently.
+
+**ONE FUNCTION, AND IT IS THE SAME ARITHMETIC AS THE CAP THAT ALREADY EXISTED.**
+`blend.price_ratio_cap(confidence, ratio) -> label` sits beside `terminal_share_cap`, which was
+already doing "mark down, never up" on the same rank table — so the shared half was **extracted**
+into `blend.cap_to` and the older cap now delegates (`B7`: this project has paid for two
+implementations of one rule four times). The two caps therefore **compose**: a name marked down
+by its terminal share and by its price ratio is marked down once, and either one alone still
+bites, in both orders. Pure — it takes a label and a number and returns a label, cannot see a
+company or a value, so **"labels only, no value changes" is structural** rather than something a
+sweep failed to catch.
+
+**IT RETURNS A LABEL AND NOTHING ELSE, which is the one way it differs from its sibling, and the
+difference is Don's instruction rather than an omission.** The ruling says *no new warning text*,
+so there is deliberately nothing for a surface to render beside the capped label and
+`valuation_verdict.CONFIDENCE_MEANS` already says what the capped label means. A reader sees a
+different word and no new sentence. A test pins that the cap adds no note, no driver line and no
+new row key.
+
+**APPLIED AT EVERY SURFACE THAT SHOWS A LABEL, through three call paths because there are three
+kinds of surface:**
+
+- **`pipeline`**, on `blend.confidence`, beside where `implausibly_low` is set — the blend alone
+  cannot compute a ratio, and the valuation page's own card reads `blend.confidence` in
+  preference to the score's, so this is what the page actually shows.
+- **`scoring`**, on `score.confidence`, applied **after** both existing band branches and
+  **unconditionally** inside the ratio block — the 0.2×–0.5× gap is precisely where neither
+  branch fires, so nesting it inside one of them would have left the gap uncovered.
+- **`withhold.cap_confidence_below_half(rows)`**, on the served API rows, at all four sites that
+  already apply the low side of the band (`/api/hotstocks`, `/api/dip`, `/api/whatdo`'s unified
+  row, and the nightly precompute). It caps **both** keys a row can carry —
+  `fair_value_confidence` (the screener's own) and `confidence` (the score's, which the Dip
+  Detector renders on the same row as the fair value) — **because Don's ruling is about what a
+  reader sees beside a figure below half the price, not about which module computed the word.**
+
+**THE "NO SITE SKIPS IT" GUARD IS DERIVED RATHER THAN LISTED.** The obligation is read off
+`flag_implausibly_low_fair_values`'s own call sites: any module serving rows that carry a fair
+value and a price is a module this cap is about, so a fifth surface cannot be added without
+appearing in the guard. **And the first cut of that guard failed on the correct tree** —
+`publication.py` names the function in a docstring and calls nothing, so reading the source as
+text counted a prose mention as a surface. **The substring-ban family, in a guard written to
+enforce a one-function rule.** It reads the syntax tree now, with a positive control that the
+prose-only mention is excluded and the four real sites are found.
+
+**A SECOND GUARD OF MINE FIRED ON PROSE TOO** — the one asserting no gate date is typed into the
+alert module went red because `_gate_phrase`'s own docstring quotes the date to say what the
+sentence becomes. Repointed to the non-docstring string constants, which is the property it was
+standing in for.
+
+**WHAT DOES NOT CHANGE:** no fair value, no upside, no score, no rank, no sort order, nothing
+hidden, no new text, and item 76's loud flag below 0.2× is untouched. A withheld row is skipped
+— there is no published value left for a label to describe. The cap is idempotent and monotone,
+so running it twice, or after the loud flag, cannot raise a label.
+
+### 2 — Amendment 4, drafted behind its signature row
+
+`PAPER_TRACK_CONTRACT.md` **§5a-4**, in Amendment 3's pattern: the signature row reads **`NO`**,
+`track_meter` reads that row on every request, and unsigned **the gate date is 2027-02-13 and
+every published figure is what it is today**. Both states are pinned.
+
+**THE RULE.** The six-month operational-gate window starts **2026-09-23**, the date the automated
+writer became gapless, so the gate falls **2027-03-23**.
+
+**THE ARGUMENT IS THE CONTRACT'S OWN, WRITTEN YEARS IN ADVANCE.** §3 already says *"if the gate
+fails, the clock restarts from the repair, and that restart is logged with its reason."* This
+amendment is that log, and its licence is Amendment 1's: an **operational repair, independent of
+any outcome.**
+
+**THE GATE CANNOT PASS ON 2027-02-13, AND THAT IS ARITHMETIC.** Re-measured to 2026-10-21 rather
+than quoted from item 76: **58 trading days owed since 2026-07-31, 40 recorded, 18 missing** —
+seven under vintages 1–3 and **eleven under vintage 4** (2026-08-14, then ten between 09-02 and
+09-22). §3 tolerates *"a single day's write that is filled the same week"*; these were never
+filled and the September misses run two to four days deep, so under §3 they are **missing days →
+void the affected window**, against a gate whose own text is *"daily rows with no gaps"*.
+**Leaving the gate where it is does not make it strict, it makes it unreachable** — which is the
+one thing §3's restart clause exists to prevent.
+
+**AND THE REPAIR IS REAL: 21 of 21 trading days recorded from 2026-09-23 to 2026-10-21, zero
+missing, Columbus Day included.** Item 76 measured 20 of 20 to 10-20; this is the same run,
+current. **2026-09-23 is the first day of it** — the earliest honest date — and the amendment is
+drafted while the window is still accruing, precisely so the date cannot be chosen later with the
+gate's outcome in view.
+
+**THE MISSED DAYS STAY VISIBLE AND ARE NEVER BACKFILLED.** All 18 keep being reported by
+`recording_history` per vintage; the 18 reconstructed points stay excluded from every count,
+meter and verdict. What moves is **the window `recording_ok` answers about** — the gate's own
+question — which once signed is the repaired run instead of a window containing eleven days
+nobody can ever fill. `gap_report` already took an `inception` argument, so that is a
+one-argument change and **unsigned it is the vintage window recomputed from identical
+arguments** — identical by construction rather than by assertion. A test pins that
+`recording_history` is NOT scoped to the gate window, which is what keeps the audit trail
+honest.
+
+**THE COST CONDITION IS REPLACED, AND BOTH HALVES HAVE TO BE SAID.** §3 asks for *"realised costs
+near the 33.4 bps the backtest assumes"*.
+
+| figure | what it describes | the gate's condition? |
+|---|---|---|
+| **33.4 bps** | the **superseded** panel's research decile | no — that panel has been restated |
+| **77.0 bps** | the **corrected** panel's research decile: all-cap, equal-weighted, flat 1/7 | **no** — a different, wider book from the one the record tracks |
+| **9.435593 bps** on 2.809390× turnover | **the book the Index serves**: $10B tier, score-weighted, 8% cap, 0.30 band | **yes** |
+
+Read from `index_book_measured.SERVED_COST_BPS_ONE_WAY` / `SERVED_TURNOVER`, whose literals are
+pinned by test to the tracked, generated `CANONICAL_FIGURE_TABLE.md`. **The tenfold drop invites
+suspicion and has a dull cause**: the cost model is keyed on point-in-time market cap, and the
+Index is a large-cap book while the research decile spans the whole universe. **And the
+limitation travels unchanged — 9.44 bps is MODELLED, not measured on fills** (*"no spread, no
+average daily volume, no price level, no participation rate"*), so replacing the figure makes the
+condition describe the right book rather than making it stronger.
+
+**§3'S WHOLE-RUN VOID CLAUSE IS CONFIRMED NOT ENGAGED, clause by clause** — no backfill, no
+discretionary override, no threshold change. **The third one is argued rather than asserted**,
+because replacing the cost figure is the closest thing here to a threshold change: the gate is
+*"not a test of returns"* by §3's own words and carries no statistical threshold; the thresholds
+§3 protects are §5's fixed row set, which the gate's four conditions are not part of; and nothing
+published moves when the row changes. **And the amendment is severable** — the window row and the
+cost row are independent, so Don can sign one without the other, which is said in the document so
+the choice is legible rather than bundled.
+
+**ONE DERIVED CONSEQUENCE, NAMED SO IT IS NOT A SURPRISE: the meter's first render moves with the
+gate.** That is §5's own definition (*"first renders at the 6-month operational gate"*), so it
+follows by construction; the meter's **parameters** are untouched and a test pins σ, ρ, α and the
+cost drag against the contract's own figures.
+
+### the gate's other two conditions, re-checked
+
+**The unpriced holding is CLEAR — and not for the reason the brief expected, which is the finding
+rather than a detail.** It was **not** the 2026-10-22 rebalance: at the time of this reading the
+Index served `n_rebalances_so_far: 0`, `formed_on: 2026-07-30`, with `next_rebalance` still
+2026-10-22 (built the evening after, per the runbook's own window). **WBS stopped trading** — its
+last price is 2026-08-19, exactly the *"unpriced since 2026-08-20"* item 76 reported — and
+**Amendment 2's corporate-action rule recognised it**: the row reads `status: "exited"`, weight
+0.0, the book serves **85** positions, and the weight is redistributed pro-rata
+(`prorata_scale: 1.007811`). `track.unpriced` now reads **`n_unpriced: 0, ok: true, alert:
+false`**. So the clearance is **definitional rather than a vendor fixing a feed** — the name left
+the count the gate measures against, by a rule Don signed for exactly this case — and the exited
+row stays visible, so nothing is hidden by it.
+
+**Turnover is not yet observable.** The book has had zero rebalances, so it cannot be compared
+against 2.81×/yr until at least one is on the record.
+
+**A CORRECTION TO MY OWN READING, MADE BY MEASURING TWICE.** My first probe reported WBS present
+with a price and weight 0.0, and my second reported it absent — because the first fell back
+through `holdings or positions` while the second read `holdings` alone, which is empty. One
+payload, two readings, my own fallback chain. The row lives at `positions[57]`.
+
+### three of my own defects, and one claim the control refuted
+
+**(a) and (b) are the two prose-tripped guards above**, both repointed to the syntax tree.
+
+**(c) A CLAIM IN MY OWN CONTROL SCRIPT THAT THE CONTROL ITSELF REFUTED, kept in the script
+because the correction is the useful part.** I listed `test_the_VERDICT_DATE_DOES_NOT_MOVE` as
+passing on both trees, reasoning that 60-months-on-the-vintage is a pre-existing property. It
+is — and the test also calls `gate_window(path)` to show the gate moved while the verdict did
+not, so on a tree with no `gate_window` it cannot run at all. **A control has to be satisfiable
+by the old tree to be a control**, and half of that one is not. Reclassified, with the reason
+written down beside it.
+
+**AND A SMALLER ONE WORTH NAMING: the `0.5` guard nearly became the tenth substring ban.** A ban
+on the literal `0.5` would fire on `GROWTH_LED = 0.50`, on a 0.5 weight share and on a 50%
+ceiling, all legitimate and all in the files this rule touches. It reads the syntax tree for a
+float literal **compared against something ratio-shaped**, which is the property, not the token.
+
+### not in this item
+
+The valuation-engine model changes item 76's review proposed are still Don's, each as its own
+tested change. **No scoring, ranking, fair-value math, Index or live-trading behaviour changes
+here.** Amendment 4 is **not signed** and **not a vintage event**; the `Operational gate passed`
+row still reads `pending` and only Don's signature touches it.
+
+`valuation/engine/publication.py`, `valuation/engine/blend.py`, `valuation/engine/scoring.py`,
+`valuation/engine/pipeline.py`, `valuation/web/withhold.py`, `valuation/web/app.py`,
+`valuation/web/dip.py`, `valuation/web/unified.py`, `valuation/edge/track_meter.py`,
+`valuation/screener/rebalance_watch.py`, `scripts/ci_scan.py`, `scripts/i79_before.py`,
+`tests/test_item79.py`, `PAPER_TRACK_CONTRACT.md`, `README.md`, `VALQUO_LEDGER.md`.

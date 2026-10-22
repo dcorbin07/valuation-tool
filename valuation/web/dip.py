@@ -1555,6 +1555,10 @@ def screen_snapshot(store, get_result: Callable[[str], object], min_drawdown=Non
     # dip row -- a $130.08 model value against a $272.46 price, labelled healthy -- so this is
     # the surface the ruling was written about. Flags, never withholds.
     _withhold.flag_implausibly_low_fair_values(rows)
+    # ... and the confidence ceiling below half the price [item 79 s1, Don's ruling
+    # 2026-10-22]. THIS IS THE SURFACE THE RULING WAS MEASURED ON: all seven names whose
+    # label moves on 2026-10-22 are Dip Detector rows.
+    _withhold.cap_confidence_below_half(rows)
 
     # SERVE FROM THE NIGHTLY PRECOMPUTE WHEN IT DESCRIBES THIS SNAPSHOT.
     #

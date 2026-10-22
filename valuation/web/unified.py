@@ -355,12 +355,15 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
         # The SECOND public surface fed by that estimator (the first is /api/hotstocks), and
         # it has to apply the same band or the leak just moves one endpoint over.
         try:
-            from .withhold import (flag_implausibly_low_fair_values,
+            from .withhold import (cap_confidence_below_half,
+                                    flag_implausibly_low_fair_values,
                                     withhold_implausible_fair_values)
             withhold_implausible_fair_values([row])
             # ... and the LOW side of the same band [item 76 §2]. Same argument as the comment
             # above: apply both sides here or the lopsidedness just moves one endpoint over.
             flag_implausibly_low_fair_values([row])
+            # ... and the confidence ceiling below half the price [item 79 s1].
+            cap_confidence_below_half([row])
         except Exception:
             pass
         extra = row.get("extra") or {}

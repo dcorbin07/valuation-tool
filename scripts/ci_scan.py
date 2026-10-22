@@ -216,6 +216,10 @@ def run_hot() -> None:
         # omitting the low flag here would leave the cached path lopsided while the live path
         # was not -- the two-copies-of-one-rule shape this project keeps paying for.
         _wh.flag_implausibly_low_fair_values(serve_rows)
+        # ... and the confidence ceiling [item 79 s1]. The precompute feeds the served dip
+        # rows, so omitting it here would leave the cached path uncapped while the live one
+        # was capped -- the two-copies-of-one-rule shape the line above already paid for.
+        _wh.cap_confidence_below_half(serve_rows)
         dip_cache = _dip.precompute(
             serve_rows, lambda t: _value(t, CONFIG), scan_date=res["scan_date"])
         sh = dip_cache.get("shape") or {}

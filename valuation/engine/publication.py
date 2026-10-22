@@ -41,6 +41,34 @@ FV_BAND_HIGH = 5.0
 # a revenue-less shell. Established in Part 1 by a test that caught the symmetric version.
 FV_BAND_LOW = 0.2
 
+# --------------------------------------------------------------------------------------- #
+# THE CONFIDENCE CEILING BELOW HALF THE PRICE [item 79 section 1, Don's ruling 2026-10-22]
+# --------------------------------------------------------------------------------------- #
+#
+# **A DISPLAY JUDGMENT DON CHOSE, NOT A MEASURED THRESHOLD.** Nothing was fitted to produce
+# 0.5; no backtest says a model value at 0.49x the price is less reliable than one at 0.51x.
+# Don picked it, in chat, as option 1 of the three the review offered, and it is written down
+# here so the number has one home and a reader can see what kind of number it is. Do not
+# "calibrate" it and do not quote it as evidence about anything.
+#
+# WHAT IT IS FOR. Item 76 section 2 measured 17 served names between `FV_BAND_LOW` and this
+# ratio, **eleven of them carrying `confidence: high`** -- a label doing the opposite of its
+# job on a figure less than half the market price. The ruling caps the label; it changes no
+# fair value, hides nothing, adds no warning text, and leaves item 76's loud flag below
+# `FV_BAND_LOW` exactly as it was.
+#
+# `FV_BAND_LOW < CONFIDENCE_CAP_RATIO` is asserted below rather than assumed: if the two ever
+# crossed, this cap would be unreachable and the loud flag would be doing both jobs silently.
+CONFIDENCE_CAP_RATIO = 0.5
+
+# One level down from "high", which is what "capped at the next level down" means on the
+# shipped three-point scale. Named rather than inlined so the cap and its tests cannot
+# disagree about what the ceiling is.
+CONFIDENCE_CAP_CEILING = "medium"
+
+assert FV_BAND_LOW < CONFIDENCE_CAP_RATIO, (
+    "the confidence cap must sit ABOVE the loud-flag band or it can never fire")
+
 # Canonical row keys for a recorded refusal. `valuation/web/withhold.py` already honours these
 # names; they live here so the scan and the web surface cannot drift apart.
 ROW_WITHHELD = "fair_value_withheld"
@@ -135,6 +163,24 @@ class PublicationVerdict:
         expensive" verdicts. Loud is not the same as silent.
         """
         return self.ratio is not None and self.ratio < FV_BAND_LOW
+
+    @property
+    def caps_confidence(self) -> bool:
+        """Below `CONFIDENCE_CAP_RATIO`: the confidence LABEL is capped, nothing else.
+
+        [item 79 section 1, Don's ruling 2026-10-22.] A property for the same reason
+        `implausible_low` is one -- so the comparison has a single definition and no surface
+        writes `ratio < 0.5` of its own. The module header's rule applies unchanged: read the
+        verdict, never the band.
+
+        **IT IS TRUE OF THE LOUD-FLAG RANGE TOO, and that is deliberate rather than sloppy.**
+        A name below `FV_BAND_LOW` is already forced to "low" by `scoring` and by
+        `withhold.flag_implausibly_low_fair_values`, so the cap is inert there -- but a
+        condition that quietly stopped applying below some second threshold would be a hole
+        exactly where the problem is worst, and the cap being monotone downward means
+        overlapping with a stricter rule can never raise a label.
+        """
+        return self.ratio is not None and self.ratio < CONFIDENCE_CAP_RATIO
 
 
 def _currency_refusal(cd) -> str:

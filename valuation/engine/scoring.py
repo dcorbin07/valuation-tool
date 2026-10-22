@@ -23,6 +23,7 @@ from typing import Optional
 
 from ..data.models import CompanyData
 # The band is imported, never restated — see engine/publication.py (CONSOLIDATE-1).
+from .blend import price_ratio_cap as _price_ratio_cap
 from .publication import FV_BAND_HIGH, FV_BAND_LOW, low_words as _low_words
 from .classify import Classification
 
@@ -563,6 +564,17 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
             confidence = "low"
             drivers.insert(0, "⚠ " + _low_words(checked_fv, cd.price, ratio, growth_led=True)
                            + " See the implied-growth read.")
+        # **AND THE CEILING BELOW HALF THE PRICE [item 79 section 1, Don's ruling 2026-10-22].**
+        # Applied LAST and unconditionally, after both branches above, because it is monotone
+        # downward: a name the band already forced to "low" is untouched, and a name in the
+        # 0.2x-0.5x gap -- where nothing fired before -- loses "high". `price_ratio_cap` is the
+        # one definition; no threshold and no `min` is written here.
+        #
+        # NO DRIVER LINE IS ADDED, and that is Don's instruction rather than an oversight: the
+        # ruling is "no new warning text". So this surface says one word differently and says
+        # nothing new, which is also why the cap sits outside the two `drivers.insert` branches
+        # rather than inside them.
+        confidence = _price_ratio_cap(confidence, ratio)
 
     bq_phrase, bq_score = business_quality(subs, weights)
 
