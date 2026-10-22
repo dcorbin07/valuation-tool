@@ -210,6 +210,21 @@ manager from Don's own words in chat.
   5. **"Waiting for cash" is a normal state:** one plain alert, and no ceiling burn.
 
   The auditor reviews item 73 before any percentage above 0.
+- **2026-10-21 — AUDITOR'S EIGHTH REVIEW: NOT YET** (on `worktree-auditor-live-path-review`).
+  Item 73's cash arithmetic is correct, but three blockers stand before any percentage above 0:
+  (A) a missing or misnamed percentage variable is read as 0% and sells the book; (B) each
+  percentage event works only once, and a second 0% can silently do nothing; (C) a price move
+  inside an open event still trades the difference. Item 77 fixes them, then review 9. The live
+  slot is at 0% and holds nothing, so none of this can act today.
+- **2026-10-21 — FIXES FROM THE OUTSIDE REVIEW (Don, chat; item 76).** Restate stale figures and
+  claims on public pages and docs from the tracked artifacts. A fair value below 0.2x price is
+  flagged loudly, never hidden. The valuation page shows how much the fair value moves with beta
+  (vendor beta and +/-0.3). Lists show score bands (e.g. "top 10%" plus the driving themes)
+  instead of two-decimal scores, because position inside the top decile is no better than chance.
+  Every score says how many of the seven themes fed it, and below seven it is labelled "not the
+  backtested model". No change to scoring, ranking, the fair-value math, the Index or live trading.
+  The valuation-engine model changes the review proposed wait for Don, each as its own tested
+  change.
 - **2026-10-18 — ALERTS GO TO DISCORD (Don, chat; item 74).**
   1. **Anything breaking, and any rebalance that cannot happen or is late, posts to a separate
      `#valquo-alerts` channel** (`DISCORD_ALERT_WEBHOOK_URL`). Routine posts (recaps, order
