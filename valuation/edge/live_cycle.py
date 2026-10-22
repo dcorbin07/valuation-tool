@@ -56,6 +56,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import re
 from typing import Optional
 
 from . import live_slots as LS
@@ -231,6 +232,12 @@ def read_state(slot, root: str = None) -> dict:
     d.setdefault("processed", [])
     d.setdefault("attempts", [])
     d.setdefault("fills_seen", 0)
+    # NO OCCURRENCE COUNTER IS STORED [item 77, blocker B]. Which occurrence a percentage
+    # event is on is DERIVED from `processed` by `next_pct_seq`, and it is already legible in
+    # the key itself (`pct:0.0->5.0#3`), which `processed` and `open_event` both record. A
+    # second field holding the same fact is a second thing to disagree with the first, and a
+    # state file written before item 77 needs no migration because occurrence 1 keys exactly
+    # as it always did.
     return d
 
 
@@ -250,20 +257,92 @@ def write_state(slot, state: dict, root: str = None) -> dict:
         return {"ok": False, "reason": "could not write slot state: %s" % e}
 
 
-def event_key(event: dict, book: dict, pct) -> str:
+def event_key(event: dict, book: dict, pct, seq=None) -> str:
     """A stable name for the event a cycle is acting on, so a restart cannot repeat it.
 
     The key carries **what makes the event that event**: a rebalance is identified by the
-    book's formation date, a percentage change by the two percentages. So re-running the same
-    cycle finds the key already in `processed` and does nothing, while a genuinely new event
-    produces a new key.
+    book's formation date, a percentage change by the two percentages **and which occurrence
+    of them this is**. So re-running the same cycle finds the key already in `processed` and
+    does nothing, while a genuinely new event produces a new key.
+
+    **THE OCCURRENCE NUMBER IS ITEM 77's BLOCKER B, AND THE DOCSTRING ABOVE IS WHY IT IS A
+    BLOCKER RATHER THAN A WART.** The last sentence promised that *"a genuinely new event
+    produces a new key"*, and `pct:<from>-><to>` carried nothing to tell two occurrences
+    apart, so the promise was false of every percentage that is ever set twice. The auditor
+    drove it as a chain: `0 -> 5%` buys in, `5 -> 0%` sells out, and **5% again is refused for
+    ever** -- *"this slot has already processed pct:0.0->5.0"* -- with `last_pct` stuck at 0 so
+    every later cycle refuses identically. One switch, one use.
+
+    **`seq` IS RESOLVED BY THE CALLER -- see `next_pct_seq`, which DERIVES it from how many
+    occurrences of this transition are already recorded.** A counter bumped per cycle was the
+    first design and it was wrong: a cycle that refuses BEFORE the event is recorded (a failed
+    `targets`, the one-off fresh-record refusal) would bump it again on the next cycle, so the
+    key would change every cycle, `note_no_progress` would count one attempt-day per key, and
+    **the ceiling could never accumulate or escalate**. Deriving it from `processed` makes it
+    stable for as long as an occurrence is unrecorded, which is exactly the window the ceiling
+    measures.
+
+    **OCCURRENCE 1 KEEPS THE OLD UNSUFFIXED SPELLING**, so every key already recorded in a
+    slot's `processed` list still matches itself and no in-flight event is orphaned by this
+    change.
     """
     kind = (event or {}).get("event") or "none"
     if kind == "rebalance":
+        # A REBALANCE NEEDS NO OCCURRENCE NUMBER: the formation date is already unique per
+        # occurrence, which is why that half of the key was never broken.
         return "rebalance:%s" % ((book or {}).get("formed_on") or "?")
     if kind == "pct_change":
-        return "pct:%s->%s" % ((event or {}).get("from_pct"), pct)
+        base = "pct:%s->%s" % ((event or {}).get("from_pct"), pct)
+        try:
+            s = int(seq)
+        except (TypeError, ValueError):
+            s = 1
+        return base if s <= 1 else "%s#%d" % (base, s)
     return "none"
+
+
+#: `pct:<from>-><to>` optionally followed by `#<occurrence>`. Used to count how many
+#: occurrences of one transition a slot has already recorded.
+_PCT_KEY_RX = re.compile(r"^(pct:[^#]*)(?:#(\d+))?$")
+
+
+def pct_occurrences_done(slot_state: dict, base: str) -> int:
+    """How many occurrences of the transition `base` this slot has already RECORDED.
+
+    Counted off `processed`, which is appended to exactly once per occurrence, at the send.
+    """
+    n = 0
+    for k in (slot_state or {}).get("processed") or []:
+        m = _PCT_KEY_RX.match(str(k or ""))
+        if m and m.group(1) == base:
+            n += 1
+    return n
+
+
+def next_pct_seq(slot_state: dict, event: dict, pct, *, remainder: bool) -> int:
+    """Which occurrence of a percentage event this cycle is on. [item 77, blocker B]
+
+    **DERIVED, NOT COUNTED.** `processed` already records one entry per completed occurrence,
+    so "this is occurrence N+1" needs no second bookkeeping that could disagree with it -- and
+    it is stable for as long as the occurrence is unrecorded, which is what the no-progress
+    ceiling needs. A cycle that refuses before recording anything recomputes the same number.
+
+    **IT MAKES THE `processed` GUARD UNREACHABLE FOR PERCENTAGE KEYS, AND THAT IS DELIBERATE
+    RATHER THAN AN OVERSIGHT.** By construction the key this returns is never already in
+    `processed`. The guard is kept for REBALANCE keys, where it is both reachable and the
+    thing that stops a restart repeating a buy. For percentage events the restart protection
+    is `last_pct` and `open_event`, written in the same atomic state write as `processed`:
+    `event_for` fires a change only when `last_pct` differs, and a recorded-but-unfinished
+    event takes the remainder path under its own open key. The guard's ONLY reachable effect
+    on a percentage key was the blocker -- refusing `0 -> 5%` for ever because that exact
+    transition had happened once before.
+    """
+    if remainder or not (event or {}).get("act"):
+        return 1
+    if ((event or {}).get("event") or "") != "pct_change":
+        return 1
+    base = "pct:%s->%s" % ((event or {}).get("from_pct"), pct)
+    return pct_occurrences_done(slot_state, base) + 1
 
 
 def parity(live_targets: dict, paper_targets: dict, *, live_value: float,
@@ -814,7 +893,10 @@ EVENT_SCOPED_STATE = ("event_attempts", "event_progress", "send_seq",
                       # and a frozen target surviving into the NEXT event would aim a top-up
                       # at a book that no longer applies -- which is the drift Don's
                       # three-events rule forbids, arriving by the back door.
-                      "frozen_targets", "cash_wait")
+                      # **ITEM 77 adds the frozen SHARE COUNTS beside the dollar targets**,
+                      # for the same reason and with the same lifetime: they are this event's
+                      # authorised quantities and mean nothing to the next one.
+                      "frozen_targets", "frozen_target_qty", "cash_wait")
 
 
 #: **WHAT THE SEND PHASE CONCLUDED, which is a DIFFERENT QUESTION from what the planner
@@ -860,8 +942,16 @@ PLAN_WORK = "work"                        # there are orders to send
 #: holdings match the targets"; since item 67 it can also mean "the gap is already covered by an
 #: order that has not filled." The close branch read the first and got the second, so a resting
 #: sell covering a whole exit CLOSED the event with no alert, and nothing retried once the `day`
-#: order expired. **On a sell-out at 0% that leaves the slot fully invested at a declared 0%**,
-#: and because `last_pct` is written to 0 the sell-out cannot re-fire.
+#: order expired. **On a sell-out at 0% that leaves the slot fully invested at a declared 0%.**
+#:
+#: **THE SENTENCE THAT USED TO END THAT PARAGRAPH IS NO LONGER TRUE, AND ITS REPAIR IS ITEM
+#: 77's BLOCKER B [repointed here, in the same commit that falsifies it].** It read *"and
+#: because `last_pct` is written to 0 the sell-out cannot re-fire"* -- correct when written,
+#: and the reason this outcome had to exist at all. `event_for` now treats **0% while the
+#: slot's own record still holds something** as a STANDING instruction rather than a one-off
+#: change, so the sell-out DOES re-fire on the next cycle. That does not make this outcome
+#: redundant: it is what stops the event CLOSING while an order is still working, and a
+#: re-fire is a second-best safety net rather than the mechanism. Both are kept.
 #:
 #: Fourth occurrence of ONE shape on this path, which is why it gets a value and not a boolean:
 #: `place_limit` missing (two names, one call), `[]` meaning both empty and failed, truncated
@@ -1236,7 +1326,11 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
 
         ev = LS.event_for(st, book, pct)
         ev["from_pct"] = st.get("last_pct")
-        key = event_key(ev, book, pct)
+        # **WHICH OCCURRENCE [item 77, blocker B].** Resolved before the key, because the key
+        # carries it. `remainder` is computed a few lines down and this must not bump on a
+        # remainder cycle, so the open event is read here rather than reusing that variable.
+        _pct_seq = next_pct_seq(st, ev, pct, remainder=bool(st.get("open_event") or ""))
+        key = event_key(ev, book, pct, seq=_pct_seq)
 
         # AN UNFILLED REMAINDER IS ITSELF A REASON TO ACT, and it is the third of the three
         # events rather than a fourth thing: §8a says an order unfilled by the close is
@@ -1460,22 +1554,109 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         #
         # A frozen set is only ever REUSED, never merged: a partial overlap would be a third
         # target map that is neither this event's nor the last's.
+        # ---- AND IT IS THE QUANTITY THAT IS FROZEN, NOT THE DOLLARS [item 77, blocker C] ---
+        #
+        # **ITEM 73 CLOSED THE EQUITY CHANNEL AND LEFT THE MARK CHANNEL OPEN.** Freezing the
+        # DOLLAR target stopped a change in account equity moving the target, which is what
+        # the paragraph above is about. But `order_plan` measures the gap as
+        # `frozen_target - have_qty x CURRENT mark`, so a PRICE move still moved the gap: the
+        # auditor ran one slot at four prices with the event open and got
+        # `[AAA sell 0.153846, BBB sell 0.153846]` at 130 and 2.333333 each at 300, against
+        # nothing at all when the same event was closed. Item 73's own test -- double the
+        # marks, require the targets not to move -- passes straight through it, because the
+        # targets genuinely did not move and the HOLDINGS' value did.
+        #
+        # Three things made it blocking rather than untidy: item 73 blesses long cash waits,
+        # so the window is now normal rather than exceptional; `LIVE_MIN_TOPUP` gates BUYS
+        # only, so a price-driven sell goes out at anything over a dollar; and the proceeds
+        # fund the next cycle's buys, which is self-funding churn. Don's three-events rule
+        # says a price move is not an event.
+        #
+        # **THE FIX IS TO FREEZE SHARES AND RE-EXPRESS THEM AT TODAY'S MARK.** Store
+        # `qty = target_value / mark_at_open`; each later cycle pass `qty x mark_now` as the
+        # dollar target. Then inside `order_plan`
+        #
+        #     delta = qty_frozen x mark - have_qty x mark = (qty_frozen - have_qty) x mark
+        #     order qty = |delta| / mark  = |qty_frozen - have_qty|
+        #
+        # so **the planned quantity and the SIDE are both independent of the mark**: the mark
+        # cancels. A price move can no longer create a sell, flip a side or enlarge a buy. It
+        # is done by converting the target rather than by changing `order_plan`, so the
+        # planner keeps one dollar-denominated contract and the paper slot is untouched.
+        #
+        # What a price move CAN still do is lift a buy that was below `min_order_value` over
+        # it, or push one under. The quantity is identical either way -- it is the same order,
+        # gated or not -- so "a price move never creates a new sell or a bigger buy" holds.
         _frozen = dict(st.get("frozen_targets") or {})
+        _frozen_qty = dict(st.get("frozen_target_qty") or {})
         if key and key != "none":
-            if key in _frozen and isinstance(_frozen[key], dict) and _frozen[key]:
-                tg["targets"] = {str(k).upper(): (LS._f(v) or 0.0)
-                                 for k, v in _frozen[key].items()}
+            _have_qty_map = _frozen_qty.get(key)
+            if isinstance(_have_qty_map, dict) and _have_qty_map:
+                # RE-EXPRESSED AT TODAY'S MARK. A name with no usable mark this cycle is left
+                # out entirely rather than priced at the open's mark: `order_plan` already
+                # reports a missing mark as `skipped`, and inventing a price for a name the
+                # feed cannot price is the one thing a planner must not do.
+                _re = {}
+                for k2, q2 in _have_qty_map.items():
+                    mk = LS._f((marks or {}).get(k2, {}).get("mid")
+                               if isinstance((marks or {}).get(k2), dict)
+                               else (marks or {}).get(k2))
+                    if mk is None or mk <= 0:
+                        continue
+                    _re[str(k2).upper()] = (LS._f(q2) or 0.0) * mk
+                tg["targets"] = _re
                 # The exits still apply: a name the book dropped SINCE the freeze must still be
                 # sold, and a zero target is the only way `order_plan` expresses that.
                 for nm in exits:
                     tg["targets"].setdefault(nm, 0.0)
+                # **AND THE SLOT VALUE IS THE SUM OF THESE TARGETS, NOT A FRESHLY-DERIVED ONE.**
+                # `parity` compares each name's target as a SHARE of the slot's own value, so a
+                # frozen target map measured against a slot value re-derived from today's
+                # equity is a share of the wrong denominator. Measured: at a mark of 130 the
+                # frozen targets read 325 each against a re-derived slot value of 500, giving
+                # 0.65 where the paper book says 0.50, and parity blocked the send -- **on
+                # every price move, which would have stalled the very event this freeze
+                # exists to let finish.** Found by the four-price test planning nothing at
+                # three of its four prices. Item 73 did not hit it because a frozen DOLLAR map
+                # and a re-derived slot value agree exactly as long as nothing moves.
+                tg["slot_value"] = sum(LS._f(v) or 0.0 for v in tg["targets"].values())
                 out["targets_are_frozen"] = True
                 out["targets_frozen_for"] = key
+                out["frozen_target_qty"] = {k2: round(LS._f(q2) or 0.0, 9)
+                                            for k2, q2 in _have_qty_map.items()}
             else:
-                _frozen[key] = {k: round(float(v), 6) for k, v in tg["targets"].items()}
+                # **PRUNED TO THE EVENT IN HAND [item 77, non-blocking].** These maps carry one
+                # entry per name per event -- about 86 numbers for the Index book -- and the
+                # close paths only ever delete the key they are closing, so an event ABANDONED
+                # rather than closed (superseded by a rebalance, say) left its map behind for
+                # ever. Only one event is ever open, and a frozen map is only ever read for the
+                # event being acted on, so keeping any other key is storing something nothing
+                # can read. Dropping them here bounds both maps at one entry.
+                _dropped = sorted(k2 for k2 in _frozen if k2 != key)
+                if _dropped:
+                    out["frozen_targets_pruned"] = _dropped
+                _frozen = {}
+                _frozen_qty = {}
+                # FREEZING. The dollar map is kept as well -- it is what a reader checks the
+                # arithmetic against, and it is what the event was authorised as.
+                _frozen[key] = {k2: round(float(v), 6) for k2, v in tg["targets"].items()}
+                _q = {}
+                for k2, v in tg["targets"].items():
+                    mk = LS._f((marks or {}).get(k2, {}).get("mid")
+                               if isinstance((marks or {}).get(k2), dict)
+                               else (marks or {}).get(k2))
+                    if mk is None or mk <= 0:
+                        # No mark at open means no share count can be formed. The name is
+                        # omitted, so the NEXT cycle freezes it once the feed can price it --
+                        # rather than being pinned at a fabricated quantity for the event.
+                        continue
+                    _q[str(k2).upper()] = (LS._f(v) or 0.0) / mk
+                _frozen_qty[key] = {k2: round(q2, 12) for k2, q2 in _q.items()}
                 st["frozen_targets"] = _frozen
+                st["frozen_target_qty"] = _frozen_qty
                 out["targets_are_frozen"] = False
                 out["targets_frozen_for"] = key
+                out["frozen_target_qty"] = {k2: round(q2, 9) for k2, q2 in _q.items()}
 
         plan = LS.order_plan(tg["targets"], st.get("holdings") or {}, marks,
                              resting=(rec.get("resting") or []))
@@ -1895,7 +2076,27 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                 out["alerts"].append({"kind": "waiting_for_cash", "slot": str(slot),
                                       "reason": out["reason"]})
                 out["cash_wait_alerted"] = True
-            # **NO CEILING DAY IS SPENT** -- this branch returns above it.
+            # **NO CEILING DAY IS SPENT FOR THE CASH WAIT ITSELF** -- this branch returns
+            # above the ceiling.
+            #
+            # **BUT AN ORDER THAT WAS SENT AND NEVER FILLS STILL SPENDS ONE [item 77].** Don's
+            # ruling has two halves and only the first was implemented: *"Waiting for cash ...
+            # does not burn the ceiling. THE CEILING STILL APPLIES TO ORDERS THAT ARE SENT AND
+            # NEVER FILL."* A resting order on one name alongside a cash gap on another took
+            # this early return, so it never reached `note_no_progress` and never escalated --
+            # it was reported in `resting_this_event`, so not hidden, but nothing would ever
+            # say it had stopped. The two states are independent and only one of them is
+            # "normal and not a failure".
+            if rest_mine:
+                _cw = note_no_progress(st, out, key, counts_a_day=bool(session_ok))
+                out["ceiling_day_spent_on_resting_order"] = True
+                if _cw["exhausted"]:
+                    out["alerts"].append({"kind": "event_attempts_exhausted",
+                                          "slot": str(slot), "reason": _cw["reason"]})
+                    out["attempts_exhausted"] = True
+                    # The event STOPS, as it does on every other exhausted path, or
+                    # "stays open" becomes "stalls for ever".
+                    st["open_event"] = None
             _note_write(out, _write(), slot, "recording a cash wait")
             return out
         if key in (st.get("cash_wait") or {}):
@@ -2527,6 +2728,20 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
             out["alerts"].extend(res.get("alerts") or [])
         out["paper_account_id_recorded"] = bool(paper_account_id)
 
+        # ---- A MISSPELLED SLOT VARIABLE IS NAMED [item 77, blocker A] ---------------------
+        #
+        # The auditor's third reproduction was the variable's NAME being wrong
+        # (`ALPACA_ACCOUNT_1_PCT` for `..._LIVE_PCT`) -- a mistake they had made themselves in
+        # an earlier review. Nothing reads a variable it does not know the name of, so the
+        # environment accepted it in silence and the slot read as an unset 0%.
+        #
+        # ONCE PER CYCLE AND NOT PER SLOT, because the finding is a property of the
+        # environment; and NO VALUE is carried, because one of these could be a mistyped
+        # secret and this payload is printed.
+        for _uv in LS.unknown_slot_vars(e):
+            out["alerts"].append({"kind": "unknown_slot_variable",
+                                  "slot": str(_uv["slot"]), "reason": _uv["reason"]})
+
         # ---- every live slot -------------------------------------------------------------
         for n in LS.discover_slots(e):
             if only is not None and str(only) != str(n):
@@ -2543,6 +2758,14 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
             a = LS.armed(n, e, holds=_holds)
             p = LS.slot_pct(n, e)
             pct = p.get("pct")
+            # **AN ASSUMED 0% ON A SLOT THAT HOLDS SOMETHING IS ALERTED, NOT MERELY REFUSED
+            # [item 77, blocker A].** `armed` declines to sell, which is the safe half; this
+            # is the other half, because a slot that silently stops acting looks exactly like
+            # a slot with nothing to do. The words name the variable so the repair is the
+            # message rather than an investigation.
+            if a.get("pct_unstated_while_holding"):
+                out["alerts"].append({"kind": "pct_unstated_while_holding", "slot": str(n),
+                                      "reason": a["reason"]})
             client, eq, marks, live_account_id = None, None, {}, None
             slot_report = None
             # **PER ITERATION, BESIDE `client`, OR A FAILED SLOT INHERITS THE LAST ONE'S

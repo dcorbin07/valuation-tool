@@ -106,6 +106,16 @@ KINDS = {
     # A malformed `LIVE_MIN_TOPUP` refuses the cycle, as a malformed percentage does, so this is
     # a broken input and the slot sends nothing.
     "min_topup_invalid": ALERTS,
+    # **AN ASSUMED 0% ON A SLOT THAT STILL HOLDS [item 77, blocker A].** The percentage variable
+    # is absent, empty or misspelled, so the slot refuses to trade. It is ALERTS and not
+    # ROUTINE for the reason the blocker existed: before item 77 this state SOLD THE BOOK, and
+    # after it the slot goes quiet — and a slot that silently stops acting looks exactly like a
+    # slot with nothing to do. Don has to set the variable; nothing trades until he does.
+    "pct_unstated_while_holding": ALERTS,
+    # A variable matching the slot shape whose suffix this project never reads — almost always
+    # a misspelling, so whatever it was meant to set is NOT set. ALERTS because the harm is
+    # silent by construction: nothing reads a name it does not know.
+    "unknown_slot_variable": ALERTS,
 
     # ---- the daily record: `track_meter` / `/admin/track-row` --------------------------------
     "record_row_missing": ALERTS,
@@ -168,6 +178,15 @@ NOT_ALERT_KINDS = (
     "empty", "filed_by_the_company", "promotional", "salutation", "unattributed",
     # `scripts/ma_dependency_map.py` — how two audit items collide.
     "explicit", "logical",
+    # **`valuation/edge/live_slots.py::event_for` — WHICH of the three authorised events this
+    # is [item 77].** `buy-in`, `sell-out` and `resize` are the percentage event's own kinds,
+    # and the dict carrying them has both `kind` and `reason`, which is the exact shape the
+    # registry test uses to recognise an alert. The older branches build the value through a
+    # local variable so no literal pair appeared in the tree; item 77's standing-wind-down
+    # branch writes it inline, which is how this collision surfaced. Declared here rather
+    # than worked around by routing it through a variable: the guard's heuristic is right and
+    # this is the escape it already provides for a dict that merely shares the shape.
+    "buy-in", "sell-out", "resize",
 )
 
 

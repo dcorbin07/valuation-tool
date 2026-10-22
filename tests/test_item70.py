@@ -842,20 +842,29 @@ class TheCeilingIsOneDefinition(unittest.TestCase):
         self.assertEqual(src.count("event_fingerprint\"] = prints_seen"), 1)
 
     def test_EVERY_branch_that_holds_an_event_open_calls_it(self):
-        """**FOUR CALLERS SINCE ITEM 72, and this guard going red is it working.** Item 70
+        """**FIVE CALLERS SINCE ITEM 77, and this guard going red is it working.** Item 70
         made the ceiling one definition for three branches; item 72 added the fourth -- the
         branch that refuses while ANOTHER event's orders are working, which returned before the
         ceiling and so was item 70's own silent hold in a new place.
 
+        **THE FIFTH IS ITEM 77's, AND IT IS THE SAME SHAPE A THIRD TIME: the CASH-WAIT branch,
+        which holds the event open and returned above the ceiling.** That is correct for the
+        cash wait itself -- Don: *"Waiting for cash ... does not burn the ceiling"* -- and the
+        same ruling's next sentence is *"The ceiling still applies to orders that are sent and
+        never fill."* A resting order on one name alongside a cash gap on another took the
+        early return, so it could never escalate. The new call is conditional on this slot
+        having its own resting orders, which is exactly the half of the ruling that was
+        missing.
+
         The number is asserted because the property is "every branch that holds an event open
-        can escalate", and a branch added without a ceiling call is the defect. If a fifth
+        can escalate", and a branch added without a ceiling call is the defect. If a sixth
         appears, this is where it has to be acknowledged."""
         src = io.open(LC.__file__, encoding="utf-8").read()
         tree = ast.parse(src)
         calls = [n for n in ast.walk(tree)
                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
                  and n.func.id == "note_no_progress"]
-        self.assertEqual(len(calls), 4, "expected four callers, found %d" % len(calls))
+        self.assertEqual(len(calls), 5, "expected five callers, found %d" % len(calls))
 
     def test_a_branch_that_may_run_OUT_OF_SESSION_does_not_spend_a_trading_day(self):
         """`note_trading_day`'s own precondition is that every date reaching it is one the
