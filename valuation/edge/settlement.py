@@ -273,25 +273,57 @@ def paged_orders(fetch, *, page_limit: int = 500, status: str = "all",
         if len(rows) < int(page_limit):
             return {"ok": True, "data": out, "truncated": False, "pages": pages,
                     "reason": "read %d order(s) over %d page(s)" % (len(out), pages)}
-        # A FULL PAGE: there is more. The advance is only safe if the page's last timestamp
-        # belongs to exactly one order, because `after` is exclusive on the timestamp.
+        # A FULL PAGE: there is more.
+        #
+        # **THE CURSOR BACKS OFF TO THE PREVIOUS DISTINCT TIMESTAMP, AND THAT IS ITEM 78's
+        # SECOND FINDING.** `after` is EXCLUSIVE on the timestamp, so advancing with
+        # `after = <this page's last stamp>` skips every order that shares it. The old code
+        # guarded that by refusing when the last stamp appeared more than once **on this
+        # page** -- and the dangerous tie is the one that STRADDLES THE BOUNDARY, where the
+        # twin is on the NEXT page and so is invisible to a within-page count.
+        #
+        # Measured on a 501-order fixture whose last two orders share a timestamp: the pager
+        # returned **500 orders, `ok=True`, `truncated=False`** and silently dropped one --
+        # the precise harm the refusal above exists to prevent, arriving through the check
+        # meant to prevent it. Two orders sharing a submission timestamp is not exotic here:
+        # item 67 measured one event producing 239 orders, all sent in a burst.
+        #
+        # Backing off re-reads the whole last cohort on the next page and `seen` dedups it, so
+        # nothing is skipped and nothing is counted twice. A page whose orders ALL share one
+        # timestamp has nothing to back off to, and that is the one case still refused.
         stamps = [str(r.get("submitted_at") or "") for r in rows]
         last = stamps[-1] if stamps else ""
         if not last:
             return {"ok": True, "data": out, "truncated": True, "pages": pages,
                     "reason": ("a full page of %d orders carried no submission timestamp, so "
                                "there is no safe way to ask for the next page" % len(rows))}
-        if stamps.count(last) > 1:
+        # **THE BACK-OFF POINT IS THE PREVIOUS STAMP IN ROW ORDER, NOT THE SECOND-GREATEST IN A
+        # SORT -- AND THE REASON IS NOT SAFETY, WHICH I CHECKED BEFORE WRITING IT DOWN.** My
+        # first cut sorted the distinct stamps and the comment here claimed a sort could SKIP
+        # rows on a mixed UTC offset. It cannot: the request carries `direction=asc`, so a
+        # stamp appearing earlier in the page is at an instant no later than `last`, and a sort
+        # can therefore only ever choose an instant EARLIER than row order does -- which
+        # re-reads more and skips nothing. The mutation proved it: swapping this line for
+        # `sorted({...})` passes every case.
+        #
+        # Row order is kept for two smaller reasons, stated as the small reasons they are: it
+        # makes no assumption about string collation (the rest of this function only ever
+        # compares stamps for EQUALITY), and it is the tighter cursor, so it re-reads one
+        # cohort rather than possibly several.
+        earlier = [s for s in stamps if s and s != last]
+        if not earlier:
             return {"ok": True, "data": out, "truncated": True, "pages": pages,
-                    "reason": ("%d orders share this page's last submission timestamp (%s), so "
-                               "asking for everything after it would SKIP the ones not yet "
-                               "read -- and a skipped fill under-counts a holding"
-                               % (stamps.count(last), last))}
+                    "reason": ("all %d orders on this full page share one submission "
+                               "timestamp (%s), so there is no earlier point to resume from "
+                               "and asking for everything after it would SKIP the ones not "
+                               "yet read -- a skipped fill under-counts a holding"
+                               % (len(rows), last))}
         if fresh == 0:
             return {"ok": True, "data": out, "truncated": True, "pages": pages,
                     "reason": ("a full page of orders contained nothing new, so the page "
                                "cursor is not advancing and the read cannot be completed")}
-        after = last
+        # The last stamp BEFORE the final cohort: everything at `last` is re-read and deduped.
+        after = earlier[-1]
     return {"ok": True, "data": out, "truncated": True, "pages": pages,
             "reason": ("the order history did not end within %d pages of %d, so this slot's "
                        "fill totals cannot be read reliably" % (cap, page_limit))}

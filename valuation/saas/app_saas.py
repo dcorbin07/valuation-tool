@@ -2158,7 +2158,14 @@ def create_saas_app(cfg=CONFIG):
             # and says one line when it clears — rather than this door inventing a second,
             # differently-behaved notifier for the same kind of fact.
             if request.method == "POST":
-                out["announced"] = LN.announce(alerts, cfg=cfg)
+                # **THIS DOOR EVALUATES THE REBALANCE AND THE RECORD, AND NOT THE TRADING
+                # SLOTS [item 78 §4].** Its alerts all carry slot `"-"`, so that is the whole
+                # of its scope -- and declaring it is what stops the watch announcing a slot
+                # condition as CLEARED on no evidence. On 2026-10-21 it posted *"slot 1:
+                # preflight_failed has cleared"* and *"slot paper: reconcile_truncated has
+                # cleared"* an hour before run #25 showed both problems still there.
+                out["evaluated_slots"] = ["-"]
+                out["announced"] = LN.announce(alerts, cfg=cfg, evaluated={"-"})
                 out["posted"] = bool(out["announced"].get("sent"))
             else:
                 out["note"] = ("a GET computes and posts nothing. POST this door to announce "

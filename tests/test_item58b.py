@@ -715,9 +715,13 @@ class TheAnnouncementDiscipline(_Tmp):
         self.assertTrue(got["sent"])
 
     def test_a_condition_clearing_is_one_line(self):
+        # `evaluated` added by item 78 §4: a clearing is now a claim about a run that LOOKED at
+        # slot 1, and an empty alert list alone cannot distinguish "ran it, it is healthy" from
+        # "never ran it". The cycle under test here ran slot 1, so it declares that and the
+        # one-line clearing is unchanged. The companion control is immediately below.
         cond = [{"kind": "preflight_failed", "slot": "1", "reason": "no usable price"}]
         LN.announce(cond, root=self.root, send=self.send)
-        got = LN.announce([], root=self.root, send=self.send)
+        got = LN.announce([], root=self.root, send=self.send, evaluated={"1"})
         self.assertTrue(got["sent"])
         self.assertEqual(got["n_cleared"], 1)
         # `self.bodies` records `(channel, body)` since item 74 split the send, so the body is
@@ -725,6 +729,22 @@ class TheAnnouncementDiscipline(_Tmp):
         # and belongs in the same place the problem was reported.
         self.assertIn("has cleared", self.bodies[-1][1])
         self.assertEqual(self.bodies[-1][0], "alerts")
+
+    def test_a_job_that_did_not_evaluate_the_slot_clears_nothing(self):
+        """The other half of the clearing rule. [item 78 §4]
+
+        The 2026-10-21 rebalance watch -- which reads the bound record and never touches a slot
+        -- posted *"slot 1: preflight_failed has cleared"* and *"slot paper:
+        reconcile_truncated has cleared"*. Both were still open; that is how item 78 came to be
+        written. A condition may only be declared cleared by a run that evaluated it."""
+        cond = [{"kind": "preflight_failed", "slot": "1", "reason": "no usable price"}]
+        LN.announce(cond, root=self.root, send=self.send)
+        n = len(self.bodies)
+        got = LN.announce([{"kind": "rebalance_overdue", "slot": "-", "reason": "overdue"}],
+                          root=self.root, send=self.send, evaluated={"-"})
+        self.assertEqual(got["n_cleared"], 0)
+        for _c, body in self.bodies[n:]:
+            self.assertNotIn("has cleared", body)
 
     def test_a_quiet_cycle_stays_quiet(self):
         got = LN.announce([], root=self.root, send=self.send)

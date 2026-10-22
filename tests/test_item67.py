@@ -1019,11 +1019,50 @@ class TheOrderReadIsPagedAndStillFailsSafe(unittest.TestCase):
         timestamp, so if the page's last timestamp belongs to more than one order, asking for
         everything after it SKIPS the ones not yet read -- and a skipped fill UNDER-counts a
         holding, which makes the planner buy it again. That is the exact direction the refusal
-        existed to avoid, so this comes back truncated."""
+        existed to avoid, so this comes back truncated.
+
+        **REPOINTED BY ITEM 78 §1, AND THE BEHAVIOUR IT PROTECTS IS UNCHANGED: every one of
+        this fixture's five orders shares the stamp**, so there is no earlier distinct point to
+        resume from and both cursors refuse. Only the sentence moved. The case that separates
+        the old rule from the new one is the test below, and the old rule got it WRONG.
+        """
         p1 = self._orders(5, stamp="2026-10-22T14:40:00Z")
         got = SETTLE.paged_orders(self._fetch([p1, self._orders(1, start=5)]), page_limit=5)
         self.assertTrue(got["truncated"])
-        self.assertIn("share this page's last submission timestamp", got["reason"])
+        self.assertIn("submission timestamp", got["reason"])
+
+    def test_A_TIE_WITH_EARLIER_STAMPS_ON_THE_PAGE_RESUMES_AND_LOSES_NOTHING(self):
+        """**THE DEFECT ITEM 78 FOUND IN THIS PAGER, and it lost orders in silence.**
+
+        The refusal above counted twins WITHIN a page. The dangerous twin is on the NEXT one:
+        with distinct stamps earlier on the page the old cursor advanced to the LAST stamp, and
+        `after` being exclusive it then skipped every order sharing it. Measured on the pre-fix
+        tree: 5 orders submitted, **4 returned, `ok=True`, `truncated=False`** -- an
+        under-counted holding reported as complete, which is precisely the harm the refusal
+        exists to prevent, arriving through the refusal's own cursor.
+
+        The cursor now backs off to the previous DISTINCT stamp and re-reads the tie, so the
+        overlap is deduped on `id` and nothing is lost or doubled.
+        """
+        tie = "2026-10-22T15:00:00Z"
+        rows = self._orders(3) + [dict(o, submitted_at=tie)
+                                  for o in self._orders(2, start=3)]
+
+        def fetch(params):
+            # **THE CURSOR IS HONOURED HERE, which `_fetch` deliberately does not do.** Every
+            # other case in this class is about page ASSEMBLY, so ignoring `after` is right for
+            # them -- but this case is about the cursor VALUE, and against a fetch that ignores
+            # it the old rule passes too. A fixture that cannot see the defect is not a check.
+            after = params.get("after")
+            avail = [r for r in rows if not after or r["submitted_at"] > after]
+            return {"ok": True, "data": avail[:int(params["limit"])]}
+
+        # Page one is FULL at four, and its last stamp is shared with an order on page two.
+        got = SETTLE.paged_orders(fetch, page_limit=4)
+        self.assertTrue(got["ok"])
+        self.assertFalse(got["truncated"], got["reason"])
+        self.assertEqual(len(got["data"]), 5, "an order sharing the boundary stamp was lost")
+        self.assertEqual(len({o["id"] for o in got["data"]}), 5, "an order was counted twice")
 
     def test_NO_TIMESTAMP_AT_ALL_refuses(self):
         p1 = [{"id": "x%d" % k, "symbol": "A", "qty": "1", "filled_qty": "0",

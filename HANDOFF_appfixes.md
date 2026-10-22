@@ -23187,3 +23187,222 @@ a variable: the heuristic is right and this is a dict that merely shares its sha
 `valuation/edge/live_slots.py`, `valuation/edge/live_cycle.py`,
 `valuation/saas/alert_routing.py`, `tests/test_item71_table.py`, `tests/test_item70.py`,
 `tests/test_item72.py`, `scripts/i77_before.py`.
+
+## ITEM 78 — the paper slot refused its own order history, and the filter withheld the warning
+
+Don replaced the Index paper keys on Render on 2026-10-21 and ran **LIVE PATH CYCLE #25** by
+hand. It succeeded, with two warnings and one Discord line, and every one of the three was a
+defect. The 4:54pm REBALANCE WATCH an hour earlier added two more. **Monday's paper rebalance
+could not have run: the paper slot was refusing before it planned anything.** No key, no
+percentage, no arming change, no `.github` change.
+
+**EVERY REPRODUCTION IS A TEST THAT FAILS ON THE PRE-FIX TREE, AND THAT IS MEASURED RATHER THAN
+CLAIMED.** `python -m scripts.i78_before` rolls the seven changed modules back and runs
+`tests/test_item78.py` against them: **22 of 29 fail**, and the script splits them in two —
+**10 failed on BEHAVIOUR** and 12 failed because the keyword or constant they name did not exist
+yet, which proves the test is new rather than that the old code was wrong. Six cases pass on both
+trees and each says in the script why it is a control.
+
+### 1 — the paper slot blocked itself on its own order count
+
+*"the broker returned a FULL page of 510 orders, so older fills may be outside the window and
+this slot's holdings cannot be totalled reliably"* — and the history **had been read in full.**
+
+Reproduced before anything was changed: against a recorded 510-order account the pager returns
+`ok=True, truncated=False, pages=2, "read 510 order(s) over 2 page(s)"`, and `reconcile` then
+rejected that correct answer. **THE SENTENCE CONTRADICTS ITSELF AND THAT IS THE WHOLE 510-VERSUS-
+500 PUZZLE: it describes a 500-order page while quoting a 510-order total.** The brief asks
+whether nesting explains the excess. It does not — **510 = 500 + 10 across two pages**, no
+`nested` parameter is sent (the request carries `status`, `limit`, `direction`, `after` and
+nothing else, pinned by test), the word appears nowhere in this path, and nothing is counted
+twice (`paged_orders` dedupes on `id`, because `after` is exclusive and an overlap is expected).
+
+**THE DEFECT IS A GUARD THAT OUTLIVED ITS OWN PREMISE.** `if len(orders) >= ORDERS_PAGE_LIMIT`
+was written when `reconcile` read ONE page, where it is exactly *"the page was full, so there may
+be more"*. **Item 67 then made the reader PAGED and `orders` became the TOTAL ACROSS EVERY PAGE**
+— so from that day the check fired on any slot whose whole history exceeded 500, however
+completely it had been read. The clock-shaped-guard family this project has now repointed four
+times: a test asserting *"these two numbers are equal today"* rather than the property the
+equality stood in for.
+
+Fixed: the length check applies only to the **unpaged** branch, where it still means what it
+says, and the paged branch honours the pager's own `truncated` — which is strictly better,
+because it refuses for a read it cannot prove complete (no timestamp to advance on, a cursor that
+stops advancing, the page cap) and a read that ended on a SHORT page is complete by construction.
+A failed second page still refuses, which is the brief's own rule and is a test.
+
+**A SECOND DEFECT, FOUND BY WRITING THE BOUNDARY CASE THE BRIEF ASKED FOR, AND THIS ONE LOST
+ORDERS SILENTLY.** `paged_orders` refused when the page's last timestamp was shared **within that
+page** — and the dangerous twin is on the NEXT page. `after` is exclusive, so advancing past the
+last stamp **skipped every order sharing it**. Measured on a recorded account of 501 orders whose
+500th and 501st share a submission timestamp: **500 returned, `ok=True`, `truncated=False`** — an
+under-counted holding reported as complete, which makes the planner buy the difference again.
+That is the exact harm the refusal exists to prevent, arriving through the refusal's own cursor.
+Fixed by backing the cursor off to the **previous distinct** timestamp and re-reading the tie:
+501 of 501, nothing lost and nothing duplicated. A page whose orders ALL share one timestamp has
+no earlier point to resume from and still refuses — both cursors refuse that, so it is the
+control.
+
+**WHAT I COULD NOT ANSWER FROM HERE, named rather than guessed.** The paper account's real order
+count is **510** (Don's own warning printed the paged total, which is the one number the old
+message got right). **Whether the recorded holdings match the fills cannot be checked from this
+lane** — it needs the account, there are no keys here, `data/` is gitignored, and the
+`slot_paper.json` copies in a worktree are test output. A read-only `GET /admin/live-cycle` after
+this lands answers it, and `reconcile` is the thing that answers it.
+
+**THE RE-SEND PATTERN: REPORTED, NOT CHANGED, as the brief directs — and neither alternative
+reduces the count.** A fractional order must be a `day` limit order (Alpaca permits no other
+`time_in_force` for a fractional quantity), and both cancel-and-replace and a PATCH replace
+**still write an order row**, so neither keeps the history smaller. The levers are the two that
+now work: paging, and the 20-page cap at 500 (~10,000 orders) against roughly 100 orders a day
+observed. If the history ever does need shortening it is a data decision about the account, not
+a code one, and it belongs to Don.
+
+### 2 — the privacy filter withheld the warning that said so
+
+The same message was both defects. `return_violations` banned the substring `return`, and the
+sentence contains **"returned"**. Measured by running the actual texts through `violations()`:
+the brief's guess that the blocked line was `paper_client_absent` is **wrong — that line is clean
+on both trees** — and the blocked one is the `reconcile_truncated` warning.
+
+**THE SUBSTRING-BAN FAMILY, for the eighth time in this record, and here it cost a silent
+withholding of a broken-slot alert.** Fixed with word-boundary patterns: `return`/`returns` match
+and **`returned` deliberately does not**, with a control that the real claims (*"the book returns
+5.2%"*, *"unrealized P&L"*, *"excess vs SPY"*, *"drawdown of 12%"*) are all still blocked.
+
+The brief's second half is the stronger half: block a secret **VALUE**, never a variable **NAME**.
+`scrub` already removed a configured secret by value; it now also redacts by **SHAPE** — a
+webhook URL, an Alpaca key prefix, a bearer token, an account number, and any long opaque run of
+key-ish characters — and a redaction **replaces the matching span** rather than blocking the
+message, so the words either side survive. A bare `ALPACA_PAPER_KEY_ID` posts unchanged even when
+that variable is set to a real-looking key. And `shape_spans` never reports the value it matched:
+a diagnostic that quotes the secret it found is the leak it exists to stop.
+
+### 3 — a 0% slot holding nothing listed 31 names it "would trade"
+
+*"slot 1: 31 of 31 names have no usable price"* on a slot at **0%**, **paused**, holding
+**nothing**. `tradable_names` returned the BOOK's names whatever the percentage, so a dormant
+slot demanded 31 quotes to decide it had nothing to do, and then alerted when they were missing.
+
+Fixed: a slot that may not buy needs prices only for what it **holds** — at 0% holding nothing
+the plan is empty, so it needs no prices and neither refuses nor alerts. A 0% slot that DOES hold
+still needs its own names, which is the wind-down, and it is now tighter than before: an exit can
+no longer be blocked by a missing quote for a book name the slot does not own. A positive
+percentage is unchanged.
+
+**AND THE PRICE GAP IS QUIET OUTSIDE THE ORDERS WINDOW AND LOUD INSIDE IT**, which is the brief's
+own rule — three of the five crons land hours before the window on this repo's scheduler (see 6),
+so a missing quote at 11am was becoming a daily `#valquo-alerts` reminder about a market that was
+not open. `preflight` now tags a cycle whose ONLY problem is prices, and the tag is **false the
+moment anything else is also wrong**, so the softening can never swallow a real defect. The
+refusal itself is untouched in both cases: no orders either way.
+
+### 4 — a job that never ran the slots declared their problems "cleared"
+
+The 4:54pm watch posted *"slot 1: preflight_failed has cleared"* and *"slot paper:
+reconcile_truncated has cleared"*. It had evaluated neither — the rebalance watch reads the bound
+record and never touches a slot — and both conditions were in fact still open, which is how item
+78 came to exist.
+
+**A CONDITION MAY ONLY BE DECLARED CLEARED BY A RUN THAT EVALUATED IT AND FOUND IT GONE.**
+`pending` now takes the scope the caller actually assessed: a signature outside that scope is
+**carried forward** rather than cleared, so it does not ping-pong (cleared by the watch, new
+again on the next cycle), and a caller that declares no scope clears nothing. The live cycle
+declares the slots it ran; the watch door declares `"-"`, its own. A run that DID evaluate still
+clears, which is the positive control — a fix that simply stopped clearing would satisfy the
+first three tests and break the half of Don's noise rule that was working.
+
+### 5 — permanent facts were daily reminders (recommended; Don may veto)
+
+Eleven missed record rows that **cannot be backfilled** — the record is append-only — were
+reminding Don every day, and so was `recording_not_ok`, which follows from them. Both kinds are
+now exempt from the daily reminder and announced **once**.
+
+**AND THE EXEMPTION HAD TO BE PAID FOR, because "announce once" is the opposite failure if the
+message never changes.** A condition is keyed on `(kind, reason[:120])`, so a constant reason
+would be said once and then never again however much worse the gap got. `recording_not_ok`'s
+reason now carries the missing-day **count**, so a new missed day is a new signature and
+re-announces — which is the brief's *"re-announce only when its cause changes"* implemented as a
+property rather than as a promise. Every new missed day still alerts the first day it is missed,
+and that is the test. **The exemption is two kinds and no more**: every other condition still
+reminds on the project's existing cadence, pinned so it cannot widen by default.
+
+### 6 — how often the five crons land outside the orders window (a measurement)
+
+From GitHub's run history, **19 scheduled runs, 2026-10-16 to 2026-10-22**: **15 inside the
+14:35-19:45Z window (79%) and 4 outside (21%)**.
+
+**THE FIRST ATTRIBUTION I TRIED WAS WORTHLESS AND THE REASON IS WORTH KEEPING.** Assigning each
+run to the latest cron at or before it put 15 of 19 on the 16:10Z schedule — meaningless, because
+with five crons 30-100 minutes apart and a queue delay of hours, a run at 17:37Z is as plausibly
+the 11:30 cron six hours late. The workflow file's own measurement is the way in: the delay is a
+**queue**, not jitter, and the spacing is preserved — so within a day the k-th run is the k-th
+cron. Three of the five days carry exactly five runs and are attributable on that reading.
+
+| cron | runs | inside | outside |
+|---|---|---|---|
+| 11:30Z | 3 | 3 | 0 |
+| 12:00Z | 3 | 3 | 0 |
+| 12:30Z | 3 | 3 | 0 |
+| 14:40Z | 3 | 2 | 1 |
+| 16:10Z | 3 | 0 | 3 |
+
+Queue delay **228 to 379 minutes, median 271 (4.5 hours)**, inside the 3.45-7.48h the workflow
+file measured on PT-WRITER. **EVERY LATE RUN IS ONE OF THE TWO CRONS THAT FILE ALREADY PREDICTED
+WOULD BE LATE** — its own table reads *"no, but YES if it fires ON TIME"* against 14:40Z and
+16:10Z — so the 21% is the designed cost of covering both regimes rather than a fault. Don's
+example (12:10pm ET scheduled, 4:04pm ET fired) is the 16:10Z cron on 10-21, delay 234 minutes,
+present in the data.
+
+**THE OPERATIONALLY RELEVANT NUMBER IS NOT THE 21%: every full trading day in the window got at
+least three in-window cycles** (10-19 three, 10-20 four, 10-21 four), and the door is idempotent
+per event, so a late run is a no-op in the log. **NOTHING IS CHANGED** — this is a measurement,
+the schedule lives under `.github/`, and a lane may not touch it.
+
+**REPORTED, NOT FIXED (`.github` is out of bounds):** the installed
+`.github/workflows/live-cycle.yml` already carries all five crons, and both copies still carry
+the `PENDING INSTALL` banner saying they differ. The banner is stale; `tests/test_item63.py`
+requires it, so removing it is one change across two files Don owns.
+
+### five project guards went red, and all five are repointed in this commit
+
+`MA59`'s rule — a guard that fires on a correct tree is repointed in the SAME commit, so the
+move shows in the diff. Four were asserting a sentence or a signature; **one was asserting a
+behaviour item 78 deliberately changed, and it carried its own control.**
+
+**`test_item71_table.py` — EIGHT OF 6,656 ROWS MOVED, and the table itself licenses it.** Rule
+S6 read *"a missing two-sided quote for a name the cycle needs refuses the cycle"*. The word
+*needs* is right and §3 narrowed it: the fixture's missing quote is for **BBB**, and every one of
+the eight rows is a **0% slot whose record holds AAPL alone**, so it now sells AAPL instead of
+refusing. The control is already in the table: **`resting_opposite` holds BOTH names, so BBB is
+in its population and it still refuses**, and `quotes=none` refuses everywhere because then AAPL
+has no mid either and a limit order cannot be priced. The declaration now derives
+`needs_the_unpriced_name` from the state's own record rather than listing the rows, so a new
+state cannot silently inherit the wrong answer. 6,656 rows, all matching.
+
+**`test_item67.py` — the pager's tie guard, and the repoint is a STRONGER test than the one it
+replaces.** Its fixture gives all five orders the same stamp, so both cursors refuse it and only
+the sentence moved; it asserts the shared wording now. **The case that separates the old rule
+from the new one is added beside it and the old rule gets it wrong**: four of five orders
+returned, `ok=True`, silently. It needed its own fetch, because the class's shared `_fetch`
+ignores `after` — right for every other case there, which is about page assembly, and useless
+here, which is about the cursor VALUE. **A fixture that cannot see the defect is not a check**,
+and against the shared one the pre-fix pager passed.
+
+**`test_item69.py` — the substring-ban family for the ninth time.** The one-definition guard
+asserted the literal `tradable_names(book, slot_record)`, so adding the slot's percentage turned
+a correct call into a failure. Repointed to the syntax tree: one definition, every consumer
+calls it, and every call passes the slot's own holdings as well as the book — which is the
+property the literal stood in for.
+
+**`test_item58b.py` and `test_item74.py` — three clearing tests, all asserting that an empty
+alert list clears a condition.** That is exactly §4's defect, so each declares the slot its
+cycle ran, and **each file gains the control**: a watch-only run beside an open slot condition
+clears nothing and posts nothing about it. A repoint that only loosened the three would have left
+the rule untested in the files where the old assumption lived.
+
+`valuation/edge/live_cycle.py`, `valuation/edge/settlement.py`, `valuation/edge/live_slots.py`,
+`valuation/edge/live_notify.py`, `valuation/saas/alert_routing.py`, `valuation/saas/app_saas.py`,
+`valuation/screener/rebalance_watch.py`, `tests/test_item78.py`, `scripts/i78_before.py`,
+`tests/test_item58b.py`, `tests/test_item67.py`, `tests/test_item69.py`,
+`tests/test_item71_table.py`, `tests/test_item74.py`.
