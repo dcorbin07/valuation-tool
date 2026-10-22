@@ -497,6 +497,9 @@ def reconcile(client, state: dict) -> dict:
                 return out
             out["pages_read"] = res.get("pages")
             orders = list(res.get("data") or [])
+            # **THE READ WAS PAGED, SO ITS TOTAL IS NOT A PAGE** -- see the length check below,
+            # which is item 78's blocker.
+            paged = True
         else:
             # A client without the honest reader -- a stub, or something older. Its `[]` is
             # ambiguous and is treated as it reads, which is the pre-item-65 behaviour; the
@@ -506,6 +509,7 @@ def reconcile(client, state: dict) -> dict:
                 orders = client.orders(limit=ORDERS_PAGE_LIMIT) or []
             except TypeError:
                 orders = client.orders() or []
+            paged = False
     except Exception as e:                                              # noqa: BLE001
         out["order_read"] = "failed"
         out["reason"] = "the broker's orders could not be read (%s)" % type(e).__name__
@@ -515,12 +519,32 @@ def reconcile(client, state: dict) -> dict:
     # the earlier rebalance's fills, which is exactly the half that makes a holding look
     # half-sized. Under-counting holdings makes the planner buy the difference again, so this
     # is reported as a refusal rather than smoothed over.
-    if len(orders) >= ORDERS_PAGE_LIMIT:
+    #
+    # **AND IT APPLIES ONLY TO THE UNPAGED BRANCH, WHICH IS ITEM 78's BLOCKER.** This test was
+    # written when `reconcile` read ONE page: there, `len(orders) >= limit` is exactly "the
+    # page was full, so there may be more". Item 67 then made the reader PAGED, and `orders`
+    # became the TOTAL ACROSS EVERY PAGE -- so from that day the test fired on any slot whose
+    # whole history exceeded 500, however completely it had been read.
+    #
+    # Measured on Don's run #25 (2026-10-21): the paper slot's history is **510 orders over 2
+    # pages**, the pager returned `ok=True, truncated=False, "read 510 order(s) over 2
+    # page(s)"`, and this line rejected that correct answer with *"the broker returned a FULL
+    # page of 510 orders"* -- a sentence describing a 500-order page while holding a 510-order
+    # total. **That is the whole of the 510-versus-500 puzzle: it is not nesting, there is no
+    # `nested` parameter anywhere in this path, and nothing counts twice.** 510 = 500 + 10.
+    #
+    # The paged branch has its OWN refusal and it is strictly better: `paged_orders` reports
+    # `truncated` for a read it cannot prove complete -- a page with no timestamp to advance
+    # on, a tie on the last timestamp that `after` would skip past, a cursor that stops
+    # advancing, or the page cap -- and `reconcile` honours it above. A read that ended because
+    # the last page was SHORT is complete by construction.
+    if not paged and len(orders) >= ORDERS_PAGE_LIMIT:
         out["truncated"] = True
         out["order_read"] = "truncated"
-        out["reason"] = ("the broker returned a FULL page of %d orders, so older fills may be "
-                         "outside the window and this slot's holdings cannot be totalled "
-                         "reliably; it sends nothing this cycle" % len(orders))
+        out["reason"] = ("the broker returned a FULL page of %d orders and this client cannot "
+                         "page, so older fills may be outside the window and this slot's "
+                         "holdings cannot be totalled reliably; it sends nothing this cycle"
+                         % len(orders))
         return out
     mine_prefix = coid_prefix(state.get("slot"))
     filled, open_left = {}, False
@@ -1426,7 +1450,10 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # missing: none" -- a reassuring number measured on a set that excludes the case it
         # exists to catch, which is the definition of a vacuous check. It is also the line the
         # workflow's own summary prints, so the daily log read as a healthy quiet day.
-        need = LS.tradable_names(book, st.get("holdings") or {})
+        # **AND THE SAME `pct` THE REFUSAL USES [item 78 §3].** Item 69's whole point is that
+        # this report and `preflight`'s refusal measure ONE population; passing the percentage
+        # to one and not the other would re-open exactly that gap from the other side.
+        need = LS.tradable_names(book, st.get("holdings") or {}, pct)
         priced = [t for t in need
                   if LS._f((marks.get(t) or {}).get("mid")
                            if isinstance(marks.get(t), dict) else marks.get(t))]
@@ -1499,8 +1526,25 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         if not pf["ok"]:
             # NO ORDERS, PLUS AN ALERT. An error never causes a sale and never changes
             # holdings, so nothing below this line runs.
-            out["alerts"].append({"kind": "preflight_failed", "slot": str(slot),
-                                  "reason": pf["reason"]})
+            #
+            # **EXCEPT THAT A MISSING QUOTE OUTSIDE THE ORDERS WINDOW IS NOT A DEFECT
+            # [item 78 §3].** It is the expected state of a thin after-hours feed, and the
+            # cycle could not have sent anything at that hour anyway. Don's run #25 landed at
+            # 5:56pm ET -- after the close -- and alerted on 31 unpriced names; with five
+            # scheduled cycles a day and a scheduler measured hours late, that is a daily
+            # `#valquo-alerts` reminder about the market being shut, which is the cry-wolf
+            # failure `MA21` names.
+            #
+            # **THE REFUSAL IS UNCHANGED IN EVERY CASE.** This decides only whether Don is
+            # TOLD, never whether the slot trades -- and it softens nothing but the one
+            # problem `preflight` tags as price-only: any other problem, or a price problem
+            # INSIDE the window, alerts exactly as before.
+            _quiet_price_gap = bool(pf.get("price_only")) and not session_ok
+            if _quiet_price_gap:
+                out["preflight_quiet_outside_window"] = True
+            else:
+                out["alerts"].append({"kind": "preflight_failed", "slot": str(slot),
+                                      "reason": pf["reason"]})
             out["reason"] = pf["reason"]
             # **A FRESH-RECORD REFUSAL IS RECORDED SO IT HAPPENS ONCE [item 67].** Writing
             # nothing left the record brand new, so the next cycle refused identically and the
@@ -2887,8 +2931,18 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
         # belt-and-braces on top of that.
         try:
             from . import live_notify as LN
+            # **WHICH SLOTS THIS CYCLE ACTUALLY EVALUATED [item 78 §4].** Only these may have a
+            # condition declared CLEARED. Built from the slot reports this run produced, plus
+            # `"-"` for the cycle-level alerts that belong to no slot -- a cycle that crashed
+            # before a slot ran contributes no report, so it cannot clear that slot either.
+            _evaluated = {"-"}
+            for _s in (out.get("slots") or []):
+                _evaluated.add(str((_s or {}).get("slot")))
+            if isinstance(out.get("paper"), dict):
+                _evaluated.add(str(out["paper"].get("slot") or PAPER_SLOT))
+            out["evaluated_slots"] = sorted(_evaluated)
             out["announced"] = LN.announce(out["alerts"], root=root, send=notify_send,
-                                           now=now)
+                                           now=now, evaluated=_evaluated)
         except Exception as ex:                                         # noqa: BLE001
             out["announced"] = {"sent": False,
                                 "reason": "the notifier failed and the cycle did not: %s" % ex}

@@ -581,8 +581,28 @@ def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
 POSITIONS_NOT_SUPPLIED = object()
 
 
-def tradable_names(book: dict, slot_holdings=None) -> list:
+def tradable_names(book: dict, slot_holdings=None, pct=None) -> list:
     """THE NAMES THIS CYCLE MIGHT TRADE: the book's held names, plus what this slot holds.
+
+    **A 0% SLOT MAY ONLY SELL, SO THE BOOK'S NAMES ARE NOT IN ITS POPULATION [item 78 §3].**
+    `pct` defaults to `None`, which means "not stated" and keeps the previous behaviour for any
+    caller that does not pass it.
+
+    Don's run #25 (2026-10-21) alerted:
+    *"slot 1 preflight_failed x1: no usable price for 31 name(s) the cycle would trade: APA,
+    CF, INCY, FDX, JBHT, STM, MRNA, TTE"* -- on his IRA, which is at `LIVE_PCT=0`, paused, and
+    holds nothing of its own. **It could not have traded any of them.** The population was the
+    BOOK's 86 held names, because that is what this function returned regardless of whether the
+    slot was allowed to buy any of them, and 31 had no usable mid on a thin after-hours feed.
+
+    A 0% target licenses no buy -- that is `armed`'s own rule and `run_slot` withholds every
+    buy in the state -- so the only orders a 0% slot can produce are sales of what its OWN
+    record holds. At 0% with an empty record the honest answer is **no names at all**, and a
+    cycle that will trade nothing needs no prices and may not refuse over them.
+
+    **IT ALSO TIGHTENS THE WIND-DOWN**, which is the half worth noticing: a slot at 0% that
+    DOES hold something used to refuse when the feed could not price a book name it does not
+    own, so an exit could be blocked by a quote for a name irrelevant to it.
 
     **ONE DEFINITION, BECAUSE THERE WERE THREE AND ONLY ONE GOT WIDENED [item 69].** Item 67
     widened the quote list to cover an exited name and left `preflight`'s refusal and
@@ -599,11 +619,16 @@ def tradable_names(book: dict, slot_holdings=None) -> list:
     would refuse the cycle for ever over a record that is merely stale.
     """
     out = []
-    for q in ((book or {}).get("positions") or []):
-        if (q or {}).get("status") == "held":
-            t = str((q or {}).get("ticker") or "").strip().upper()
-            if t and t not in out:
-                out.append(t)
+    # THE BOOK'S NAMES ARE ONLY IN SCOPE IF THIS SLOT MAY BUY. `None` means the caller did not
+    # state a percentage, which keeps every pre-item-78 caller exactly as it was.
+    _p = _f(pct)
+    may_buy = (_p is None) or (_p > 0.0)
+    if may_buy:
+        for q in ((book or {}).get("positions") or []):
+            if (q or {}).get("status") == "held":
+                t = str((q or {}).get("ticker") or "").strip().upper()
+                if t and t not in out:
+                    out.append(t)
     for t, qty in (slot_holdings or {}).items():
         t = str(t).strip().upper()
         if t and t not in out and (_f(qty) or 0.0) > 0:
@@ -648,6 +673,7 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
     on its very first cycle, which is what stops it crying wolf.
     """
     problems = []
+    unpriced = []
     if not isinstance(book, dict) or not book.get("ok"):
         problems.append("the Index book in force could not be read: %s"
                         % ((book or {}).get("reason") or "no reason given"))
@@ -669,7 +695,7 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
         # **THE BOOK'S HELD NAMES *PLUS WHAT THIS SLOT HOLDS* [item 69].** An EXIT is a name the
         # book no longer carries, so a population built from the book alone could not contain
         # one -- and an exit the feed cannot price was therefore neither refused nor reported.
-        need = tradable_names(book, slot_record)
+        need = tradable_names(book, slot_record, pct)
         missing = [t for t in need
                    if not _f((marks.get(t) or {}).get("mid")
                              if isinstance(marks.get(t), dict) else marks.get(t))]
@@ -684,6 +710,13 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
                    ("; %d of them the slot must SELL because the book no longer holds it (%s), "
                     "so this is an EXIT that cannot be priced rather than a buy that can wait"
                     % (len(exits), ", ".join(exits[:8]))) if exits else ""))
+            # **TAGGED, SO THE CALLER CAN TELL THIS APART FROM EVERY OTHER PROBLEM WITHOUT
+            # READING THE PROSE [item 78 §3].** A missing quote OUTSIDE the orders window is
+            # the expected state of a thin after-hours feed and must not become a daily
+            # reminder; every other preflight problem is a defect whenever it happens. The
+            # caller needs that distinction, and matching on a substring of the sentence above
+            # is the family this record has repointed seven times.
+            unpriced = list(missing)
     positions_checked = False
     if broker_positions is None:
         # AN UNREADABLE POSITION LIST IS A REFUSAL, NOT A SKIP [item 63, auditor question 7].
@@ -748,6 +781,11 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
                 "acting on it could buy the position a second time" % (_f(qty) or 0.0, tkr))
     return {"ok": not problems, "problems": problems,
             "positions_checked": positions_checked,
+            # [item 78 §3] The names with no usable mid, and whether that is the ONLY thing
+            # wrong. `price_only` is what lets the caller soften an after-hours quote gap
+            # without softening anything else -- see `run_slot`.
+            "unpriced": list(unpriced),
+            "price_only": bool(problems) and len(problems) == 1 and bool(unpriced),
             "reason": ("" if not problems else
                        "the slot sends NO orders this cycle and alerts Don: %s"
                        % "; ".join(problems))}

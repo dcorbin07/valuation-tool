@@ -141,8 +141,24 @@ def condition_sig(a: dict) -> str:
     return "%s|%s" % (str(a.get("kind") or ""), str(a.get("reason") or "")[:SIG_CHARS])
 
 
-def pending(alerts, root: str = None, now=None) -> dict:
+def pending(alerts, root: str = None, now=None, evaluated=None) -> dict:
     """What is NEW, split by channel. Pure -- reads the record, writes nothing.
+
+    **`evaluated` IS WHICH SLOTS THIS RUN ACTUALLY ASSESSED, AND WITHOUT IT NOTHING CLEARS
+    [item 78 §4].** A cleared line used to mean "this signature is in the record and not in the
+    alerts I was handed" -- which is true both of a condition that has gone AND of one this run
+    never looked at.
+
+    Measured on 2026-10-21: the 4:54pm REBALANCE WATCH, which does not run the trading slots at
+    all, posted *"slot 1: preflight_failed has cleared"* and *"slot paper: reconcile_truncated
+    has cleared"*. **One hour later run #25 showed both problems again.** The watch had no
+    evidence either way and announced "not evaluated" as "fixed" -- and because the record was
+    then rewritten without those signatures, the next cycle announced them as NEW, so the pair
+    would have ping-ponged daily.
+
+    So a run must say what it looked at. `evaluated=None` means "unstated", and the safe
+    reading of unstated is that **nothing may be declared cleared** -- `MA6`'s direction: the
+    failure that costs a line is better than the failure that posts a false all-clear.
 
     Four buckets now rather than three, and the new one is Don's third noise rule:
 
@@ -178,6 +194,14 @@ def pending(alerts, root: str = None, now=None) -> dict:
         if prior is None:
             conditions.append(dict(a))
             by_slot.setdefault(slot, {})[sig] = today
+        elif kind in AR.NO_DAILY_REMINDER:
+            # **A PERMANENT FACT IS NOT REMINDED [item 78 §5].** Don's third rule -- "one
+            # reminder per day while it stays broken" -- assumes the problem can be repaired,
+            # and the record's missed days cannot be: the series is append-only and the
+            # contract treats a back-fill as voiding the whole run. The DATE IS LEFT AT ITS
+            # ORIGINAL VALUE rather than advanced to today, so nothing about this kind drifts
+            # with the clock; a new missing day changes the signature and posts on its own.
+            by_slot.setdefault(slot, {})[sig] = prior
         elif AR.needs_reminder(prior, today):
             # STILL BROKEN, AND LAST SAID YESTERDAY OR EARLIER. Don: "one reminder per day
             # while it stays broken."
@@ -189,12 +213,25 @@ def pending(alerts, root: str = None, now=None) -> dict:
     # A CONDITION THAT HAS CLEARED. One line, for the reason in the module docstring. The full
     # signature and its date travel with it, so a FAILED clearing post can be put back in the
     # record and retried rather than lost.
+    #
+    # **ONLY FOR A SLOT THIS RUN ACTUALLY EVALUATED [item 78 §4].** See the docstring: absence
+    # from the alert list means "gone" only if somebody looked. A slot outside the scope keeps
+    # its recorded signatures untouched, so the next run that DOES evaluate it reports the
+    # truth -- and `by_slot` below carries them forward rather than dropping them, or the
+    # record would forget the condition and re-announce it as new.
+    _scope = None if evaluated is None else {str(s) for s in evaluated}
     cleared = []
     for slot, sigs in sorted(known.items()):
         live = by_slot.get(slot) or {}
-        for sig in sorted(set(sigs) - set(live)):
-            cleared.append({"slot": slot, "was": sig.split("|", 1)[0], "sig": sig,
-                            "since": sigs.get(sig) or ""})
+        if _scope is not None and slot in _scope:
+            for sig in sorted(set(sigs) - set(live)):
+                cleared.append({"slot": slot, "was": sig.split("|", 1)[0], "sig": sig,
+                                "since": sigs.get(sig) or ""})
+            continue
+        # NOT EVALUATED: every recorded signature survives, with its original date, so a
+        # reminder stays due on the day it was already due.
+        for sig, when in sigs.items():
+            by_slot.setdefault(slot, {}).setdefault(sig, when)
 
     return {"events": events, "conditions": conditions, "reminders": reminders,
             "cleared": cleared, "by_slot": by_slot, "unclassified": unclassified,
@@ -243,7 +280,8 @@ def compose(p: dict, channel: str = None) -> str:
     return "\n".join(lines)
 
 
-def announce(alerts, *, root: str = None, cfg=None, send=None, now=None) -> dict:
+def announce(alerts, *, root: str = None, cfg=None, send=None, now=None,
+             evaluated=None) -> dict:
     """Send what is new, per channel, then remember it. NEVER RAISES.
 
     Its failure is never the cycle's: a missing webhook, a Discord outage or an unwritable
@@ -263,7 +301,9 @@ def announce(alerts, *, root: str = None, cfg=None, send=None, now=None) -> dict
     A seam whose signature differs from the thing it stands in for is how a fixture comes to
     pass against behaviour that could not happen.
     """
-    p = pending(alerts, root, now)
+    # `evaluated` IS PASSED STRAIGHT THROUGH [item 78 §4]: which slots this run assessed.
+    # Unstated means nothing may be declared cleared -- see `pending`.
+    p = pending(alerts, root, now, evaluated=evaluated)
     out = {"sent": False, "quiet": p["quiet"], "reason": "",
            "n_events": len(p["events"]), "n_conditions": len(p["conditions"]),
            "n_reminders": len(p["reminders"]), "n_cleared": len(p["cleared"]),

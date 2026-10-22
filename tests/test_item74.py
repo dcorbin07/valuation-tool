@@ -291,18 +291,38 @@ class TheNoiseRule(_Tmp):
         self.assertEqual(len(self.sent), 2, self.sent)
 
     def test_ONE_post_when_it_clears(self):
+        """**REPOINTED BY ITEM 78 §4, and the empty list is why.** A cycle that cleared this
+        condition is one that RAN slot 1 and found it healthy; an empty alert list on its own
+        cannot tell that apart from a job that never looked -- and the 2026-10-21 rebalance
+        watch, which reads the bound record and never touches a slot, posted *"slot 1:
+        preflight_failed has cleared"* on exactly that reading while the condition was still
+        open. So the scope is declared, and the control that an UNDECLARED scope clears nothing
+        is `test_a_clearing_needs_a_run_that_LOOKED` below."""
         LN.announce(self.COND, root=self.root, send=self.send(),
                     now=_dt.datetime(2026, 10, 22, 9, 0))
-        gone = LN.announce([], root=self.root, send=self.send(),
+        gone = LN.announce([], root=self.root, send=self.send(), evaluated={"1"},
                            now=_dt.datetime(2026, 10, 22, 17, 0))
         self.assertTrue(gone["sent"])
         self.assertEqual(gone["n_cleared"], 1)
         self.assertIn("has cleared", self.sent[-1][1])
         self.assertEqual(self.sent[-1][0], AR.ALERTS,
                          "a clearing belongs where the problem was reported")
-        quiet = LN.announce([], root=self.root, send=self.send(),
+        quiet = LN.announce([], root=self.root, send=self.send(), evaluated={"1"},
                             now=_dt.datetime(2026, 10, 23, 9, 0))
         self.assertFalse(quiet["sent"], "the clearing was announced twice")
+
+    def test_a_clearing_needs_a_run_that_LOOKED(self):
+        """The other half of the repoint above. [item 78 §4]"""
+        LN.announce(self.COND, root=self.root, send=self.send(),
+                    now=_dt.datetime(2026, 10, 22, 9, 0))
+        self.sent = []
+        watch = LN.announce([{"kind": "rebalance_overdue", "slot": "-", "reason": "overdue"}],
+                            root=self.root, send=self.send(), evaluated={"-"},
+                            now=_dt.datetime(2026, 10, 22, 17, 0))
+        self.assertEqual(watch["n_cleared"], 0,
+                         "a run that never evaluated slot 1 declared its condition cleared")
+        for _c, body in self.sent:
+            self.assertNotIn("has cleared", body)
 
     def test_a_reminder_is_a_DAY_and_not_24_hours(self):
         """A 24-hour rule drifts later every day until it lands in the middle of the night, and
@@ -340,9 +360,11 @@ class ThePerChannelWatermark(_Tmp):
         cond = [{"kind": "parity_mismatch", "slot": "1", "reason": "BBB differs"}]
         LN.announce(cond, root=self.root, send=self.send(), now=OPEN_NOW)
         self.sent = []
-        LN.announce([], root=self.root, send=self.send(ok=False), now=OPEN_NOW)
+        # `evaluated` added by item 78 §4: both of these cycles DID run slot 1, which is what
+        # makes the clearing legitimate. The watermark property under test is unchanged.
+        LN.announce([], root=self.root, send=self.send(ok=False), evaluated={"1"}, now=OPEN_NOW)
         self.sent = []
-        again = LN.announce([], root=self.root, send=self.send(), now=OPEN_NOW)
+        again = LN.announce([], root=self.root, send=self.send(), evaluated={"1"}, now=OPEN_NOW)
         self.assertEqual(again["n_cleared"], 1, "the clearing was lost on a failed post")
 
 

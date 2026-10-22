@@ -302,13 +302,33 @@ class ThePopulationIsONEDefinition(unittest.TestCase):
         self.assertEqual(LS.tradable_names(self.BOOK, {"SOLD": 0.0}), ["AAPL"])
 
     def test_ALL_THREE_consumers_read_it(self):
-        """The guard that stops a fourth copy appearing. Read on the syntax tree over both
-        modules, because a fourth copy would be new code rather than an edit to these."""
-        cyc = io.open(LC.__file__, encoding="utf-8").read()
-        slots = io.open(LS.__file__, encoding="utf-8").read()
-        self.assertIn("LS.tradable_names(book", cyc)          # marks_coverage
-        self.assertIn("tradable_names(book, slot_record)", slots)   # preflight
-        self.assertEqual(slots.count("def tradable_names("), 1,
+        """The guard that stops a fourth copy appearing.
+
+        **REPOINTED BY ITEM 78 §3, AND THE OLD FORM WAS THE SUBSTRING-BAN FAMILY AGAIN.** It
+        asserted the literal `tradable_names(book, slot_record)`, so adding the slot's
+        percentage as a third argument -- which is what makes a 0% slot stop demanding quotes
+        for names it does not own -- turned a correct call into a failure. The property it was
+        standing in for is *"there is one definition and every consumer calls it"*, and that is
+        what it reads now, off the syntax tree so a call written over two lines still counts.
+        """
+        import ast
+
+        def calls(mod):
+            tree = ast.parse(io.open(mod.__file__, encoding="utf-8").read())
+            return [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+                    and (getattr(n.func, "id", None) == "tradable_names"
+                         or getattr(n.func, "attr", None) == "tradable_names")]
+
+        slots, cyc = calls(LS), calls(LC)
+        self.assertTrue(cyc, "live_cycle no longer reads the population")       # marks_coverage
+        self.assertTrue(slots, "live_slots no longer reads the population")     # preflight
+        # EVERY CONSUMER PASSES THE SLOT'S OWN RECORD, which is the half that made it one
+        # definition rather than two: the book alone cannot contain an exit.
+        for c in slots + cyc:
+            self.assertGreaterEqual(len(c.args), 2,
+                                    "a consumer reads the BOOK without the slot's holdings")
+        src = io.open(LS.__file__, encoding="utf-8").read()
+        self.assertEqual(src.count("def tradable_names("), 1,
                          "a second definition of the population exists")
 
     def test_the_quote_list_is_still_the_WIDER_set(self):

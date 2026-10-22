@@ -170,6 +170,24 @@ DECLARED_AHEAD_OF_EMITTER = ()
 for _k in DECLARED_AHEAD_OF_EMITTER:
     KINDS.setdefault(_k, ALERTS)
 
+#: **KINDS WHOSE CONDITION IS A PERMANENT FACT: said when it CHANGES, never reminded daily.**
+#: [item 78 §5, recommended by the item and Don may veto]
+#:
+#: Don's three noise rules are "one post when a problem starts; one when it clears; one reminder
+#: per day while it stays broken" -- and the third assumes the problem CAN be repaired. These two
+#: cannot: the forward record is append-only and §3 of the contract treats a back-fill as voiding
+#: the whole run, so the eleven August-September days that were missed are missed for ever.
+#: `recording_not_ok` follows from them and is therefore equally permanent.
+#:
+#: A daily reminder about something nobody can fix is `MA21`'s cry-wolf failure exactly, and it
+#: lands in the one channel whose value depends on an unread message meaning something is wrong.
+#:
+#: **EVERY NEW MISSED DAY STILL ALERTS ON THE DAY IT IS MISSED**, and that is not an exception to
+#: this -- it is how the signature works. A condition is keyed on `(kind, reason[:120])` and both
+#: reasons carry the COUNT of missing days, so a twelfth day makes a new signature and a new
+#: post. What is suppressed is only the repetition of an unchanged fact.
+NO_DAILY_REMINDER = ("record_row_missing", "recording_not_ok")
+
 #: Kinds that live in the tree under the key `kind` and are NOT alerts of any sort. Declared so
 #: the registry test can tell "an alert nobody classified" from "a dict that happens to have a
 #: `kind` key". Each is a parsing or mapping label, nowhere near a notification.
@@ -308,6 +326,88 @@ RETURN_WORDS = (
     "gain", "loss", "drawdown", "sharpe", "cagr", "verdict", "track record",
 )
 
+#: **THE SAME LIST AS WHOLE WORDS, AND THAT IS ITEM 78's SECOND BLOCKER.** [2026-10-21]
+#:
+#: `return_violations` tested `w in text.lower()` -- a SUBSTRING -- and operational English is
+#: full of "returned". On Don's run #25 the privacy filter silently refused to post
+#: *"the broker RETURNED a FULL page of 510 orders ..."*, which is the `reconcile_truncated`
+#: warning: **the same message that was blocking the paper slot was also the one the filter
+#: would not deliver.** Discord showed only *"A Valquo alert was composed and NOT posted."*
+#:
+#: The substring-ban family, which this record has now repointed seven times. It is worse here
+#: than usual in one specific way: the whole value of a problems channel is that an unread
+#: message in it is a problem, so a filter that silently drops the alert saying the slot is
+#: broken is the cry-wolf failure inverted.
+#:
+#: **WHY WORD BOUNDARIES ARE THE RIGHT TRADE RATHER THAN A WEAKENING.** This gate is a
+#: BACKSTOP: `return_violations`' own docstring records that the primary control is at the
+#: composers, where the words would be introduced, and both keep their own tests. A false
+#: negative here leaks a figure Don already owns into Don's own channel; a false positive
+#: silently withholds the alert that something is broken. The second is the worse failure.
+#:
+#: **"returned" IS DELIBERATELY NOT MATCHED AND "returns" IS.** "the API returned" is the
+#: ordinary operational sentence; "the book returns 5%" is a claim. Each inflection below is
+#: written out rather than generated, because a generated `(?:s|ed)?` would re-admit exactly
+#: the word that caused this.
+RETURN_WORD_PATTERNS = tuple(re.compile(p, re.I) for p in (
+    r"p&l", r"\bpnl\b", r"\bp and l\b",
+    r"\bprofits?\b",
+    r"\bunrealized\b", r"\bunrealised\b",
+    r"\breturns?\b",
+    r"\bexcess\b", r"\balpha\b",
+    r"\boutperform(?:s|ed|ing|ance)?\b", r"\bunderperform(?:s|ed|ing|ance)?\b",
+    r"\bbeat spy\b", r"\bvs spy\b",
+    r"\bgains?\b", r"\bloss(?:es)?\b",
+    r"\bdrawdown\b", r"\bsharpe\b", r"\bcagr\b", r"\bverdict\b", r"\btrack record\b",
+))
+
+#: **SECRETS BY SHAPE, not only by configured value.** [item 78 §2]
+#:
+#: `secret_values` can only redact what it can look up, so a credential that reaches a message
+#: from somewhere other than this process's own environment -- echoed back inside a broker
+#: error, say -- passed straight through. Each pattern is anchored on a documented shape rather
+#: than on length alone, and each is REDACTED IN PLACE rather than blocking the message.
+#:
+#: **THE HONEST LIMIT: a shape list cannot be complete.** It catches the four the brief names
+#: and the ones this project actually handles; it is a second net under `secret_values`, not a
+#: replacement for passing an identifier in `extra`, which is how the live path supplies the
+#: Alpaca account id it knows about.
+SECRET_SHAPES = (
+    ("a Discord webhook URL",
+     re.compile(r"https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/"
+                r"\d+/[\w.\-]+", re.I)),
+    # Alpaca key ids are documented as `PK...` (paper) and `AK...` (live).
+    ("an Alpaca-shaped API key id", re.compile(r"\b[AP]K[A-Z0-9]{12,}\b")),
+    ("an Alpaca-shaped account number", re.compile(r"\bPA[A-Z0-9]{8,}\b")),
+    ("a bearer token", re.compile(r"\bbearer\s+[A-Za-z0-9._\-]{16,}", re.I)),
+    ("a credential in a query string",
+     re.compile(r"\b(?:token|api[_-]?key|secret|password|webhook)=[^\s&\"'<>]{8,}", re.I)),
+)
+
+#: A run of credential-alphabet characters long enough, and mixed enough, to be a secret rather
+#: than a word. Checked with a predicate rather than one unreadable regex.
+_OPAQUE_RUN = re.compile(r"[A-Za-z0-9+/_\-]{40,}")
+
+
+def _looks_opaque(s: str) -> bool:
+    """40+ chars carrying upper, lower AND digits -- a key, not an English word or a path."""
+    return (any(c.isupper() for c in s) and any(c.islower() for c in s)
+            and any(c.isdigit() for c in s))
+
+
+def shape_spans(text: str) -> list:
+    """`[(start, end, why)]` for every credential-SHAPED span. Never returns the value."""
+    s = str(text or "")
+    spans = []
+    for why, rx in SECRET_SHAPES:
+        for m in rx.finditer(s):
+            spans.append((m.start(), m.end(), why))
+    for m in _OPAQUE_RUN.finditer(s):
+        if _looks_opaque(m.group(0)):
+            spans.append((m.start(), m.end(), "a long opaque credential-shaped string"))
+    # Longest first so a nested match cannot leave half of a longer one behind.
+    return sorted(spans, key=lambda t: (t[0], -(t[1] - t[0])))
+
 #: Minimum length for a value to be worth redacting. A one- or two-character environment value
 #: would otherwise blank out half the message, and nothing that short is a secret.
 MIN_SECRET_LEN = 8
@@ -342,6 +442,13 @@ def scrub(text: str, *, env=None, extra=()) -> str:
     for v in secret_values(env, extra):
         if v and v in s:
             s = s.replace(v, REDACTED)
+    # **AND BY SHAPE [item 78 §2].** A credential that never passed through this process's
+    # environment cannot be looked up, so it is matched on its documented shape and the SPAN is
+    # replaced -- the brief's *"redact the matching span rather than blocking the whole message
+    # wherever that is safe"*. Applied after the value pass so an already-redacted span is not
+    # re-examined, and right-to-left so an earlier replacement cannot move a later offset.
+    for start, end, _why in reversed(shape_spans(s)):
+        s = s[:start] + REDACTED + s[end:]
     return s
 
 
@@ -376,9 +483,15 @@ def return_violations(text: str) -> list:
     So: operational bodies are gated, product cards are not, and each is gated in exactly one
     place. `live_notify` and `fleet_notify` keep their own tests on their own composers, which is
     where the words would be introduced.
+
+    **MATCHED AS WHOLE WORDS SINCE ITEM 78**, which is how the `reconcile_truncated` warning
+    came to be silently withheld -- *"the broker RETURNED a FULL page of 510 orders"*. See
+    `RETURN_WORD_PATTERNS` for why word boundaries are the right trade here and why "returned"
+    is deliberately not one of them.
     """
-    low = str(text or "").lower()
-    return ["the body carries the return-shaped word %r" % w for w in RETURN_WORDS if w in low]
+    s = str(text or "")
+    return ["the body carries the return-shaped word %r" % rx.search(s).group(0)
+            for rx in RETURN_WORD_PATTERNS if rx.search(s)]
 
 
 def violations(text: str, *, env=None, extra=(), check_returns: bool = True) -> list:

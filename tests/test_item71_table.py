@@ -560,10 +560,27 @@ def expected(state, event, read, mode, pilot):
     # S4. A wind-down transmits SELLS ONLY. [item 71 blocker A]
     # S5. Nothing transmits unless this slot's own orders were read. [items 65, 67]
     # S6. A missing two-sided quote for a name the cycle needs refuses the cycle. [item 69]
+    #     **AND ITEM 78 §3 NARROWED WHAT A 0% SLOT NEEDS, so this rule changed rather than its
+    #     wording.** `one_missing` is a one-sided quote for **BBB**. A slot that may not buy
+    #     needs prices only for what it HOLDS -- so a wind-down of a slot whose record is
+    #     `{"AAPL": ...}` is no longer blocked by a book name it does not own, and it sells
+    #     AAPL. Eight rows moved from `none` to `sells_only` on that reading and every one is
+    #     a 0% slot holding AAPL alone.
+    #
+    #     **THE TABLE CARRIES ITS OWN CONTROL and that is what licenses the change**:
+    #     `resting_opposite` holds BOTH names, so BBB is in its population, so it still
+    #     refuses -- and `quotes=none` refuses everywhere, because then AAPL has no mid either
+    #     and a limit order cannot be priced. The direction matters: blocking the exit would
+    #     have stranded a position indefinitely over an unrelated name's one-sided quote, with
+    #     a daily alert about it, which is the noise item 78 was written to stop.
     # S7. An unreadable position list refuses the cycle. [item 63]
     sent = "none"
+    #: Is the missing name one THIS slot needs? Derived from the record rather than listed, so
+    #: a new state's record cannot silently inherit the wrong answer.
+    needs_the_unpriced_name = (not wind_down) or ("BBB" in st["record"])
     if read_ok:
-        if read["positions"] == "unreadable" or read["quotes"] in ("one_missing", "none"):
+        if (read["positions"] == "unreadable" or read["quotes"] == "none"
+                or (read["quotes"] == "one_missing" and needs_the_unpriced_name)):
             sent = "none"                      # preflight refuses
         elif read["positions"] == "empty" and st["holds"]:
             sent = "none"                      # record-versus-broker disagreement refuses

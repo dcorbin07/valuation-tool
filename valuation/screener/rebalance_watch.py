@@ -194,9 +194,17 @@ def record_status(*, as_of=None, detail: dict = None) -> dict:
                           + (" and %d more" % (len(missing) - 8) if len(missing) > 8 else "")))})
     if ok is False:
         out["ok"] = False
+        # **THE CAUSE IS IN THE REASON, AND THAT IS WHAT MAKES "ONCE" SAFE [item 78 §5].**
+        # This kind is exempt from the daily reminder (`alert_routing.NO_DAILY_REMINDER`)
+        # because it follows from missed days that cannot be backfilled. A condition is keyed
+        # on `(kind, reason[:120])`, so with a CONSTANT reason it would be announced once and
+        # then never again however much worse it got -- which is the opposite failure. Naming
+        # the count makes a new missing day a new signature and therefore a new post, which is
+        # the brief's *"re-announce only when its cause changes"*.
         out["alerts"].append({
             "kind": "recording_not_ok", "slot": "-",
-            "reason": ("the contract's own recording gate reads FALSE, so the forward record is "
-                       "not complete for the open vintage. The operational gate cannot pass "
-                       "while this is false. See /api/track.")})
+            "reason": ("the contract's own recording gate reads FALSE (%d missing trading day "
+                       "row(s)), so the forward record is not complete for the open vintage. "
+                       "The operational gate cannot pass while this is false. See /api/track."
+                       % len(missing))})
     return out
