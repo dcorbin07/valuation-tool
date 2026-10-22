@@ -128,16 +128,19 @@ interaction and freshness families. The rejections are the product.
 Index. Its terms were fixed before the data existed:
 
 - **Paper only.** No real money, no execution, no broker.
-- **Operational gate 2027-02-13. Verdict 2031-08-13.** Nothing before those dates is a verdict,
-  in either direction.
+- **Operational gate 2027-02-13 — or 2027-03-23 if Don signs Amendment 4. Verdict
+  2031-08-13 either way.** Nothing before those dates is a verdict, in either direction.
+  The gate's date is read from the contract on every request
+  (`track_meter.gate_window`), never typed into a surface.
 - **It is deliberately weak, and says so.** At the backtested edge, power is ~13% at one year.
   A track that has not crossed its threshold is the *expected* outcome and is **not** evidence
   against the strategy.
 - **An adopted change to scoring resets the clock.** The track is on its 4th vintage
   (inception 2026-08-13); improving the model costs elapsed evidence, on purpose.
 - **It is recording — and the gate is still a separate, open question.** Measured on the live
-  service 2026-10-21: the bound series carries a row on **every one of the 20 trading days from
-  2026-09-23 to 2026-10-20**, no gaps, written unattended by `track-row.yml`. Ledger row
+  service 2026-10-22: the bound series carries a row on **every one of the 21 trading days from
+  2026-09-23 to 2026-10-21**, no gaps, Columbus Day included, written unattended by
+  `track-row.yml`. Ledger row
   `PT-WRITER` closed 2026-08-18, when the writer first wrote for real end-to-end. Before that
   it missed **18 trading days between 2026-08-03 and 2026-09-22**; the site shows those as
   **reconstructed** and excludes them from the recorded-day count, the evidence meter, the
@@ -149,10 +152,17 @@ Index. Its terms were fixed before the data existed:
   (2026-08-14, plus ten between 2026-09-02 and 2026-09-22) are not that, so under §3 they void
   their own windows rather than being logged. §3's own remedy is that *"if the gate fails, the
   clock restarts from the repair"* — and on the evidence the repair is 2026-09-23, which puts a
-  six-month gate at **2027-03-23** rather than 2027-02-13. Two other gate conditions are also
-  outstanding: one holding of 86 has been **unpriced since 2026-08-20** (33 rows), and the
-  gate's own realised-cost condition is written against **33.4 bps**, the superseded panel's
-  figure, where the canonical panel measures **77.0**. Only Don's signature changes that row.
+  six-month gate at **2027-03-23** rather than 2027-02-13. **That is now drafted as
+  Amendment 4 (§5a-4), with its signature row reading `NO`** — unsigned, the gate date,
+  the meter and every published figure are exactly what they were. Of the other two gate
+  conditions: the unpriced holding is **CLEAR**, and not for the obvious reason — WBS
+  stopped trading on 2026-08-19 and Amendment 2's corporate-action rule exited it, so the
+  book serves **85** positions and every one is priced; it was not the 2026-10-22
+  rebalance, which had not been recorded. And the gate's realised-cost condition is
+  written against **33.4 bps**, the superseded panel's research decile — the corrected
+  panel's **77.0** is that same wider book, so **neither describes the Index**, which
+  measures **9.44 bps** one-way on 2.81x turnover. Amendment 4 replaces the figure.
+  Only Don's signature changes any of it.
 
 ---
 

@@ -1313,6 +1313,10 @@ def api_hotstocks():
     # THE LOW SIDE OF THE SAME BAND [item 76 §2, Don's ruling]. Flags, never withholds, and it
     # runs at the same site so the two sides of one band cannot reach different surfaces.
     _band_low = withhold.flag_implausibly_low_fair_values(rows)
+    # THE CONFIDENCE CEILING BELOW HALF THE PRICE [item 79 s1, Don's ruling 2026-10-22].
+    # Third pass at the same site, for the same reason the second one is here: the three
+    # consequences of one price ratio must not be able to reach different surfaces.
+    _capped_conf = withhold.cap_confidence_below_half(rows)
     from ..engine.publication import ROW_WITHHELD as _RW, ROW_WITHHELD_KIND as _RWK
     _peer_only = sum(1 for r in rows
                      if isinstance(r, dict) and r.get(_RW) and not r.get(_RWK))

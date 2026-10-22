@@ -1770,3 +1770,235 @@ Don. **Until that runs, this rule's trigger is somebody reading the news.**
 | **Amendment 2** | untouched and still in force for acquisitions and delistings |
 | **Rows already recorded** | untouched. No backfill, by the section above |
 
+
+---
+
+## 5a-4. AMENDMENT 4 — THE OPERATIONAL-GATE WINDOW STARTS AT THE REPAIR (2026-09-23)
+
+# DRAFTED FOR SIGNATURE — NOT SIGNED. Don approved the direction in chat on 2026-10-22; he signs the text separately, after reading it.
+
+**Nothing changes until the signature row below says YES.** `valuation/edge/track_meter.py` reads
+that row on every request and is dormant while it reads anything else, so this document is the
+switch rather than a description of one. Unsigned, the gate date stays **2027-02-13**, the gate
+stays `pending`, and every figure the site shows is the one it shows today — pinned by test in
+both states.
+
+| field | value |
+|---|---|
+| **Amendment 4 signed** | **NO** |
+| **Amendment 4 operational-gate window starts** | **2026-09-23** |
+| **Amendment 4 operational gate date** | **2027-03-23** |
+
+> **TO SIGN, set the first row and nothing else, anywhere:**
+>
+> ```
+> | **Amendment 4 signed** | **YES — 2026-10-22 (Don, in chat)** |
+> ```
+>
+> The value must begin with `yes`, `signed` or `true`. **Every other outcome is not-signed,
+> including a missing row, a malformed table and two rows that disagree** — the failure
+> direction is deliberately "the old window still applies", never "a new one quietly started".
+> A signature with no usable start date is also not in force: a start the code had to guess
+> could only be guessed as the inception, which is the window this amendment exists to replace.
+
+### THE RULE
+
+> **The six-month operational-gate window starts on 2026-09-23 — the date the automated daily
+> writer became gapless — rather than at vintage 4's inception. The gate therefore falls on
+> 2027-03-23. Nothing else moves: not the 60-month verdict date, not a meter parameter, not a
+> threshold.**
+
+### WHY — an operational repair, independent of any outcome
+
+This is **Amendment 1's own argument**, applied to the gate rather than to the run. Amendment 1
+voided run #1 because *"it measured a model that has since materially changed"* and started run
+#2 with zero accrued days; its licence was that the cause — a model change — is **independent of
+the outcome** and its clause pre-existed the run. The same two things are true here, and the
+second one is stronger: §3 of this contract already says, in writing and years in advance,
+**"If the gate fails, the clock restarts from the repair, and that restart is logged with its
+reason."** This amendment is that log.
+
+**THE GATE CANNOT PASS ON 2027-02-13, AND THAT IS ARITHMETIC RATHER THAN A JUDGEMENT.** Measured
+on the record the live service serves, 2026-10-22:
+
+| | |
+|---|---|
+| **Trading days owed, 2026-07-31 → 2026-10-21** | 58 |
+| **Recorded** | 40 |
+| **Missing** | **18** — seven under vintages 1–3, **eleven under vintage 4** |
+| **Vintage 4's missing days** | 2026-08-14; then 09-02, 09-03, 09-08, 09-09, 09-10, 09-11, 09-16, 09-17, 09-18, 09-22 |
+| **§3's tolerance** | *"missing a single day's write that is filled the same week"* |
+| **What these are** | never filled at all, and the September misses are runs of two to four consecutive days |
+
+So under §3 they are **"missing days" → VOIDS the affected window**, not LOGGED — and the gate's
+own text in §3 is *"daily rows with no gaps"*. A window containing them cannot pass, at any date,
+ever. **Leaving the gate where it is does not make it strict; it makes it unreachable**, and an
+unreachable gate is the one thing §3's restart clause exists to prevent.
+
+**AND THE REPAIR IS REAL, MEASURED TO TODAY RATHER THAN QUOTED.** From 2026-09-23 to 2026-10-21:
+**21 trading days owed, 21 recorded, zero missing** — Columbus Day included, because the stock
+market is open. That is a month of unattended writes by `track-row.yml`, and it is the whole
+basis for the date.
+
+**WHY 2026-09-23 AND NOT A LATER, SAFER DATE.** It is the first day of the unbroken run — the
+earliest date that is honest — and the amendment is written now, while the window is still
+accruing, precisely so the date cannot be chosen later with the gate's outcome in view. Choosing
+a start date after seeing what the window did is the thing §5a's own disclosure forbids.
+
+### THE MISSED DAYS STAY VISIBLE AND ARE NEVER BACKFILLED
+
+**All 18 of them stay exactly where they are**, reported by
+`track_meter.recording_history` per vintage, which is the audit trail built for this purpose
+after a vintage event was found silently clearing a dated miss. The amendment moves the window
+the **gate** is measured over; it does not touch what the record says happened.
+
+- **No row is written for a day the writer missed.** A back-fill of the record VOIDS THE WHOLE
+  RUN under §3 and nothing here weakens that by a word.
+- **The 18 reconstructed points stay excluded from every count, meter and verdict**, exactly as
+  today. A reconstruction may be displayed and may never be recorded.
+- **`recording_history` keeps naming all 18 dates after the signature.** A reader who wants to
+  know whether the writer was reliable in September can still see that it was not.
+
+**WHAT DOES CHANGE, AND IT IS ONE THING:** `recording_ok` — the gate's own question — is answered
+about the gate's window once this is signed, instead of about a window containing eleven days
+nobody can ever fill. Before the signature it is measured from inception and reads FALSE; after,
+it is measured from 2026-09-23 and can pass if the writer keeps running. The vintage's own gap
+report is unchanged and still ships beside it.
+
+### THE GATE'S REALISED-COST CONDITION IS REPLACED
+
+§3's gate asks for *"realised costs near the 33.4 bps the backtest assumes"*. **That figure
+describes neither the Index nor today's backtest**, and both halves of that have to be said.
+
+| figure | what it actually describes | may it be the gate's condition? |
+|---|---|---|
+| **33.4 bps** | the **superseded** pre-correction panel's RESEARCH DECILE | No — the panel it was measured on has been restated |
+| **77.0 bps** | the **corrected** panel's RESEARCH DECILE: the all-cap, equal-weighted, flat-1/7 ranking across the whole universe | **No** — it is a different, wider book from the one the record tracks |
+| **9.44 bps** | **the book the Index actually serves**: the $10B large-cap tier, score-weighted, 8% capped, 0.30 no-trade band | **Yes** |
+
+**The gate's condition becomes: realised one-way costs near 9.435593 bps on annual turnover near
+2.809390x**, read from `valuation/screener/index_book_measured.py`
+(`SERVED_COST_BPS_ONE_WAY`, `SERVED_TURNOVER`), whose literals are pinned by test to the tracked,
+generated `CANONICAL_FIGURE_TABLE.md`. Re-run the study and the record moves; the record moving
+turns that module red.
+
+**WHY THE SERVED FIGURE IS SO MUCH SMALLER, because a tenfold drop invites suspicion.** The cost
+model is keyed on point-in-time market capitalisation, and the Index is a **large-cap** book while
+the research decile spans the whole universe including micro-caps. Cheaper names to trade, same
+cost table. It is not a cost saving anybody engineered and it is not evidence of anything; it is
+the arithmetic of which names are in which book.
+
+**THE LIMITATION TRAVELS WITH IT, UNCHANGED FROM THE ARTIFACT'S OWN WORDS: 9.44 bps is MODELLED,
+not measured on fills.** The cost model is keyed on market cap only — *"no spread, no average
+daily volume, no price level, no participation rate"* — so the gate's cost condition compares a
+realised figure against a model, which is what it did before at 33.4 and at 77.0. **Replacing the
+figure does not make the condition stronger; it makes it describe the right book.**
+
+### WHAT DOES NOT CHANGE — stated explicitly, because an amendment's scope is the thing to check
+
+| | |
+|---|---|
+| **The 60-month verdict date** | **2031-08-13**, untouched. Derived from vintage 4's inception, not from this window |
+| **σ (3.9847 pp/month), ρ (3), α (0.05)** | untouched. §6.5 forbids revising σ downward and nothing here touches it in either direction |
+| **The modelled cost drag (0.14529 pp/month)** | untouched. It is the meter's, and the meter is frozen at its own commit |
+| **SUPPORTED / UNSUPPORTED** | untouched: t ≥ +1.645 with cumulative > 0, and t ≤ −1.645 |
+| **Power at the verdict** | untouched at **49%** — §2's arithmetic has no term for the gate |
+| **Amendment 1** | untouched, in force: run #1 void, the vintage rule, the corporate-action rule |
+| **Amendment 2** | untouched, in force: §2's power input, acquisitions and delistings |
+| **Amendment 3** | untouched, in force from segment base 2027-01-25; 0 declared distributions |
+| **The bound source, the book, the benchmark, the statistic** | untouched. §5's "what is fixed and may not be changed" list is not reached by this |
+| **Vintage** | **NOT a vintage event.** No scoring, weight or construction parameter changes, so vintage 4 keeps its clock and its inception |
+| **Rows already recorded** | untouched. No backfill, by the section above |
+| **`Operational gate passed`** | still **`pending`**, and still the one row the running site parses. This amendment moves the DATE the gate is read at; it does not pass it |
+
+**THE ONE DERIVED CONSEQUENCE, named so it is not a surprise: the meter's FIRST RENDER moves with
+the gate, to 2027-03-23.** That is §5's own definition rather than a change — Option E
+*"first renders at the 6-month operational gate ... and monthly thereafter"* — so the render date
+follows the gate by construction. **The meter's parameters are untouched**; what moves is the
+first date on which a frozen meter is shown.
+
+### §3'S WHOLE-RUN VOID CLAUSE IS NOT ENGAGED — confirmed in writing
+
+§3 voids the **whole run** for exactly three things. Each is checked against this amendment:
+
+| the clause | engaged? |
+|---|---|
+| *"any back-fill of prices or positions after the fact"* | **No.** No row is written, re-derived or re-fetched. The section above makes no-backfill the amendment's own term |
+| *"any discretionary override of a pick"* | **No.** No holding, weight or selection is touched |
+| *"any change to this contract's thresholds after inception"* | **No.** The thresholds are SUPPORTED/UNSUPPORTED, σ, ρ, α and the cost drag, and all five are in the untouched table above. The operational gate's DATE is a clock, not a threshold, and §3 moves it by its own restart clause |
+
+**THE ONE THAT NEEDS MORE THAN A NO IS THE THIRD, so here is the argument rather than the
+answer.** The gate's realised-cost condition is a number and this amendment replaces it — which
+is the closest thing here to a threshold change, and it has to be defended rather than asserted.
+Three reasons, and the first alone is sufficient:
+
+1. **The gate is not a test of returns and carries no statistical threshold.** §3 defines it as
+   *"a test of whether the track is being recorded properly at all"*, explicitly *"not a test of
+   returns"*. The thresholds §3's void clause protects are the ones a verdict is read against, and
+   they are listed in §5's fixed row set — which the gate's four conditions are not part of.
+2. **It is a correction, not a loosening, and the direction is checkable.** 33.4 bps describes a
+   panel this project has formally restated; 9.44 bps describes the book the record tracks. A
+   condition written against the wrong book is not a stricter condition, it is an unmeasurable
+   one.
+3. **It moves no published figure.** Nothing on the site, in the meter or in the record changes
+   when this row changes; the only consequence is which number the gate is read against on
+   2027-03-23.
+
+**IF DON DISAGREES WITH ANY OF THAT, THE AMENDMENT IS SEVERABLE: the window-start row and the
+cost row are independent, and signing the first without the second leaves the gate's cost
+condition exactly as §3 wrote it.** That is said here so the choice is legible rather than
+bundled.
+
+### THE ALTERNATIVES, NAMED SO THE CHOICE IS LEGIBLE
+
+- **Do nothing.** The gate is unreachable: a window containing eleven unfillable days can never
+  show "daily rows with no gaps", so the headline stays `backtested` for ever regardless of how
+  well the writer runs. Costs nothing and is wrong by construction.
+- **Open a new vintage.** It would give a clean window — and §5a rule 6 is explicit that a
+  vintage reset *"buys nothing statistically"* and *"costs the whole accrued clock"*, here
+  seventy days of the 60-month verdict. It would also be a lie about the cause: **no scoring,
+  weight or construction parameter changed**, and the vintage rule exists for model changes.
+- **Back-fill the eleven days.** VOIDS THE WHOLE RUN under §3, and the eleven reconstructions
+  already exist and are already excluded for that exact reason.
+- **Void the affected window and read the verdict on the rest**, which is §3's own abort-rule
+  remedy for missing days. This is what the record already does. It handles the VERDICT and says
+  nothing about the GATE, which is a separate horizon with its own pass condition — so it leaves
+  the problem this amendment fixes untouched.
+- **This amendment.** Logs the repair with its reason, as §3 instructs, and moves one date.
+
+### THE OTHER GATE CONDITIONS, RE-CHECKED ON 2026-10-22
+
+§3's gate has four conditions. The recording one is this amendment's subject and the cost one is
+replaced above. The other two:
+
+| condition | state on 2026-10-22 |
+|---|---|
+| *"the book turning over as modelled"* | **Not yet observable.** The record is 40 rows and the book has had **0 rebalances** (`n_rebalances_so_far: 0`): it is still the inception book formed 2026-07-30, and `next_rebalance` is **2026-10-22** — being built the evening after, per the runbook's own window. Turnover cannot be compared against 2.81x/yr until at least one rebalance is on the record |
+| *"no B5-class defect outstanding"* | **One was outstanding and is now CLEAR — and not for the reason anyone expected.** Item 76 recorded *"one holding of 86 has been unpriced since 2026-08-20"*. Measured today: `track.unpriced` reads **`n_unpriced: 0, ok: true, alert: false, "every holding priced on 2026-10-21"`** |
+
+**WHAT CLEARED THE UNPRICED HOLDING, because the obvious answer is wrong and the difference
+matters.** It was **not** the 2026-10-22 rebalance, which had not been recorded at the time of
+this reading. **WBS (Webster Financial) stopped trading** — its last price is 2026-08-19, which is
+exactly the *"unpriced since 2026-08-20"* item 76 reported — and **Amendment 2's corporate-action
+rule recognised it**: the row now reads `status: "exited"`, weight **0.0**, and the book serves
+**85 positions** with its weight redistributed pro-rata (`prorata_scale: 1.007811`,
+`weight_exited: 0.00779`).
+
+So the clearance is **definitional rather than a vendor fixing a feed**: the name was removed from
+the count the gate measures against, by a rule Don signed for exactly this case. The honest
+statement is *"the condition is clear, and it cleared because the holding exited, not because it
+became priceable"* — and the exited row stays visible on the Index tab, so nothing is hidden by it.
+
+### WHAT THIS AMENDMENT DOES NOT CLAIM
+
+**IT IS NOT EVIDENCE THAT THE WRITER IS NOW VERIFIED.** §7.2 asks for an automated daily write and
+sets its own one-day test; the writer passes that test today and **no threshold has ever been
+written down for how long a clean run must be before the writer counts as verified.** 21 of 21
+trading days is a month, which is a fact and not a standard. This amendment proposes the gate's
+window; whether the run inside it is long enough is what the gate itself decides on 2027-03-23.
+
+**AND IT IS NOT A PREDICTION THAT THE GATE WILL PASS.** It makes the gate reachable. The writer
+has to keep running with no gaps for five more months, the book has to turn over as modelled
+through at least one rebalance, and the cost condition has to hold on the served book. Any of
+those can fail, and §3's restart clause would then apply again — which is the clause working, not
+the clause being used up.

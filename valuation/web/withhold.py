@@ -281,6 +281,67 @@ def flag_implausibly_low_fair_values(rows) -> int:
     return n
 
 
+#: EVERY KEY A SERVED ROW MAY CARRY A CONFIDENCE LABEL UNDER. Two, and they are different
+#: quantities: `fair_value_confidence` is the screener's own label for the estimate it wrote,
+#: and `confidence` is the 1-100 opportunity score's, which the Dip Detector and Hot Stocks
+#: render on the same row as the fair value. **BOTH ARE CAPPED, because Don's ruling is about
+#: what a reader sees beside a figure below half the price, not about which module computed
+#: the word.** Listed once so the cap and its test cannot disagree about the set.
+ROW_CONFIDENCE_KEYS = ("fair_value_confidence", "confidence")
+
+
+def cap_confidence_below_half(rows) -> int:
+    """Cap every confidence label on a row whose fair value is below half its price. Mutates.
+
+    **DON'S RULING, 2026-10-22 (item 79 section 1), option 1 of three.** Nothing is hidden, no
+    value is revalued, no text is added: the label alone is marked one level down, and item
+    76's loud flag below `FV_BAND_LOW` is untouched.
+
+    **THE ARITHMETIC IS `blend.price_ratio_cap`, NOT A SECOND COPY OF IT.** This function's job
+    is to find the rows and the keys; the rule about what a label becomes lives in one place
+    and is shared with the valuation page's own blend and with the score. `withhold`'s header
+    rule applies as written -- do not read the band and compare it yourself.
+
+    **IT RUNS AFTER `flag_implausibly_low_fair_values` AND IS INERT ON ITS ROWS**, which is the
+    composition the cap being monotone downward buys: a row already forced to "low" cannot be
+    raised to "medium" by passing through here.
+
+    **A WITHHELD ROW IS SKIPPED**, for the same reason the low flag skips it: there is no
+    published fair value left for a confidence label to describe, and `strip_derived_fields`
+    already clears `fair_value_confidence` on those rows.
+
+    Returns the number of rows whose label actually moved -- not the number inspected, so a
+    caller logging it cannot mistake "looked at 15" for "changed 15".
+    """
+    from ..engine.blend import price_ratio_cap
+
+    n = 0
+    for r in rows:
+        if not isinstance(r, dict) or r.get(ROW_WITHHELD):
+            continue
+        fv, px = r.get("fair_value"), r.get("price")
+        if fv is None or not px:
+            continue
+        try:
+            ratio = float(fv) / float(px)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        moved = False
+        for key in ROW_CONFIDENCE_KEYS:
+            cur = r.get(key)
+            if not isinstance(cur, str) or not cur.strip():
+                # ABSENT IS LEFT ABSENT. Two served names carry no label at all (INSW, JXN on
+                # 2026-10-22); writing one here would be inventing a claim rather than capping
+                # one, and `C5`'s rule is that absent is not a measured value.
+                continue
+            capped = price_ratio_cap(cur, ratio)
+            if capped != cur:
+                r[key] = capped
+                moved = True
+        n += 1 if moved else 0
+    return n
+
+
 def is_withheld_result(result) -> bool:
     """The same question asked of a ValuationResult object rather than its payload.
 
