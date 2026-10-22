@@ -1,5 +1,55 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **EODHD's filing dates are REAL, so a second-vendor replication is live — and three of its feeds do not mean what the pricing page says** (2026-10-22, `EODHD-CENSUS`)
+
+**ZERO TRIALS, `FIXED`-class** — equity `N` stays **307**, infra **20**. Step 1 of the 2026-10-22
+brief. **The whole census cost 3,023 of 100,000 daily calls.**
+
+> **THE LICENCE FENCE BINDS EVERY LANE THAT TOUCHES THIS DATA.** The EODHD **personal** plan permits
+> private, non-commercial analysis and **forbids displaying or redistributing the data "in its
+> original or repackaged form"**. The repo is **public and MIT**. So **nothing from EODHD reaches
+> valquo.co, the public repo, `data_export/` or any page**; raw rows live only under `D:\eodhd`;
+> committed artifacts carry rates, counts, spans and field **names** and never a per-name value —
+> pinned by a test that **fires when a dollar figure is planted in the census**. Any public use
+> needs a **commercial** licence and is Don's decision.
+
+**THE DECIDING ANSWER: `filing_date` IS REAL.** 100% non-null on all three statements; ~21% of
+periods carry a placeholder equal to the period end, and **those are a pre-EDGAR artefact** — real
+share **0.0000 (1980s), 0.6062 (1990s), 0.9969 (2000s), 0.9875 (2010s), 1.0000 (2020s)**, with the
+first real date **1993-12-31** on seven of eight names, exactly when EDGAR began. **Zero negative
+lags over 1,040 periods**, median lag 29–43 days. Independently, against **Sharadar ARQ**
+(as-reported): **0.8894 agreement over 15,429 pairs with a median relative difference of exactly
+0.0**; revenue is the weak field at 0.7180. **So the brief's stopping condition does not fire and
+step 4 is live, for the build era and the 1999–2008 out-of-sample era.**
+
+**THREE FEEDS ANSWER AND DO NOT MEAN WHAT THEY SAY, each failing silently.**
+**(1) The insider endpoint accepts and IGNORES `symbol=`** — `AAPL.US`, `MSFT.US` and no symbol
+return the *identical* rows, `code=` returns an **empty 200**, `offset` is ignored — and
+**`ownerCik` is non-null on 0.0000 of 500 rows**, which **settles `F-23`'s identity question in the
+negative**: the SEC's own free feed stays the only route. **(2) Historical market cap is 262
+WEEKLY points over five years** against Sharadar DAILY back to 1998, its date filter returns an
+**empty dict** before 2021, and it agrees in **rank** (Spearman **0.9973**) but not in level (median
+1.98%) — interchangeable for the `size` theme, useless for a historical tier. **(3) Corporate credit
+is 403 FORBIDDEN** on two ISINs with three alternative names 404, so it is **not** a live input for
+`tracelead`.
+
+**THE WIN, AND IT IS THE OPTIONS LANE'S:** the earnings calendar carries **4,898 US rows reaching
+forward to 2027-11-19 with a `before_after_market` flag**, plus deep history (15,489 US rows in
+2015Q1). `DECISIONS.md` 2026-10-16 records **F-4 and F-10 as blocked precisely because "the event
+spine holds no forward dates"** — handed over, licence fence attached.
+
+**COVERAGE, two figures with the weaker labelled:** undated ticker match **0.8090 of the tier** is
+an **upper bound** for `W-28`'s reason *and* biased **downward** (delisted names answer but are not
+listed) — quoted as neither. The dated figure is **0.7400**, and **the binding leg is this project's
+own identifier spine, not the vendor**: EODHD answered **0.98**, the CRSP name-interval check
+**0.76**. **CIK is the join key at 0.9932**; CUSIP 0.1020, ISIN 0.0816.
+
+**NOT DONE:** the harvest (step 2), the cross-vendor book check (step 3), the replication register
+(step 4), and the **1999–2008 delisted hole** that Enron's and Lehman's empty financials reveal —
+named as the first thing step 4 must check. `EODHD_CENSUS.md`.
+
+---
+
 ## r1 lane — **the bond candidate is neither killed nor cleared, and the coverage claim that ranked it first is not a coverage rate** (2026-10-19, `TRACELEAD`)
 
 **ZERO TRIALS, `FIXED`-class** — equity `N` stays **307**. **No register committed, no arm run, no
