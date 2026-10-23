@@ -215,8 +215,19 @@ def compare(argv=None):
     ta = set(a["ll"].dropna().sort_values(ascending=False).head(k).index)
     tb = set(b["ll"].dropna().sort_values(ascending=False).head(k).index)
     out["B2_decile_n"] = k
+    out["B2_overlapping_names"] = len(ta & tb)
     out["B2_decile_overlap"] = len(ta & tb) / max(1, len(ta))
     out["B2_pass"] = bool(out["B2_decile_overlap"] >= D9.B2_DECILE_OVERLAP)
+    # **THE MARGIN IN NAMES, NOT IN RATE.** A decile of this size moves 1.22pp per name, so the
+    # rate alone hides how thin a pass is. Quoted as a count because that is the unit the verdict
+    # actually turns on.
+    _one_fewer = (len(ta & tb) - 1) / max(1, len(ta))
+    import math
+    _min_pass = math.ceil(D9.B2_DECILE_OVERLAP * k - 1e-9)
+    out["B2_minimum_passing_name_count"] = int(_min_pass)
+    out["B2_margin_names_above_the_bar"] = int(len(ta & tb) - _min_pass)
+    out["B2_rate_if_one_fewer_name_overlapped"] = _one_fewer
+    out["B2_one_fewer_name_would_fail"] = bool(_one_fewer < D9.B2_DECILE_OVERLAP)
 
     out["B3_themes"] = {}
     for t in THEMES:
@@ -230,6 +241,27 @@ def compare(argv=None):
                                    "note": "theme absent on one side"}
     out["B3_pass"] = all(v["pass"] for v in out["B3_themes"].values())
 
+    # **TWO OF THE FOUR THEMES SHARE A PRICE SOURCE, SO THEY ARE NOT VENDOR EVIDENCE.**
+    # `price_history` is delegated to the Sharadar provider on BOTH sides, so `momentum` is built
+    # from identical price series and is near-1 BY CONSTRUCTION. `size` is a genuine reading --
+    # the only EODHD input to it is shares outstanding -- and the market-cap agreement below is
+    # what licenses saying so. The diagnostic strips both price-linked themes and re-reads the
+    # composite on `value` and `quality` alone. It carries NO BAR: it was not pre-registered, and
+    # promoting a statistic to decisive after seeing it is what D9's void conditions forbid.
+    _mc = (pd.to_numeric(a["market_cap"], errors="coerce"),
+           pd.to_numeric(b["market_cap"], errors="coerce"))
+    _rel = ((_mc[1] - _mc[0]).abs() / _mc[0].abs()).dropna()
+    out["market_cap_spearman"] = float(_mc[0].corr(_mc[1], method="spearman"))
+    out["market_cap_median_relative_difference"] = float(_rel.median()) if len(_rel) else None
+    out["market_cap_share_within_1pct"] = float((_rel <= 0.01).mean()) if len(_rel) else None
+    _vq, _ = D9._sp(D9._flat_composite(a, ("value", "quality")),
+                    D9._flat_composite(b, ("value", "quality")))
+    out["DIAGNOSTIC_composite_value_quality_only_NO_BAR"] = _vq
+    out["DIAGNOSTIC_note"] = (
+        "momentum is near-1 BY CONSTRUCTION because prices are delegated to the same provider on "
+        "both sides, so it is a check that the delegation works and NOT evidence about EODHD. The "
+        "informative B3 cells are value and quality. This diagnostic re-reads the composite "
+        "without either price-linked theme and carries no bar.")
     allpass = bool(out["B1_pass"] and out["B2_pass"] and out["B3_pass"])
     out["verdict"] = "GO" if allpass else "NO-GO"
     out["how_to_read_it"] = (
@@ -252,6 +284,13 @@ def compare(argv=None):
         print("  B3 %-9s %s (n %s)  bar %.2f  -> %s"
               % (t, "%.4f" % v["spearman"] if v["spearman"] is not None else "None",
                  v["n"], D9.B3_THEME_SPEARMAN, v["pass"]))
+    print("  B2 margin: %d of %d names overlap; one fewer would read %.4f and %s"
+          % (out["B2_overlapping_names"], k, out["B2_rate_if_one_fewer_name_overlapped"],
+             "FAIL" if out["B2_one_fewer_name_would_fail"] else "still pass"))
+    print("  market cap: spearman %.4f, median rel diff %.6f"
+          % (out["market_cap_spearman"], out["market_cap_median_relative_difference"]))
+    print("  DIAGNOSTIC (no bar) composite on value+quality only: %.4f"
+          % out["DIAGNOSTIC_composite_value_quality_only_NO_BAR"])
     print("[compare] VERDICT %s -> %s" % (out["verdict"], OUT))
     return 0
 

@@ -74,6 +74,20 @@ FIELD_MAP = {
 #: rather than scoring a theme on whatever happened to arrive.
 REQUIRED = ("revenue", "netinc", "ebit", "equity", "assets", "ncfo")
 
+#: **COLUMNS WHOSE SIGN CONVENTION DIFFERS FROM SHARADAR'S, AND THE DIFFERENCE IS MEASURED.**
+#: `_KEEP`'s own comment records the Sharadar convention: capex is a NEGATIVE outflow and the
+#: identity is `fcf = ncfo + capex`. EODHD stores it POSITIVE -- 515 of 515 non-zero values on the
+#: tier -- so handing it downstream unchanged would compute free cash flow as operating cash flow
+#: PLUS capital spending and overstate it by twice capex on every row, silently and plausibly.
+#:
+#: **WHICH SIGN IS RIGHT WAS DECIDED BY THE IDENTITY RATHER THAN BY READING THE DOCS.** Over 14,210
+#: harvested rows carrying all three fields, `|ncfo + capex - fcf| / |fcf|` has a median of
+#: **0.669614** as given and **EXACTLY 0.0** once capex is negated, with the share inside 1%
+#: going **0.0188 -> 0.9695**. A fiftyfold discrimination, so this is a measurement and not a
+#: preference. The flip is applied here, at the vendor boundary, so every consumer downstream sees
+#: one convention.
+SIGN_FLIP = ("capex",)
+
 
 def _num(v):
     try:
@@ -116,7 +130,7 @@ def fundamentals_rows(payload, ticker=None):
             for ef, sc in mapping.items():
                 v = _num(row.get(ef))
                 if v is not None:
-                    tgt[sc] = v
+                    tgt[sc] = -v if sc in SIGN_FLIP else v
     out = []
     for key in sorted(byper):
         r = byper[key]
@@ -194,8 +208,14 @@ def capex_sign(root, tickers, limit=400):
         pay = load_unit(root, t)
         if pay is None:
             continue
-        for r in fundamentals_rows(pay, t):
-            v = r.get("capex")
+        # Read the RAW vendor value, deliberately bypassing `fundamentals_rows`, which now applies
+        # `SIGN_FLIP`. Measuring the convention through the converter would measure the converter.
+        fin = (pay or {}).get("Financials") or {}
+        q = ((fin.get("Cash_Flow") or {}).get("quarterly") or {})
+        for _, row in (q.items() if isinstance(q, dict) else []):
+            if not isinstance(row, dict):
+                continue
+            v = _num(row.get("capitalExpenditures"))
             if v is None or v == 0:
                 continue
             if v < 0:
@@ -207,7 +227,11 @@ def capex_sign(root, tickers, limit=400):
     n = neg + pos
     return {"n": n, "negative": neg, "positive": pos,
             "share_negative": (neg / n if n else None),
-            "matches_sharadar_convention": (neg > pos) if n else None}
+            "raw_matches_sharadar_convention": (neg > pos) if n else None,
+            "sign_flip_applied": list(SIGN_FLIP),
+            "note": ("measured on the RAW vendor field; `fundamentals_rows` negates capex so "
+                     "downstream sees Sharadar's convention, which the fcf identity confirms "
+                     "exactly (median relative error 0.0 against 0.669614 unflipped)")}
 
 
 class EodhdProvider:
