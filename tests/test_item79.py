@@ -313,30 +313,60 @@ def _contract_with(signed: str = None, starts: str = None) -> str:
     return path
 
 
-class AmendmentFourIsDraftedAndDormant(unittest.TestCase):
+class AmendmentFourIsSignedAndTheDORMANTStateStillHolds(unittest.TestCase):
+    """**REPOINTED WHEN DON SIGNED, 2026-10-22, and not loosened.**
 
-    def test_the_shipped_contract_reads_NOT_SIGNED(self):
+    These three asserted the DRAFTED state -- not signed, gate unmoved, example inert. Two of
+    them were statements about the signature row's VALUE and are now simply the other value;
+    the property worth keeping is the DORMANCY ONE, which is that a contract reading anything
+    other than a clean YES leaves the gate exactly where the vintage puts it. That is still
+    checkable, on a copy of the real contract with the row set back, so it survives the
+    signature rather than being deleted by it.
+    """
+
+    def test_the_shipped_contract_reads_SIGNED(self):
         a4 = TM.amendment_4()
-        self.assertFalse(a4["signed"], a4["reason"])
-        self.assertIn("not a signature", a4["reason"])
+        self.assertTrue(a4["signed"], a4["reason"])
+        self.assertEqual(a4["window_starts"], "2026-09-23")
+        self.assertEqual(a4["gate_date"], "2027-03-23")
 
-    def test_and_the_gate_date_is_therefore_EXACTLY_what_it_is_today(self):
+    def test_and_the_gate_HAS_MOVED_while_the_vintage_s_own_six_months_is_still_reported(self):
         gw = TM.gate_window()
-        self.assertFalse(gw["moved"])
-        self.assertEqual(gw["gate_date"], TM.OPERATIONAL_GATE.isoformat())
-        self.assertEqual(gw["starts"], TM.INCEPTION.isoformat())
-        self.assertEqual(gw["gate_date"], "2027-02-13")
+        self.assertTrue(gw["moved"])
+        self.assertEqual(gw["gate_date"], "2027-03-23")
+        self.assertEqual(gw["starts"], "2026-09-23")
+        # THE VINTAGE'S OWN SIX MONTHS IS NOT LOST, under its own name, so a reader can see
+        # both and check the amendment moved what it said it would.
+        self.assertEqual(TM.OPERATIONAL_GATE.isoformat(), "2027-02-13")
+        self.assertEqual(TM.frozen_parameters()["vintage_six_months"], "2027-02-13")
+
+    def test_PUT_THE_ROW_BACK_AND_THE_GATE_RETURNS_which_is_the_dormancy_property(self):
+        path = _contract_with(signed="**NO**")
+        try:
+            self.assertFalse(TM.amendment_4(path)["signed"])
+            gw = TM.gate_window(path)
+            self.assertFalse(gw["moved"])
+            self.assertEqual(gw["gate_date"], TM.OPERATIONAL_GATE.isoformat())
+            self.assertEqual(gw["starts"], TM.INCEPTION.isoformat())
+        finally:
+            os.remove(path)
 
     def test_the_fenced_EXAMPLE_signature_is_not_a_signature(self):
         """The contract documents how to sign inside a fenced block inside a blockquote.
 
-        If that example parsed as a register row the amendment would be in force the moment it
-        was drafted -- which is the defect `contract_rows` was written to avoid for the
-        operational gate, and this is the second row relying on it.
+        If that example parsed as a register row the amendment would have been in force the
+        moment it was drafted -- the defect `contract_rows` was written to avoid for the
+        operational gate. **Still checkable after the signature**: set the real row back to NO
+        and the example alone must not sign it, which is the only way this property can be
+        tested on a signed contract.
         """
         text = io.open(CONTRACT, encoding="utf-8").read()
         self.assertIn("| **Amendment 4 signed** | **YES — 2026-10-22 (Don, in chat)** |", text)
-        self.assertFalse(TM.amendment_4()["signed"])
+        path = _contract_with(signed="**NO**")
+        try:
+            self.assertFalse(TM.amendment_4(path)["signed"])
+        finally:
+            os.remove(path)
 
 
 class SignedItMovesExactlyOneDate(unittest.TestCase):
@@ -419,13 +449,21 @@ class NothingElseCountsAsASignature(unittest.TestCase):
         self.assertFalse(a4["signed"])
 
     def test_TWO_ROWS_DISAGREEING_is_a_broken_register_and_not_an_approval(self):
+        """**REPOINTED AT THE SIGNATURE: the second row is now a NO.**
+
+        It used to append a YES beside the drafted NO. With the real row reading YES that
+        appended a second YES, the two AGREED, and the test passed for the wrong reason -- a
+        guard that stops exercising its own case. The conflict has to be manufactured from
+        whichever value the register does NOT hold, so it is the opposite row now, and the
+        resolution is the same either way: not signed.
+        """
         src = io.open(CONTRACT, encoding="utf-8", newline="").read()
         nl = "\r\n" if "\r\n" in src[:4000] else "\n"
         out = []
         for line in src.split(nl):
             out.append(line)
             if line.strip().startswith("| **Amendment 4 signed**"):
-                out.append("| **Amendment 4 signed** | **YES — 2026-10-22** |")
+                out.append("| **Amendment 4 signed** | **NO** |")
         fd, path = tempfile.mkstemp(suffix=".md")
         os.close(fd)
         io.open(path, "w", encoding="utf-8", newline="").write(nl.join(out))
@@ -476,6 +514,27 @@ class TheGATE_S_OWN_QUESTION_FOLLOWS_THE_WINDOW(unittest.TestCase):
         body = src.split("def recording_history", 1)[1].split("\ndef ", 1)[0]
         self.assertNotIn("gate_window", body, "the audit trail was scoped to the gate window")
 
+    def test_DETAIL_REPORTS_BOTH_SCOPES_AND_NAMES_WHICH_IS_WHICH(self):
+        """**THE DEFECT THE CONTRACT'S OWN SUITE CAUGHT WHEN DON SIGNED, pinned so it cannot
+        come back.** Signing re-scoped `started` and `recording_ok` to the gate window while
+        `meter.gaps` stayed the vintage's -- two scopes under names that did not say which, in a
+        payload a human reads, which is the wrong-object family. Both are reported now and
+        `recording_window` says which the gate-scoped pair answers about.
+
+        AND THIS IS THE SHARPEST STATEMENT OF WHAT THE SIGNATURE DID: on the same series, at the
+        same instant, the GATE's question is YES and the VINTAGE's is NO. The eleven missed days
+        are still missing -- that is why the second answer is NO -- and they no longer block the
+        gate, which is why the first is YES.
+        """
+        d = TM.detail(series=self._series(), as_of=_dt.date(2026, 10, 22))
+        self.assertTrue(d["available"], d.get("reason"))
+        self.assertTrue(d["recording_ok"], d["recording_note"])
+        self.assertFalse(d["vintage_recording_ok"])
+        self.assertIn("2026-09-23", d["recording_window"])
+        self.assertEqual(d["operational_gate_date"], "2027-03-23")
+        # The vintage's own gap report is untouched and still names all eleven.
+        self.assertEqual(d["meter"]["gaps"]["missing_count"], 11)
+
     def test_NO_ROW_IS_EVER_WRITTEN_FOR_A_MISSED_DAY(self):
         """A backfill voids the whole run. The amendment adds no writer and no filler."""
         src = io.open(TM.__file__, encoding="utf-8").read()
@@ -492,26 +551,35 @@ class TheALERTNamesTheNewDateOnlyOnceSigned(unittest.TestCase):
               "per_vintage_recording": [{"status": "OPEN",
                                          "missing_dates": ["2026-08-14", "2026-09-02"]}]}
 
-    def test_unsigned_the_sentence_is_what_it_is_today(self):
-        a = RW.record_status(detail=self.DETAIL)["alerts"]
-        line = [x for x in a if x["kind"] == "recording_not_ok"][0]["reason"]
-        self.assertIn("The operational gate cannot pass", line)
-        self.assertNotIn("2027-03-23", line)
-        self.assertNotIn("2027-02-13", line)
-
-    def test_signed_it_names_the_date(self):
-        path = _contract_with(signed="**YES — 2026-10-22 (Don, in chat)**")
+    def _reason(self, path=None):
         real = None
         try:
-            from valuation.screener import index_track as IT
-            real = IT.contract_path
-            IT.contract_path = lambda: path
+            if path is not None:
+                from valuation.screener import index_track as IT
+                real = IT.contract_path
+                IT.contract_path = lambda: path
             a = RW.record_status(detail=self.DETAIL)["alerts"]
-            line = [x for x in a if x["kind"] == "recording_not_ok"][0]["reason"]
-            self.assertIn("The operational gate (2027-03-23) cannot pass", line)
+            return [x for x in a if x["kind"] == "recording_not_ok"][0]["reason"]
         finally:
             if real is not None:
+                from valuation.screener import index_track as IT
                 IT.contract_path = real
+
+    def test_signed_it_names_the_date_which_is_the_shipped_state(self):
+        self.assertIn("The operational gate (2027-03-23) cannot pass", self._reason())
+
+    def test_and_PUT_THE_ROW_BACK_and_the_sentence_carries_no_date(self):
+        """**REPOINTED AT THE SIGNATURE.** This was the unsigned case read off the real
+        contract; now the real contract is signed, so the unsigned case is read off a copy with
+        the row set back. The property is unchanged: the alert names a date only when a
+        document says what the date is."""
+        path = _contract_with(signed="**NO**")
+        try:
+            line = self._reason(path)
+            self.assertIn("The operational gate cannot pass", line)
+            self.assertNotIn("2027-03-23", line)
+            self.assertNotIn("2027-02-13", line)
+        finally:
             os.remove(path)
 
     def test_the_date_is_DERIVED_and_never_typed_in_the_alert(self):
@@ -592,9 +660,23 @@ class TheAmendmentSaysWhatItDoesNotChange(unittest.TestCase):
         self.assertIn("FIRST RENDER", self.a4.upper())
         self.assertIn("2027-03-23", self.a4)
 
-    def test_the_signature_row_and_the_instruction_to_set_it_are_both_present(self):
-        self.assertIn("| **Amendment 4 signed** | **NO** |", self.a4)
+    def test_the_signature_row_IS_SET_and_the_instruction_that_set_it_is_still_there(self):
+        """**REPOINTED AT THE SIGNATURE.** The drafted row read NO; it reads YES now. The
+        instruction block STAYS in the document rather than being tidied away, so a reader can
+        see what was set and how -- which is the whole reason the signature is a row in a
+        tracked file rather than a flag somewhere."""
+        self.assertIn("| **Amendment 4 signed** | **YES - 2026-10-22 (Don, in chat)** |",
+                      self.a4)
+        self.assertNotIn("| **Amendment 4 signed** | **NO** |", self.a4)
         self.assertIn("set the first row and nothing else", self.a4)
+
+    def test_EXACTLY_ONE_register_row_carries_the_signature(self):
+        """Two rows disagreeing resolves to NOT signed, so a stray second row would silently
+        switch the amendment back off. Counted on the register rows, with the fenced example
+        excluded the way `contract_rows` excludes it."""
+        rows = [ln for ln in self.a4.splitlines()
+                if ln.strip().startswith("| **Amendment 4 signed**")]
+        self.assertEqual(len(rows), 1, rows)
 
 
 if __name__ == "__main__":

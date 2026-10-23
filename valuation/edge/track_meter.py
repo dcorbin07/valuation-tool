@@ -876,6 +876,27 @@ def detail(series: Sequence[dict] = None, as_of: _dt.date = None,
         started = gaps["expected_trading_days"] > 0
         out["started"] = started
         out["recording_ok"] = bool(gaps["complete"]) if started else None
+        # **WHICH WINDOW THOSE TWO ANSWER ABOUT, AND THE VINTAGE'S OWN ANSWER BESIDE IT.**
+        #
+        # Found by `tests/test_track_meter.py` going red the moment Don signed Amendment 4, and
+        # it was a real defect of mine rather than a stale assertion. §7.2's one-day writer test
+        # asks "was a row missing the day after it was due", which is a question about the
+        # VINTAGE and about any date; signing re-scoped `started` and `recording_ok` to the gate
+        # window, so for every `as_of` before 2026-09-23 they came back "not started" and the
+        # project's own writer test became unanswerable. Worse, `meter.gaps` was still the
+        # vintage's while these three were the gate's -- two scopes under names that did not say
+        # which, the wrong-object family in a payload a human reads.
+        #
+        # Both are reported now, each named. The GATE's question is `recording_ok` (that is the
+        # amendment's whole substance); the VINTAGE's is `vintage_recording_ok`, which is what
+        # this field meant before the signature and what §7.2's instrument needs.
+        out["recording_window"] = ("the Amendment 4 gate window from %s" % _gw["starts"]
+                                   if _gw["moved"] else
+                                   "this vintage, from its inception %s" % _gw["starts"])
+        _vg = m["gaps"]
+        _v_started = _vg["expected_trading_days"] > 0
+        out["vintage_started"] = _v_started
+        out["vintage_recording_ok"] = bool(_vg["complete"]) if _v_started else None
         # A vintage event clears the current vintage's gap window, so the misses owed under a
         # PREVIOUS vintage stop being reported the moment the next one opens. `recording_ok`
         # above is still the open vintage alone (the contract scopes the gate that way); this

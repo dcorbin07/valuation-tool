@@ -23626,3 +23626,124 @@ row still reads `pending` and only Don's signature touches it.
 `valuation/web/dip.py`, `valuation/web/unified.py`, `valuation/edge/track_meter.py`,
 `valuation/screener/rebalance_watch.py`, `scripts/ci_scan.py`, `scripts/i79_before.py`,
 `tests/test_item79.py`, `PAPER_TRACK_CONTRACT.md`, `README.md`, `VALQUO_LEDGER.md`.
+
+## AMENDMENT 4 IS SIGNED — Don, 2026-10-22, and the gate is 2027-03-23
+
+Don sent the one line the document asked for — *"Sign Amendment 4."* — and **one row was set**:
+
+```
+| **Amendment 4 signed** | **YES - 2026-10-22 (Don, in chat)** |
+```
+
+**THE OPERATIONAL GATE IS NOW 2027-03-23**, read on every request from
+`track_meter.gate_window`, and `recording_ok` is answered over the repaired window
+(2026-09-23 onward) instead of over one containing eleven unfillable days. Verified end to end
+rather than assumed: `amendment_4()` reads `signed: True, window_starts: 2026-09-23,
+gate_date: 2027-03-23`; `frozen_parameters()` reads `operational_gate` and `first_render` as
+2027-03-23, `vintage_six_months` still 2027-02-13 under its own name, `verdict_date` still
+**2031-08-13**, and σ 3.9846917, ρ 3.0, α 0.05, cost drag 0.14529 all unmoved.
+
+**WHAT DID NOT MOVE, checked rather than claimed:** the verdict date, every frozen meter
+parameter, the SUPPORTED/UNSUPPORTED bars, Amendments 1–3, any recorded row, the 18 missed days
+(still visible in `recording_history`, still unfilled, still excluded from every count and
+verdict), and the `Operational gate passed` row — **still `pending`**. Signing moved the date the
+gate is read at; it did not pass it, and it is not a vintage event.
+
+### it caught a surface that would have disagreed with the one it was built to agree with
+
+**`web/proof.py::_forward_track` derived the gate as `_months_after(opened, 6)`.** That was
+correct until this amendment moved the gate's window while leaving the vintage's inception alone
+— so the moment the row was set, **/proof would have shown 2027-02-13 while /api/track showed
+2027-03-23.** Two public surfaces disagreeing about the one fact the gate turns on, which is
+exactly the shape `_gate_phrase`'s own docstring was written to warn about, found by signing
+rather than by reading. Repointed to the one function, with the verdict date still derived from
+the vintage because the amendment deliberately does not touch it.
+
+**`tests/test_item61.py`'s two date tests are repointed in the same commit** (`MA59`): one
+asserted the six-months-after-the-vintage derivation and now reads `gate_window`, the other
+asserted 2027-02-13 and now reads 2027-03-23 — and its "no date is typed in `proof.py`" guard
+gained 2027-03-23 to the banned set, so the new date cannot be hard-coded there either.
+
+### six guards in item 79's own suite asserted the drafted state, and none was loosened
+
+They were right when written and describe the wrong state now. Each was repointed to the
+property it stood for:
+
+| guard | what it asserts now |
+|---|---|
+| `..._reads_NOT_SIGNED` | reads **SIGNED**, with the window and the derived gate date |
+| `...gate_date_is_EXACTLY_what_it_is_today` | the gate **HAS MOVED**, and `vintage_six_months` still reports 2027-02-13 |
+| **new:** `PUT_THE_ROW_BACK_AND_THE_GATE_RETURNS` | **the dormancy property, which is the load-bearing one** — a copy with the row at `NO` returns the gate to the vintage's own six months |
+| `fenced_EXAMPLE_signature_is_not_a_signature` | same property, on a `NO` copy — the only form that survives a signed contract |
+| `TWO_ROWS_DISAGREEING...` | **the second row is a `NO` now.** It appended a `YES` beside the drafted `NO`; against a signed register that made the two AGREE and the test passed for the wrong reason — a guard that had stopped exercising its own case |
+| `unsigned_the_sentence_is_what_it_is_today` | split in two: the signed sentence off the real contract, the unsigned one off a `NO` copy |
+| `signature_row_and_the_instruction_are_present` | the row reads **YES**, the `NO` form is **absent**, and the instruction block **stays** so a reader can see what was set and how |
+| **new:** `EXACTLY_ONE_register_row_carries_the_signature` | a stray second row would resolve to NOT signed and silently switch the amendment back off |
+
+**THE DORMANCY TEST IS THE ONE THAT MATTERS AND IT ONLY EXISTS BECAUSE OF THE SIGNATURE.** Before
+today the unsigned state was the shipped state and testing it was free. Now it has to be
+constructed, and a suite that simply deleted those assertions would have left "putting the row
+back undoes it" as a claim in prose with nothing checking it.
+
+### and a SEVENTH guard went red, and that one was a real defect of mine
+
+**`tests/test_track_meter.py` -- the contract meter's OWN suite -- failed the moment the row
+was set, and unlike the six above it was not asserting a stale state.** §7.2's one-day writer
+test asks whether a row was missing the day after it was due, for any date. Signing re-scoped
+`started` and `recording_ok` to the gate window, so for every `as_of` before 2026-09-23 they
+answered *"the gate window has not started"* -- true, and not the question -- and **the
+project's own writer test became unanswerable for the whole period before the repair.**
+
+**AND THE WORSE HALF: `meter.gaps` was still the VINTAGE's while those three fields were the
+GATE's.** Two scopes under names that did not say which, in a payload a human reads -- the
+wrong-object family, and I introduced it. `detail()` now reports BOTH, each named:
+`recording_ok` is the gate's question (the amendment's whole substance),
+`vintage_recording_ok` is what that field meant before the signature and what §7.2's
+instrument needs, and `recording_window` says which window the gate-scoped pair answers
+about.
+
+**THE SHARPEST STATEMENT OF WHAT THE SIGNATURE DID IS NOW A TEST: on one series, at one
+instant, the GATE's answer is YES and the VINTAGE's is NO.** The eleven missed days are still
+missing -- which is why the second answer is NO -- and they no longer block the gate, which is
+why the first is YES. That is the amendment in one assertion, and it exists because the suite
+it was pinned against went red rather than because I thought to write it.
+
+**I MISSED IT BY GREPPING FOR THE OLD DATE AND FINDING IT ONLY IN A COMMENT.** The suite never
+names 2027-02-13 in an assertion -- it derives everything from the open vintage, which is
+exactly the discipline this project asks for -- so a search for the stale literal could not
+find it. **A correctly-written derived test is invisible to a search for the thing it
+deliberately does not hard-code.** The full gate found it; the targeted greps did not.
+### the heading moved too, and that is the only other line
+
+`# DRAFTED FOR SIGNATURE — NOT SIGNED` → `# SIGNED — Don, 2026-10-22. THE OPERATIONAL GATE IS
+2027-03-23.` **Leaving it would have made the document contradict its own register row**, and
+Amendment 3's heading was updated the same way on the day it was signed — the precedent inside
+this same file. The replaced wording is quoted in the new text rather than deleted, and the
+paragraph beneath it says plainly that **the switch is the row and not the prose**: put the row
+back and the gate returns, with nothing else to undo. **No other line of §5a-4 is edited** — the
+terms are the ones Don read.
+
+### deliberately NOT done
+
+**§5's register did not gain an `Amended (4)` row.** Amendment 2's own text called for its
+register rows explicitly; **Amendment 4's does not**, and adding one would be going beyond what
+Don read and signed. Nothing is lost by that: §5's rows are documented as recording each
+amendment *as signed* and never rewritten, the live dates are derived, and the only §5 row any
+code reads is `Operational gate passed`. **If Don wants §5 to carry the pointer, it is a one-row
+edit and his to ask for.**
+
+**`DECISIONS.md` is untouched** — the manager's file.
+
+### the control's baseline had to be derived, because "one commit later" became real
+
+`scripts/i79_before.py`'s `_baseline` returned `HEAD~1`, with a docstring warning that one
+commit later it would silently point at the wrong tree. **One commit later arrived the same
+evening**: `HEAD~1` is now item 79 *drafted*, not the tree before it, and the control would have
+reported almost no behaviour failures — which reads as *"these tests mirror the implementation"*.
+It resolves the baseline from the repository now (`git log -S "## 5a-4."`, the commit before the
+first one that introduced the section), which survives any number of later commits and needs
+nobody to remember a hash. Re-measured against the correct baseline: **38 of 47 fail, 15 on
+BEHAVIOUR.**
+
+`PAPER_TRACK_CONTRACT.md`, `valuation/web/proof.py`, `tests/test_item61.py`,
+`tests/test_item79.py`, `tests/test_track_meter.py`, `scripts/i79_before.py`, `README.md`, `VALQUO_LEDGER.md`.

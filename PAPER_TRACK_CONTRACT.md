@@ -1775,17 +1775,31 @@ Don. **Until that runs, this rule's trigger is somebody reading the news.**
 
 ## 5a-4. AMENDMENT 4 — THE OPERATIONAL-GATE WINDOW STARTS AT THE REPAIR (2026-09-23)
 
-# DRAFTED FOR SIGNATURE — NOT SIGNED. Don approved the direction in chat on 2026-10-22; he signs the text separately, after reading it.
+# SIGNED — Don, 2026-10-22. THE OPERATIONAL GATE IS 2027-03-23.
 
-**Nothing changes until the signature row below says YES.** `valuation/edge/track_meter.py` reads
-that row on every request and is dormant while it reads anything else, so this document is the
-switch rather than a description of one. Unsigned, the gate date stays **2027-02-13**, the gate
-stays `pending`, and every figure the site shows is the one it shows today — pinned by test in
-both states.
+**THE HEADING IS THE ONLY OTHER LINE THAT MOVED, and it moved because leaving it would make
+this document contradict its own register row.** It read *"DRAFTED FOR SIGNATURE — NOT
+SIGNED"*; Don sent the one-line instruction on 2026-10-22 and the signature row below is set.
+Amendment 3's heading was updated the same way on the day it was signed, which is the precedent
+this follows. **Nothing else in this section is edited** — the terms are the ones he read.
+
+**THE SWITCH IS THE ROW, NOT THIS PROSE.** `valuation/edge/track_meter.py` reads the signature
+row on every request and is dormant while it reads anything other than a clean YES, so putting
+the row back to `NO` returns the gate to **2027-02-13** with nothing else to undo. That is
+pinned by test in BOTH directions rather than promised here, and it is what makes this document
+the switch rather than a description of one.
+
+**WHAT THE SIGNATURE DOES, AND THE WHOLE OF IT:** the operational gate's window now starts
+2026-09-23 and the gate falls **2027-03-23** (the meter's first render with it, per §5's own
+definition), and `recording_ok` is answered over that window instead of over one containing
+eleven unfillable days. **WHAT IT DOES NOT DO:** the gate is still `pending` — this moves the
+date it is read at and does not pass it — the 2031-08-13 verdict date does not move, no meter
+parameter moves, no recorded row is touched, all 18 missed days stay visible and unfilled, and
+this is not a vintage event. The table further down states every one of those as a row.
 
 | field | value |
 |---|---|
-| **Amendment 4 signed** | **NO** |
+| **Amendment 4 signed** | **YES - 2026-10-22 (Don, in chat)** |
 | **Amendment 4 operational-gate window starts** | **2026-09-23** |
 | **Amendment 4 operational gate date** | **2027-03-23** |
 
