@@ -92,8 +92,33 @@ INSIDER_LIMIT = 1000
 
 
 def freeze_root(stamp: str = "") -> str:
+    """The dated freeze directory, and it WARNS when it is about to open a second one.
+
+    **A HARVEST THAT CROSSES MIDNIGHT UTC USED TO SPLIT ITSELF IN TWO, SILENTLY.** The stamp
+    defaults to today, so a resumed run started after midnight opened `freeze_<tomorrow>` while the
+    earlier products sat in `freeze_<today>` -- one logical harvest across two directories, which
+    breaks the manifest-based resume and leaves a consumer reading a product directory that does
+    not exist. It happened: 199 fundamentals units landed in a 10-23 freeze beside 6,150 units in
+    the 10-22 one, and had to be merged by hand with their manifest paths rewritten.
+
+    So an unstamped call that is about to create a NEW freeze while another already holds a
+    manifest now says so loudly. It does not refuse -- a genuinely new campaign is entitled to a
+    new freeze -- but it cannot happen without a line in the log naming the other one.
+    """
     s = stamp or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
     p = os.path.join(EC.RAW_ROOT, "freeze_%s" % s)
+    if not stamp and not os.path.isdir(p):
+        others = []
+        if os.path.isdir(EC.RAW_ROOT):
+            for d in sorted(os.listdir(EC.RAW_ROOT)):
+                q = os.path.join(EC.RAW_ROOT, d)
+                if d.startswith("freeze_") and os.path.exists(os.path.join(q, "manifest.jsonl")):
+                    others.append(d)
+        if others:
+            print("[harvest] WARNING: opening a NEW freeze %s while these already carry a "
+                  "manifest: %s. Pass --stamp to resume one of them instead; a harvest split "
+                  "across two freezes cannot be resumed from either."
+                  % (os.path.basename(p), ", ".join(others)), flush=True)
     os.makedirs(p, exist_ok=True)
     return p
 
@@ -202,7 +227,7 @@ def fundamentals_order(names):
     return out + rest
 
 
-def harvest_fundamentals(root, done, budget_stop):
+def harvest_fundamentals(root, done, budget_stop, limit=None):
     names = us_universe()
     # The step-4 cohorts include names that are NOT in the panel (they died before it starts), so
     # the prioritised list is unioned with the universe rather than filtered to it -- otherwise the
@@ -216,8 +241,20 @@ def harvest_fundamentals(root, done, budget_stop):
         pass
     names = fundamentals_order(sorted(set(names) | set(extra)))
     todo = [t for t in names if ("fundamentals", t) not in done]
-    print("[harvest] fundamentals: %d names, %d already done, %d to do"
-          % (len(names), len(names) - len(todo), len(todo)), flush=True)
+    # `--limit` stops after the first N names of the PRIORITISED order, which is how the tier gets
+    # harvested and step 3 read before the remaining names are fetched. The manifest is the resume
+    # point, so a later run without a limit simply continues: the limit changes WHEN names arrive
+    # and never WHICH.
+    if limit:
+        todo = todo[:int(limit)]
+        print("[harvest] fundamentals: LIMITED to the first %d of the prioritised order"
+              % len(todo), flush=True)
+    # Report the count HONESTLY: before the limit is applied, so a limited run cannot describe
+    # untouched names as "already done". The first cut printed len(names) - len(todo) AFTER the
+    # limit had shrunk todo, which read as 8,815 names already harvested when none had been.
+    _done_now = sum(1 for t in names if ("fundamentals", t) in done)
+    print("[harvest] fundamentals: %d names, %d already in the manifest, %d to do this run"
+          % (len(names), _done_now, len(todo)), flush=True)
     got = miss = 0
     for i, tk in enumerate(todo, 1):
         used, cap = _budget() if i % 200 == 1 else (None, None)
@@ -388,6 +425,8 @@ def main(argv=None):
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--stamp", default="")
     ap.add_argument("--reserve", type=int, default=RESERVE)
+    ap.add_argument("--limit", type=int, default=0,
+                    help="fundamentals only: stop after the first N of the prioritised order")
     a = ap.parse_args(argv)
 
     root = freeze_root(a.stamp)
@@ -429,7 +468,9 @@ def main(argv=None):
         t0 = time.time()
         fn = {"fundamentals": harvest_fundamentals, "insider": harvest_insider,
               "mktcap": harvest_mktcap, "earnings": harvest_earnings}[a.product]
-        res[a.product] = fn(root, done, a.reserve)
+        # Only fundamentals takes a limit; the cheap products are complete in one pass.
+        kw = {"limit": a.limit} if a.product == "fundamentals" and a.limit else {}
+        res[a.product] = fn(root, done, a.reserve, **kw)
         res[a.product]["seconds"] = round(time.time() - t0, 1)
         print("[harvest] %s: %s" % (a.product, json.dumps(res[a.product])), flush=True)
     else:

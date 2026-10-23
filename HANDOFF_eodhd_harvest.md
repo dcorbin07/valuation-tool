@@ -4,11 +4,11 @@
 adopted, no construction change, not a vintage event. Raw rows live under `D:\eodhd` and never in
 git; everything committed here carries counts, rates and field names and never a per-name value.
 
-**STATUS: STEP 2 IS HALF DONE AND THE REASON IS A MEASURED COST, NOT A FAULT.** Earnings, insider
-and market cap are harvested and verified. **Fundamentals got ZERO names**, because the day's
-allowance was already gone — see §1. The harvest resumes at the midnight-GMT reset and the manifest
-is the resume point. Steps 3 and 4 are **built and gated** and read the freeze, so they cost no
-further calls once fundamentals land.
+**STATUS AFTER THE RESET: STEP 3 IS A `GO`, AND NARROWLY. STEP 4 IS DEAD ON BOTH SIDES.** The
+tier harvested (1,064 fundamentals units), step 3 cleared all four of `D9`'s pre-committed bars
+with **zero names of margin on `B2`**, and step 4's gate measured the vendor hole at **95.83% of
+dead names empty against 10.53% of survivors**. The full-universe pass is running. See §6 and §7;
+§1-§5 are the record of the harvest and of what was known before the reset.
 
 ---
 
@@ -174,3 +174,90 @@ from **both** sides of the rate.
 * **Nothing reaches valquo.co, the public repo, `data_export/` or any public page.** A switch of
   vendor on a personal plan would also need the licence question answered, because the Index is
   published — Don's decision, not a lane's.
+
+---
+
+## 6. STEP 3 IS A `GO` — AND THE PASS IS THINNER THAN THE HEADLINE LOOKS
+
+Comparison date **2026-10-02**, both sides scored by the shipped `score_universe_now`, 826
+overlapping names of (Sharadar 835, EODHD 826). Bars imported from `D9`, not retyped.
+
+| bar | reading | bar | verdict |
+|---|---|---|---|
+| **B1** like-for-like composite Spearman | **0.8948** | ≥ 0.80 | PASS |
+| **B2** top-decile overlap | **0.6098** | ≥ 0.60 | **PASS by zero names** |
+| **B3** value | **0.8596** | ≥ 0.70 | PASS |
+| **B3** quality | **0.8177** | ≥ 0.70 | PASS |
+| **B3** momentum | **0.9993** | ≥ 0.70 | PASS *(by construction — see below)* |
+| **B3** size | **0.9975** | ≥ 0.70 | PASS |
+
+**`B2` CLEARS BY NOTHING, AND THE UNIT IS NAMES.** The decile holds 82 names, the minimum passing
+count is **50**, and **50 overlap**. One name fewer reads **0.5976** and **FAILS**. A decile of this
+size moves 1.22pp per name, so the rate hides how thin that is. Reported as a count because the
+count is what the verdict turns on — `S21` missed a bar by 17bps and was recorded not-replicated,
+and this is the same knife edge on the passing side.
+
+**TWO OF THE FOUR THEMES ARE NOT VENDOR EVIDENCE, AND ONE OF THEM IS.** `price_history` is
+delegated to the Sharadar provider on **both** sides, so `momentum` is built from identical price
+series and **0.9993 is a check that the delegation works, not a reading about EODHD**. `size` is
+different: the only EODHD input to it is shares outstanding, and the market caps genuinely agree —
+Spearman **0.9975**, median relative difference **1.11%**, within 1% on **45.0%** of names, which
+echoes the census's "agrees in rank, not in level". **So the informative `B3` cells are `value`
+0.8596 and `quality` 0.8177.**
+
+**AND THE COMPOSITE WAS RE-READ WITHOUT THE PRICE-LINKED THEMES, AS A LABELLED DIAGNOSTIC WITH NO
+BAR:** `value` + `quality` alone gives **0.8023**. It still clears 0.80 — by 0.0023. So the headline
+is not *carried* by the shared-price themes, which is the reassuring direction; but both the
+headline `B2` and this diagnostic sit within a hair of their thresholds. It carries no verdict
+because it was not pre-registered, and promoting a statistic to decisive after seeing it is what
+`D9`'s void conditions forbid.
+
+**THE SIGN TRAP THE PROBE CAUGHT, AND IT WOULD HAVE BEEN SILENT.** `_KEEP`'s own comment records
+Sharadar storing capex as a **negative** outflow with `fcf = ncfo + capex`. **EODHD stores it
+positive — 516 of 516 non-zero values.** Passed through unchanged it would compute free cash flow
+as operating cash flow **plus** capital spending, overstating it by twice capex on every row, with
+plausible numbers and nothing raised. **Which sign is right was settled by the identity rather than
+by reading the documentation:** over **14,210** rows carrying all three fields the relative error is
+a median **0.669614** as given and **EXACTLY 0.0** negated, with the share inside 1% going
+**0.0188 → 0.9695**. A fiftyfold discrimination. The flip is applied at the vendor boundary so every
+consumer sees one convention, and `capex_sign()` deliberately reads the **raw** field, because
+measuring the convention through the converter would measure the converter.
+
+**PROBE, read in its own pass before any score:** 831 of 835 tier names carry a payload, **94,393
+statement rows**, every required field 0.9187–0.9925, **no mapped field never-seen**, and **1,165
+periods (1.22%) dropped for carrying no filing date** — dropped and reported, never back-filled to
+the period end.
+
+**WHAT `GO` DOES AND DOES NOT MEAN.** It means EODHD ranks this tier closely enough to stand in on
+the **live scoring path at this one date**. It is **not** a statement about the backtest, about any
+era before 2009, or about returns, and **it adopts nothing**. A switch would also need the licence
+question answered, because the Index is published — Don's decision, not a lane's.
+
+---
+
+## 7. STEP 4 IS DEAD ON BOTH SIDES OF THE JOIN, AND BOTH HALVES ARE MEASURED
+
+**OURS (§4): the era is not reachable from this universe at all.** The panel carries **zero rows
+before 2009**, so its 9,645 names are survivors-to-2009 by construction, and CRSP says **6,898 of
+13,787 era names — 0.5003 — were gone before 2009.**
+
+**THEIRS, now measured against its control, and it cost nothing** — the cohorts were harvested
+inside the prioritised pass, so the gate reads the freeze:
+
+| cohort | unknown | known but EMPTY | known with history | empty share of known | median periods |
+|---|---|---|---|---|---|
+| **dead pre-2009** | 9 | **46** | **2** | **0.9583** | **0.0** |
+| **survivors** | 3 | 6 | 51 | **0.1053** | **37.0** |
+
+**Difference 0.8531.** The control is what makes this readable: survivors of the same vintage carry
+a median of **37** statement periods, so this is **not** a vendor thin on old data — it is
+specifically companies that died before 2009 that are empty. Of 57 non-reuse dead names, **55 are
+unusable** (9 unknown + 46 empty) and **2** carry history: **3.5% usable against 85%.**
+
+> **SO THE 1999-2008 OUT-OF-SAMPLE READ THE BRIEF ASKED FOR CANNOT BE DONE, AND NOT FOR ONE REASON
+> BUT TWO INDEPENDENT ONES.** Our universe omits half the era's names, and the vendor has no
+> statements for ~96% of the names that died in it. **The two holes fall on the SAME cohort, so
+> fixing either alone changes nothing.** A replication confined to the build era remains possible;
+> the out-of-sample era is not available at any amount of analysis, and `3` reuse-suspected names
+> were excluded from both sides of the rate rather than scored against the wrong company.
+

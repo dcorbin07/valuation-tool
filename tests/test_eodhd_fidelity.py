@@ -173,14 +173,14 @@ class TheMappingIsMeasuredNotAssumed(unittest.TestCase):
         neg = self._freeze({"A": _payload(second_filing="2026-10-27")})
         r = EP.capex_sign(neg, ["A"])
         self.assertEqual(r["positive"], 0)
-        self.assertTrue(r["matches_sharadar_convention"])
+        self.assertTrue(r["raw_matches_sharadar_convention"])
         pay = _payload(second_filing="2026-10-27")
         for per in pay["Financials"]["Cash_Flow"]["quarterly"]:
             pay["Financials"]["Cash_Flow"]["quarterly"][per]["capitalExpenditures"] = "5"
         pos = self._freeze({"A": pay})
         r2 = EP.capex_sign(pos, ["A"])
         self.assertEqual(r2["negative"], 0)
-        self.assertFalse(r2["matches_sharadar_convention"])
+        self.assertFalse(r2["raw_matches_sharadar_convention"])
 
 
 class TheTwoThemesAreDeliberatelyNotServed(unittest.TestCase):
@@ -301,6 +301,112 @@ class ThePathsResolveBesideTheirInputs(unittest.TestCase):
         # `__main__` block defines its tests, executes nothing and exits 0.
         for p in (FID, GATE, __file__):
             self.assertIn('if __name__ == "__main__":', _src(p))
+
+
+class TheCapexSignIsConvertedAtTheBoundary(unittest.TestCase):
+    """EODHD stores capex POSITIVE; the licensed export stores it as a NEGATIVE outflow.
+
+    Passing it through unchanged computes `fcf = ncfo + capex` as operating cash flow PLUS capital
+    spending -- an overstatement of twice capex on every row, with plausible numbers and nothing
+    raised. Which sign is right was settled by the identity on 14,210 real rows (median relative
+    error EXACTLY 0.0 negated against 0.669614 as given), not by reading the documentation.
+    """
+
+    def test_capex_is_negated_so_downstream_sees_one_convention(self):
+        rows = EP.fundamentals_rows(_payload(second_filing="2026-10-27"), "TEST")
+        # the fixture carries capitalExpenditures = -5 and -6 as EODHD would NOT (it is positive),
+        # so the flip must turn the fixture's negatives POSITIVE -- the direction is what is pinned
+        self.assertEqual(sorted(r["capex"] for r in rows), [5.0, 6.0])
+        self.assertIn("capex", EP.SIGN_FLIP)
+
+    def test_the_sharadar_identity_is_what_decides_the_sign(self):
+        # ncfo 20, capex raw -5 -> flipped +5; Sharadar's identity is fcf = ncfo + capex.
+        pay = _payload()
+        for per in pay["Financials"]["Cash_Flow"]["quarterly"]:
+            pay["Financials"]["Cash_Flow"]["quarterly"][per]["freeCashFlow"] = "25"
+        r = EP.fundamentals_rows(pay, "TEST")[0]
+        self.assertAlmostEqual(r["ncfo"] + r["capex"], r["fcf"], places=6)
+
+    def test_the_sign_reporter_reads_the_raw_field_not_the_converted_one(self):
+        """Measuring the convention THROUGH the converter would measure the converter."""
+        src = _src(PROV)
+        self.assertIn("capitalExpenditures", src.split("def capex_sign")[1])
+        self.assertIn("raw_matches_sharadar_convention", src)
+
+
+class TheGateKeepsThreeStatesApart(unittest.TestCase):
+    def test_unknown_is_not_the_same_as_known_but_empty(self):
+        """A name the vendor has never heard of is a DIFFERENT hole from one with no statements.
+
+        **BEHAVIOURAL, NOT A SUBSTRING CHECK.** The first version of this test asserted the three
+        state strings appear in the source, and a mutation that assigned `known_empty` where
+        `unknown` belongs left every one of those strings in place and **passed** -- the
+        substring-ban family this record names repeatedly. So the three states are exercised
+        through `_measure` instead, each from an input that can only produce one of them.
+        """
+        import tempfile
+        from scripts import eodhd_delisted as G
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "fundamentals"))
+        # known but EMPTY: a General block with no statements at all (Enron's shape)
+        with io.open(os.path.join(d, "fundamentals", "EMPTYCO.json"), "w",
+                     encoding="utf-8") as fh:
+            json.dump({"payload": {"General": {"Code": "EMPTYCO", "IsDelisted": True},
+                                   "Financials": {}}}, fh)
+        # known WITH history
+        with io.open(os.path.join(d, "fundamentals", "LIVECO.json"), "w",
+                     encoding="utf-8") as fh:
+            json.dump({"payload": {"General": {"Code": "LIVECO", "IsDelisted": True},
+                                   "Financials": {"Income_Statement": {"quarterly": {
+                                       "2008-06-30": {"date": "2008-06-30"}}}}}}, fh)
+        orig = G.FREEZE
+        try:
+            G.FREEZE = d
+            self.assertEqual(G._measure("NOSUCHCO")["state"], "unknown")
+            self.assertEqual(G._measure("EMPTYCO")["state"], "known_empty")
+            self.assertEqual(G._measure("LIVECO")["state"], "known_with_history")
+            # and the two holes must not be reported as one number
+            self.assertFalse(G._measure("NOSUCHCO")["known"])
+            self.assertTrue(G._measure("EMPTYCO")["known"])
+        finally:
+            G.FREEZE = orig
+        src = _src(GATE)
+        self.assertIn("unknown_share", src)
+
+    def test_the_gate_reads_the_freeze_so_it_costs_nothing(self):
+        src = _src(GATE)
+        self.assertIn("prefer_freeze", src)
+        self.assertIn("EP.load_unit", src)
+
+
+class TheThinPassIsReportedAsThin(unittest.TestCase):
+    """A rate hides how thin a decile-overlap pass is; the unit the verdict turns on is NAMES."""
+
+    def test_the_margin_is_emitted_in_names(self):
+        src = _src(FID)
+        for key in ("B2_overlapping_names", "B2_minimum_passing_name_count",
+                    "B2_margin_names_above_the_bar", "B2_one_fewer_name_would_fail"):
+            self.assertIn(key, src)
+
+    def test_the_price_linked_caveat_and_its_diagnostic_ship_with_the_verdict(self):
+        src = _src(FID)
+        self.assertIn("BY CONSTRUCTION", src)
+        self.assertIn("DIAGNOSTIC_composite_value_quality_only_NO_BAR", src)
+        self.assertIn("carries NO BAR", src)
+
+    def test_the_landed_artifact_carries_them_if_it_exists(self):
+        import json as _json
+        from scripts import eodhd_fidelity as F
+        if not os.path.exists(F.OUT):
+            self.skipTest("SKIPPED LOUDLY: no comparison artifact at %s" % F.OUT)
+        d = _json.load(io.open(F.OUT, encoding="utf-8"))
+        self.assertEqual(d["trials"], 0)
+        self.assertEqual(d["class"], "FIXED")
+        for key in ("B2_overlapping_names", "B2_minimum_passing_name_count",
+                    "B2_one_fewer_name_would_fail", "market_cap_spearman",
+                    "DIAGNOSTIC_composite_value_quality_only_NO_BAR"):
+            self.assertIn(key, d)
+        self.assertIn(d["verdict"], ("GO", "NO-GO"))
 
 
 if __name__ == "__main__":

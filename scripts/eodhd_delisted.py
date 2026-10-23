@@ -39,6 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts import eodhd_census as EC                                   # noqa: E402
 from valuation.studies import dipcall as _D                              # noqa: E402
+from valuation.studies import eodhd_provider as EP                       # noqa: E402
 
 _DATA = _D.data_root(required=False) or os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -118,11 +119,31 @@ def cohorts():
              "dead_tickers_used": len(dead_clean)})
 
 
-def _measure(tk):
-    """One name: is it known, and are its statements there? Never silently absent."""
-    st, f = EC._get("fundamentals/%s.US" % tk, {})
-    if st != 200 or not isinstance(f, dict):
-        return {"ticker": tk, "http": st, "known": False, "periods": 0, "empty": None}
+def _measure(tk, prefer_freeze=True):
+    """One name, in THREE states that must not be merged -- and free when the freeze has it.
+
+    **THE THREE STATES.** `unknown` (the vendor returns nothing at all), `known_empty` (a `General`
+    block with zero statement periods -- Enron's and Lehman's shape) and `known_with_history`.
+    Collapsing the first two would read a name the vendor has never heard of as a name whose
+    statements are missing, and those are different holes with different fixes.
+
+    **THE FREEZE IS READ FIRST, WHICH MAKES THIS GATE COST NOTHING.** The step-4 cohorts were
+    harvested inside the prioritised fundamentals pass, so 51 of 60 dead names and 57 of 60
+    survivors are already on disk. A name ABSENT from the freeze after that pass is one the harvest
+    could not keep -- the vendor returned no `General` block -- which is the `unknown` state rather
+    than a gap in this measurement, and the route taken is recorded per name so the two cannot be
+    confused later.
+    """
+    f, route = None, "freeze"
+    if prefer_freeze:
+        f = EP.load_unit(FREEZE, tk)
+    if f is None and not prefer_freeze:
+        st, g = EC._get("fundamentals/%s.US" % tk, {})
+        route = "api"
+        f = g if (st == 200 and isinstance(g, dict)) else None
+    if not isinstance(f, dict) or not f.get("General"):
+        return {"ticker": tk, "route": route, "known": False, "periods": 0, "empty": None,
+                "state": "unknown"}
     gen = f.get("General") or {}
     fin = f.get("Financials") or {}
     pers = set()
@@ -135,9 +156,10 @@ def _measure(tk):
     # survivor the collision filter did not catch (a ticker retired and later reissued under a
     # symbol absent from today's panel). Flagged rather than counted: scoring it either way would
     # be scoring the wrong company.
-    return {"ticker": tk, "http": st, "known": bool(gen),
+    return {"ticker": tk, "route": route, "known": bool(gen),
             "is_delisted": gen.get("IsDelisted"), "periods": len(pers),
             "empty": len(pers) == 0,
+            "state": "known_empty" if len(pers) == 0 else "known_with_history",
             "reuse_suspected": (gen.get("IsDelisted") is False),
             "first": min(pers)[:10] if pers else None,
             "last": max(pers)[:10] if pers else None}
@@ -177,8 +199,13 @@ def main(argv=None):
                 rows_scored = rows
             known = [r for r in rows_scored if r["known"]]
             empt = [r for r in known if r["empty"]]
+            from collections import Counter
+            _states = Counter(r.get("state") for r in rows_scored)
             rep[label] = {
                 "requested": len(names), "known": len(known), "empty": len(empt),
+                "states": dict(_states),
+                "unknown_share": (_states.get("unknown", 0) / len(rows_scored)
+                                  if rows_scored else None),
                 "empty_share_of_known": (len(empt) / len(known) if known else None),
                 "unknown": len(names) - len(known),
                 "median_periods_of_known": (float(pd.Series([r["periods"] for r in known])
