@@ -180,6 +180,13 @@ def test_detail_reports_a_missing_day_the_day_after_it_was_due():
     Inception is day 0, so the FIRST row due is the next trading day and the earliest date on
     which its absence is detectable is the day after that. Derived from the open vintage rather
     than hard-coded, so a vintage event moves the test with the clock instead of breaking it.
+
+    **READS THE VINTAGE-SCOPED FIELDS SINCE AMENDMENT 4 WAS SIGNED (2026-10-22), and that is a
+    repair rather than a loosening.** This asserted `started` and `recording_ok`, which the
+    amendment re-scoped to the GATE's window -- so for any `as_of` before 2026-09-23 they
+    answer "the gate window has not started", which is true and is not the question here.
+    §7.2's one-day writer test is about the VINTAGE and about any date, so it reads the fields
+    that still mean that. The gate-scoped pair has its own tests in `test_item79.py`.
     """
     day0 = TM.INCEPTION
     due = day0 + dt.timedelta(days=1)
@@ -189,8 +196,10 @@ def test_detail_reports_a_missing_day_the_day_after_it_was_due():
     while detect.weekday() >= 5:
         detect += dt.timedelta(days=1)
     d = TM.detail(series=[], as_of=detect)
-    assert d["started"] is True and d["recording_ok"] is False
-    assert "MISSING" in d["recording_note"]
+    assert d["vintage_started"] is True and d["vintage_recording_ok"] is False
+    # AND THE PAYLOAD SAYS WHICH WINDOW ITS GATE-SCOPED ANSWER IS ABOUT, so the two cannot be
+    # read as one fact. Mixing them is what this test caught.
+    assert "window" in d["recording_window"] or "vintage" in d["recording_window"]
     assert due.isoformat() in d["meter"]["gaps"]["missing_dates"]
     assert day0.isoformat() not in d["meter"]["gaps"]["missing_dates"], "demanded a row on day 0"
 

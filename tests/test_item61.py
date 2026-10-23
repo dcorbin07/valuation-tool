@@ -270,21 +270,30 @@ class TheForwardDatesAreDerived(unittest.TestCase):
     followed: *"DERIVE it from `track_meter.VINTAGES`; never quote one from this file."* A
     hard-coded 2027-02-13 would be wrong the next time Don adopts anything."""
 
-    def test_the_gate_is_six_months_after_the_open_vintage(self):
+    def test_the_gate_is_the_CONTRACT_S_gate_and_the_verdict_is_the_vintage_S(self):
+        """**REPOINTED WHEN DON SIGNED AMENDMENT 4 (2026-10-22), and the two dates now come
+        from different places on purpose.** This asserted `_months_after(opened, 6)`, which was
+        the gate until the amendment moved the gate's WINDOW to the recording repair while
+        leaving the vintage's inception alone. Asserting the old derivation here would have
+        forced this page to disagree with `/api/track` about the gate date -- so it reads the
+        one function that owns it. The VERDICT still derives from the vintage, because the
+        amendment deliberately does not touch it."""
         from valuation.edge import track_meter as TM
         ft = PR._forward_track()
         self.assertIsNotNone(ft)
         v = TM.current_vintage() or {}
         opened = TM._d(v.get("opened"))
-        self.assertEqual(ft["gate"], str(TM._months_after(opened, 6)))
+        self.assertEqual(ft["gate"], str(TM._d(TM.gate_window()["gate_date"])))
         self.assertEqual(ft["verdict"], str(TM._months_after(opened, 60)))
         self.assertTrue(ft["dates_are_derived"])
 
-    def test_it_agrees_with_the_briefs_own_dates_today(self):
-        """The brief states 2027-02-13 and 2031. Derived, they match -- which is the check that
-        the derivation is right, rather than the dates being the source."""
+    def test_it_agrees_with_the_contract_s_own_dates_today(self):
+        """Derived, they match the contract -- the check that the derivation is right, rather
+        than the dates being the source. **Amendment 4 is signed, so the gate is 2027-03-23;
+        the vintage's own six months, 2027-02-13, is no longer the gate and is reported under
+        its own name in `frozen_parameters`.**"""
         ft = PR._forward_track()
-        self.assertEqual(ft["gate"], "2027-02-13")
+        self.assertEqual(ft["gate"], "2027-03-23")
         self.assertTrue(str(ft["verdict"]).startswith("2031"))
 
     def test_neither_date_is_typed_in_proof_py(self):
@@ -294,7 +303,8 @@ class TheForwardDatesAreDerived(unittest.TestCase):
                    if isinstance(n, ast.Constant) and isinstance(n.value, str)]
         # The docstring legitimately mentions the dates as the CHECK; a format string or a
         # returned value must not.
-        bad = [x for x in strings if ("2027-02-13" in x or "2031-08-13" in x)
+        bad = [x for x in strings
+               if ("2027-02-13" in x or "2031-08-13" in x or "2027-03-23" in x)
                and "derive" not in x.lower() and "brief" not in x.lower()
                and len(x) < 200]
         self.assertEqual(bad, [], bad)

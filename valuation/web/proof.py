@@ -821,9 +821,18 @@ def _forward_track() -> dict:
     from `track_meter.VINTAGES`; never quote one from this file."* A hard-coded 2027-02-13 here
     would be wrong the next time Don adopts anything.
 
-    The brief's own figures are the check: vintage 4 opened 2026-08-13, so the operational gate
-    is six months later (2027-02-13) and the verdict five years later (2031-08-13) -- which is
-    exactly what the brief states, derived rather than copied.
+    The brief's own figures are the check: vintage 4 opened 2026-08-13, so the verdict is five
+    years later (2031-08-13) -- which is exactly what the brief states, derived rather than
+    copied.
+
+    **THE GATE DATE COMES FROM `track_meter.gate_window`, NOT FROM SIX MONTHS AFTER THE VINTAGE
+    [Amendment 4, signed 2026-10-22].** It used to be `_months_after(opened, 6)`, and that was
+    right until the amendment moved the gate's WINDOW to the recording repair while leaving the
+    vintage's inception alone. Signing it would then have left this page showing 2027-02-13
+    while `/api/track` showed 2027-03-23 -- two surfaces disagreeing about the one fact the gate
+    turns on, which is precisely the shape the amendment's own reader was written to avoid.
+    **The verdict date still derives from the vintage, because the amendment deliberately does
+    not touch it.**
     """
     try:
         from ..edge import track_meter as TM
@@ -831,7 +840,7 @@ def _forward_track() -> dict:
 
         v = TM.current_vintage() or {}
         opened = TM._d(v.get("opened"))
-        gate = TM._months_after(opened, 6) if opened else None
+        gate = TM._d((TM.gate_window() or {}).get("gate_date"))
         verdict = TM._months_after(opened, 60) if opened else None
 
         rows, first, last = 0, None, None

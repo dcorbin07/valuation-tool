@@ -2,8 +2,8 @@
 """ITEM 79 — THE CONTROL: run item 79's reproductions against the PRE-FIX sources.
 
 **WHY THIS EXISTS.** `tests/test_item79.py` asserts that no fair value below half the price is
-labelled "high confidence" and that Amendment 4 is dormant until its row says YES. Both pass on
-the tree that ships them -- which is what a test asserting the implementation's own behaviour
+labelled "high confidence" and that Amendment 4's gate date follows its signature row in BOTH
+directions. Both pass on the tree that ships them -- which is what a test asserting the implementation's own behaviour
 would also do. The control is to run the identical cases against the sources as they were BEFORE
 item 79 and require them to fail. `scripts/i78_before.py` does the same for item 78.
 
@@ -14,10 +14,12 @@ the old behaviour was wrong is strong evidence. A case that fails because the fu
 constant it names did not exist yet proves only that the test is new. Both are reported by name.
 
 **AMENDMENT 4's SECTION IS EXPECTED TO BE MOSTLY NEW-SYMBOL, and that is not a weakness: an
-amendment drafted behind a signature row is additive by construction.** Its load-bearing claim
-is the opposite one -- that the UNSIGNED state is unchanged -- and that is pinned in the suite
-itself (`AmendmentFourIsDraftedAndDormant`) rather than here, because the pre-fix tree has no
-signature row to read.
+amendment implemented behind a signature row is additive by construction.** Its load-bearing
+claim is the DORMANCY one -- put the row back to `NO` and the gate returns to the vintage's own
+six months with nothing else to undo -- and that cannot be checked here at all, because the
+pre-item-79 tree has neither the row nor a reader for it. It is pinned inside the suite instead
+(`AmendmentFourIsSignedAndTheDORMANTStateStillHolds`), against a copy of the real contract with
+the row set back, which is the only form that survives the signature.
 
 It writes nothing outside the temporary directory, contacts no network and places no order.
 """
@@ -83,7 +85,21 @@ def _baseline(repo):
     `HEAD~1` is right only while item 79 is the tip; one commit later the default is silently
     the wrong tree, the control reports nothing, and that reads as *"these tests mirror the
     implementation"* rather than as *"you pointed it at the wrong commit"*.
+
+    **AND ONE COMMIT LATER IS NOW REAL: Don signed Amendment 4 the same evening**, so `HEAD~1`
+    is the DRAFTED version of item 79 rather than the tree before it. So the baseline is
+    resolved from the repository: the commit before the first one that introduced §5a-4. That
+    is derivable (`git log -S`), survives any number of later commits, and needs nobody to
+    remember a hash.
     """
+    first = subprocess.run(
+        ["git", "log", "-S", "## 5a-4.", "--reverse", "--format=%H", "--",
+         "PAPER_TRACK_CONTRACT.md"],
+        cwd=repo, capture_output=True)
+    shas = (first.stdout or b"").decode("ascii", "replace").split()
+    if shas:
+        return "%s^" % shas[0]
+    # No §5a-4 in history yet: item 79 is uncommitted, so HEAD IS the tree before it.
     dirty = subprocess.run(["git", "diff", "--name-only", "HEAD", "--"] + list(SOURCES),
                            cwd=repo, capture_output=True)
     return "HEAD" if (dirty.stdout or b"").strip() else "HEAD~1"
