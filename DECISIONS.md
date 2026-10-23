@@ -210,6 +210,27 @@ manager from Don's own words in chat.
   5. **"Waiting for cash" is a normal state:** one plain alert, and no ceiling burn.
 
   The auditor reviews item 73 before any percentage above 0.
+- **2026-10-22 — FAIR VALUES FAR BELOW PRICE (Don, chat; item 79).** A fair value below 0.5x
+  price is never labelled "high confidence"; its confidence is capped one level down. This is a
+  display judgment, not a measured threshold, and nothing is hidden or revalued. The loud flag
+  below 0.2x stays.
+- **2026-10-22 — THE SIX-MONTH CHECKPOINT MOVES TO MARCH (Don approved the direction; he signs
+  the text).** Amendment 4 is to be drafted: the operational-gate window starts 2026-09-23, when
+  the daily writer became gapless, so the gate date becomes 2027-03-23. The 11 missed days stay
+  as visible gaps and are never backfilled. The gate's outdated cost figure is replaced with the
+  served Index's own. The 2031 verdict date and the frozen meter do not change.
+- **2026-10-22 — AUDITOR'S NINTH REVIEW: SAFE TO RAISE ABOVE 0% WHEN DON CHOOSES** (`fb78445`,
+  after items 77 and 78). Going live still takes three steps, all Don's: a lane hands over a
+  `live-cycle.yml` that sends `?run=1` (installed with `install_workflows.bat`), then
+  `LIVE_PILOT_ENABLED=1`, then raising `ALPACA_ACCOUNT_1_LIVE_PCT`. The manager's advice: wait
+  until the paper slot has carried out the 2026-10-22 rebalance cleanly, and start small.
+- **2026-10-22 — EODHD FUNDAMENTALS DATA FEED (Don bought it; PERSONAL plan, ~1 month).** Key in
+  the local `.env` as `EODHD_API_KEY` only; never on Render or GitHub. The personal licence
+  forbids displaying or redistributing the data, so nothing from EODHD reaches valquo.co, the
+  public repo or `data_export/`; raw rows live under `D:\eodhd\`. r1 runs a census, harvests
+  everything useful into a dated freeze, and checks before Sharadar lapses (~2026-11-03) whether
+  EODHD reproduces the 10-22 book. Switching the rebalance vendor, or any use on the public
+  site (which needs a commercial licence), is Don's decision.
 - **2026-10-21 — AUDITOR'S EIGHTH REVIEW: NOT YET** (on `worktree-auditor-live-path-review`).
   Item 73's cash arithmetic is correct, but three blockers stand before any percentage above 0:
   (A) a missing or misnamed percentage variable is read as 0% and sells the book; (B) each
