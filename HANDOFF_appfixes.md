@@ -23747,3 +23747,140 @@ BEHAVIOUR.**
 
 `PAPER_TRACK_CONTRACT.md`, `valuation/web/proof.py`, `tests/test_item61.py`,
 `tests/test_item79.py`, `tests/test_track_meter.py`, `scripts/i79_before.py`, `README.md`, `VALQUO_LEDGER.md`.
+
+## ITEM 80 — the rebalance door read a key `conformance()` does not return, so it refused EVERY book
+
+**URGENT, landed Friday night 2026-10-23 with Don's authorisation, mid-rebalance.** He ran the
+documented command with a book that passes every check — 81 names, largest weight 1.96%, its own
+`contract_conformance` block reading `conforms: true` — and got
+`HTTP 422  the rebalance is not the contract-bound Index: conformance refused`.
+
+### the defect: one key, and it had never worked
+
+`index_mark.append_rebalance` tested `(c or {}).get("ok")` on the result of
+`valquo_index.conformance`, which returns **`conforms`** and **`why_not`** and has neither `ok`
+nor `reason`. So the expression was `None` for every book ever handed to that door — conforming
+or not — and the message fell through to the generic fallback. **A refusal that could not be
+satisfied, wearing the words of one that could.** Fixed to read `conforms`, with the reason taken
+from `why_not` joined into one string.
+
+**IT HAS NEVER ACCEPTED ANYTHING.** This is not a regression: the door has refused every
+rebalance since it was written. Nobody noticed because nobody had sent one through it until
+tonight — the Index's first rebalance in its life is this one.
+
+### why the suite was green, which is the durable part
+
+The door takes an **injectable `conformance`** so a test need not build a 50-name book, and every
+fixture injected a stub returning `{"ok": True}`. **The seam's return SHAPE differed from the
+thing it stood in for**, and `index_mark`'s own `announce` docstring already names that family in
+as many words: *"a seam whose signature differs from the thing it stands in for is how a fixture
+comes to pass against behaviour that could not happen."* It was written about a different
+function in the same file.
+
+So **every case in `tests/test_item80.py` drives the door through the REAL function with no stub
+at all** — the suite's one exception is an AST guard, below. 19 tests; **7 of 15 in the original
+cut fail on the pre-fix door**, measured by restoring the source from git and re-running.
+
+### the census step 3 asked for
+
+**Only this one site was wrong.** Checked on the syntax tree: the seed door one function along
+(`index_mark` ~line 1402), `paper_track.book_conformance`, `seed_book`,
+`held_book_conformance` and `scripts/index_best_diag` all read `conforms`/`why_not` correctly.
+The census is a test rather than a sentence here, so a new caller is visible instead of
+discovered.
+
+### a defect in my own guard, found by measuring rather than by reading
+
+The AST guard forbidding `ok`/`reason` to be read off a conformance result **did not catch the
+line that caused the outage.** `(c or {}).get("ok")` has a **`BoolOp` receiver**, not a `Name`,
+so resolving `receiver.id` returned `None` and the guard sailed past the exact expression it was
+written for — 6 of 15 cases went red on the pre-fix tree and this one stayed green. It unwraps
+the `x or {}` idiom now, the pre-fix count is **7 of 15**, and a positive control drives the
+original line through the resolution so removing the unwrapping fails loudly.
+
+**It is still a receiver-scoped guard and that is deliberate**: `.get("ok")` and `.get("reason")`
+are everywhere in this codebase and almost always correct — the door's own `out` dict has both —
+so a blanket ban would be the substring-ban family. What is forbidden is reading one off a name
+holding a conformance result.
+
+### six fixtures repointed in the same commit, and their failure was the fix working
+
+Once the door stopped believing `ok`, every suite injecting an `ok`-shaped stub refused its own
+small book: **`test_rebalance_chaining` (9 cases), `test_item75` (4), `test_item57b` (3)**. The
+stubs now return `{"conforms": ...}` / `why_not`. **Their intent is unchanged** — bypass
+conformance so the OTHER refusals can be exercised on a small book — **only the shape they speak
+is.** `MA59`: repointed in the commit that broke them, so the move is in the diff.
+
+### the deploy could not be CONFIRMED, only inferred — so now it can
+
+Item 80's own Done step is *"confirm the Render deploy is live: the service's commit, or a health
+endpoint showing the new code."* **Neither existed.** `render.yaml` sets `autoDeploy: true` and
+`healthCheckPath: /api/health`, and nothing on any surface said what had deployed. On a night
+when Don was waiting mid-rebalance, that is the difference between telling him it is live and
+telling him it probably is.
+
+`/api/health` now reports `commit` and `commit_short` from **`RENDER_GIT_COMMIT`**, which Render
+sets itself on every deploy — on the surface Render already probes, derived from `render.yaml`
+rather than assumed. **Absent reads as `null`, never as a guess**, and the health check still
+returns `ok: true` without it: a monitor must not fail for want of a deploy marker. **Nothing
+else was added** — no path, no branch, no environment, no token — and a test pins the exact key
+set, because a deploy marker is not a place to start publishing configuration. A commit SHA is
+not a secret; the repository is public under the posture `render.yaml` documents.
+
+**WHY NO OTHER CHECK COULD HAVE WORKED, and it is worth knowing before the next urgent fix:**
+`0577008` touches only `append_rebalance` and its tests. **No public surface changes**, and the
+door is POST-plus-token, which a lane may never use. So there was literally nothing observable to
+distinguish the broken door from the fixed one. The marker is not impatience; it is the only
+available evidence.
+
+### a flaw in my own confirmation, caught before it misled me
+
+My first deploy monitor waited for the **marker** commit. But the fix fast-forwarded onto main on
+its own, so Render began deploying a build that **contains the fix and lacks the marker** — and
+against that want the monitor would have reported *"not yet the fix"* about a service that
+already had it. The want is the **fix's** SHA now, which both builds contain, and the
+missing-marker window is reported as **AMBIGUOUS** rather than as either answer. Three
+distinguishable states, all emitted, so silence can never read as success.
+
+**A USEFUL NARROWING FOUND WHILE WAITING:** the live `/proof` page reads **2027-03-23** and not
+2027-02-13, which proves the serving build contains tonight's earlier Amendment 4 merge — so
+deploys were flowing and the build in front of users was already post-`a938dd2`.
+
+### what Don was told, and why a retry was safe to recommend before proof
+
+That a refusal **writes nothing**, and that **re-sending an identical event is a no-op** rather
+than a duplicate — pinned as a test tonight precisely because he would be retrying. So the worst
+case of retrying early is the identical 422, which makes the retry the fastest real test
+available to either of us.
+
+### not done
+
+No other refusal touched, `DECISIONS.md` untouched, no key, no percentage, no `.github` change.
+**The injectable `conformance` parameter is KEPT** — it is why a test need not build a 50-name
+book, and tonight's suite shows the real function is reachable without it. What changed is that
+the door reads the real return shape, so a stub returning `ok` can no longer make anything pass;
+a test pins that inversion directly.
+
+### CONFIRMED DEPLOYED, 2026-10-23 22:51 ET
+
+`https://valquo.co/api/health` reports commit **6625005**, and `git merge-base --is-ancestor`
+confirms that commit contains the fix **0577008** -- ancestry rather than eyeballing two SHAs.
+Both item-80 commits are on `origin/main`. **This is the first deploy in the project's history
+that could be CONFIRMED rather than inferred**, which is the marker earning its keep within
+twenty minutes of being written.
+
+**AND THE FIX WAS VERIFIED AGAINST DON'S OWN BOOK BEFORE HE RE-RAN**, on copies, writing
+nothing real: 81 positions, largest normalised weight 1.96%, `conforms=True why_not=[]`, and
+the door returned `ok: True, wrote: True, n_events: 1, "recorded a rebalance dated 2026-10-22
+over 81 positions"`. That clears EVERY refusal rather than only the conformance one -- the
+2026-10-22 row is recorded (`day_n 59`), the scan date is 2026-10-22 so the book was not built
+after its own event, there were zero existing events so no ordering or duplicate conflict, and
+the date is well after the 2026-07-30 inception. **Nothing else was lurking behind the bug**,
+established by running his data through the fixed door rather than by reasoning about it.
+
+Noted in passing and needing nothing: the recorded history shows `n_priced` 86 -> 85 after
+2026-08-17, which is WBS exiting -- the same corporate action Amendment 4's re-check found
+earlier the same evening.
+
+`valuation/screener/index_mark.py`, `valuation/web/app.py`, `tests/test_item80.py`,
+`tests/test_rebalance_chaining.py`, `tests/test_item75.py`, `tests/test_item57b.py`.
