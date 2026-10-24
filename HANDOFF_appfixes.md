@@ -24025,9 +24025,13 @@ the same commit (`MA59`). And `refresh_sharadar.bat` pointed at the spent
 `--bulk-overlay` path, derived from the freeze it just wrote**, so step 2's one new argument
 cannot be mistyped.
 
-**46 tests, 32 of them failing against the pre-change tree with the four sources restored
+**46 tests, 34 of them failing against the pre-change tree with the five sources restored
 byte-for-byte** (`scripts/i81_before.py`, binary I/O throughout so a CRLF source cannot be
-rewritten on the way back). Full gate green.
+rewritten on the way back). **Its baseline is a PINNED SHA rather than `HEAD`, and that was
+a defect in my own control**: reading `HEAD` is right exactly once, because the moment the
+fix lands `HEAD` IS the fix and the control reports "0 of 46 fail" -- i.e. that the tests
+pin nothing, which a later session would read and believe. Full gate green apart from the
+known pandas-3-local `test_insider_cluster.py`.
 
 **WHAT THIS DID NOT DO, named so it is not mistaken for done.** No book is built or appended;
 the recorded October book is untouched and not re-derived. **`DECISIONS.md` is not edited** and a

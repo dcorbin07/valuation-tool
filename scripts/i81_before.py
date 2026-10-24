@@ -1,7 +1,7 @@
 """Item 81's pre-fix control: how many of its tests fail against the tree as it was.
 
 A test suite that passes both before and after a change has not pinned the change. This
-restores the four changed sources from `HEAD`, runs `tests/test_item81.py` against them, puts
+restores the five changed sources from `HEAD`, runs `tests/test_item81.py` against them, puts
 them back BYTE-FOR-BYTE, and reports the count.
 
 BINARY I/O THROUGHOUT, deliberately. A harness that reads and writes text with `newline`
@@ -18,10 +18,22 @@ import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#: THE BASELINE IS A COMMITTED SHA, NOT `HEAD`, AND THAT IS NOT PEDANTRY.
+#:
+#: This read `HEAD` while item 81 was uncommitted, which is correct exactly once -- the
+#: moment the fix lands, `HEAD` IS the fix and the control comes back "0 of 46 fail", i.e.
+#: it reports that the tests pin nothing. A later session would read that and believe it.
+#:
+#: `d674186` is item 80b, the commit immediately before item 81, and the measurement taken
+#: against it on 2026-10-24 was **34 of 46 failing**. Pinning the SHA means that number stays
+#: reproducible however many commits land on top -- `MA13`'s committed-literal idiom.
+BASELINE = "d674186"
 SOURCES = ("valuation/edge/bulk.py",
            "valuation/edge/data_providers.py",
            "valuation/edge/valquo_index.py",
-           "valuation/edge/sharadar_freeze.py")
+           "valuation/edge/sharadar_freeze.py",
+           "refresh_sharadar.bat")
 
 
 def _read(p):
@@ -34,11 +46,11 @@ def _write(p, b):
         f.write(b)
 
 
-def _head(rel):
-    out = subprocess.run(["git", "-C", REPO, "show", "HEAD:" + rel],
+def _baseline(rel):
+    out = subprocess.run(["git", "-C", REPO, "show", "%s:%s" % (BASELINE, rel)],
                          capture_output=True)
     if out.returncode:
-        raise SystemExit("cannot read HEAD:%s -- %s" % (rel, out.stderr[:200]))
+        raise SystemExit("cannot read %s:%s -- %s" % (BASELINE, rel, out.stderr[:200]))
     return out.stdout
 
 
@@ -66,7 +78,7 @@ def main():
     saved = {rel: _read(os.path.join(REPO, rel)) for rel in SOURCES}
     try:
         for rel in SOURCES:
-            _write(os.path.join(REPO, rel), _head(rel))
+            _write(os.path.join(REPO, rel), _baseline(rel))
         rc, ran, bad, names = _run()
         print("PRE-FIX: %d of %d tests fail (exit %s)" % (bad, ran, rc))
         for n in sorted(names):
