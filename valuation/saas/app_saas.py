@@ -1136,7 +1136,18 @@ def create_saas_app(cfg=CONFIG):
                     _res["reported_benchmark"] = _record_reported_benchmark(_row)
                     return jsonify(_res), 200
 
-            res = index_mark.contract_row(date)
+            # `store=` SO THE ANCHOR CAN BE READ FROM WHERE THE SERVICE KEEPS IT [item 80b].
+            # Once a rebalance exists, `contract_row` has to look up the level that rebalance
+            # compounds onto; on a deploy the recorded series may live in the store rather than
+            # the CSV. Without this, the first row after Don's 2026-10-22 event would refuse.
+            # `Store()` and NOT `_store()`, FOR THE THIRD TIME IN THIS FILE -- and the two
+            # comments above already name the defect and its generalisation. I wrote
+            # `_store()` here anyway, and `tests/test_item80b.py` caught it on its first run
+            # because it drives the real route: the helper is `web/app.py`'s, so the
+            # authorised path would have raised `NameError` into the handler's `except` and
+            # returned a 500 -- strictly WORSE for Don than the 422 he already had.
+            from ..screener.store import Store as _Store80b
+            res = index_mark.contract_row(date, store=_Store80b())
 
             if not wants_append:
                 return jsonify(res)
@@ -2253,7 +2264,14 @@ def create_saas_app(cfg=CONFIG):
                 return jsonify({"ok": False,
                                 "reason": "no rebalance event in the request body"}), 400
 
-            res = index_mark.append_rebalance(event)
+            # **THE STORE IS PASSED, AND WITHOUT IT THE FIX CANNOT REACH THE SERVICE
+            # [item 80b].** `data/` is gitignored, so on a deploy the recorded series may live
+            # in the STORE rather than in the CSV -- `index_track._unpriced_block` says so in
+            # its own note, and `vs_spy_claim` already resolves CSV-then-store for exactly this
+            # reason. The door that records a rebalance has to read the series the service
+            # SERVES, or it refuses an anchor `/api/index-track` is publishing.
+            from ..screener.store import Store as _Store80b
+            res = index_mark.append_rebalance(event, store=_Store80b())
             if res.get("ok"):
                 return jsonify(res), (201 if res.get("wrote") else 200)
             # 409 for "you disagree with the record", 422 for everything else. Both are 4xx:

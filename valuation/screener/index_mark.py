@@ -382,17 +382,20 @@ def event_in_force(events: list, mark) -> dict:
     return got
 
 
-def _recorded_level(date_key: str, history_path: str = None):
+def _recorded_level(date_key: str, history_path: str = None, rows=None):
     """The multiplicative level the bound series had reached on `date_key`, or None.
 
     `1 + valquo_pct/100`, read from the RECORDED row rather than recomputed. Recomputing it
     would defeat the purpose: the anchor has to be the number the record actually carries, or
     the chained series and the published one drift apart silently from that day forward.
     """
-    try:
-        rows = (_read_history(history_path) or {}).get("rows") or []
-    except Exception:                                                    # noqa: BLE001
-        return None
+    # `rows` PRE-RESOLVED BY THE CALLER [item 80b] -- see `recorded_rows`. Falling back to the
+    # CSV keeps every existing caller bit-identical.
+    if rows is None:
+        try:
+            rows = (_read_history(history_path) or {}).get("rows") or []
+        except Exception:                                                # noqa: BLE001
+            return None
     for r in rows:
         if str(r.get("date") or "")[:10] == str(date_key)[:10]:
             v = _f(r.get("valquo_pct"))
@@ -538,17 +541,65 @@ def unpriced_run(history_path: str = None, *, n_positions=None, rows=None) -> di
     return out
 
 
-def _last_recorded_date(history_path: str = None):
+def recorded_rows(history_path: str = None, store=None) -> list:
+    """The recorded series, from the SAME source `/api/index-track` serves.  [item 80b]
+
+    **CSV FIRST, THEN THE STORE -- which is `index_track.vs_spy_claim`'s own resolution, copied
+    deliberately rather than invented:** `d = load(...)`, and `if not d["series"] and store is
+    not None: d = from_store(store)`. One recorded series, two places it can live, and a reader
+    that knows only one of them answers about a record the service is not serving.
+
+    WHY THIS EXISTS. `index_track._unpriced_block`'s own note already said it -- *"the live
+    service holds the record in its STORE rather than in the CSV `index_mark` would otherwise
+    read"* -- and nothing in this module acted on it. Don's 2026-10-22 rebalance was refused with
+    *"2026-10-22 has no recorded row"* while `/api/index-track` was serving that exact row.
+
+    **THE KEY NAMES ARE NORMALISED HERE, AND THAT IS NOT COSMETIC.** `from_store` emits
+    `valquo`/`spy`; every reader in this module expects the CSV's `valquo_pct`/`spy_pct`. Handing
+    the store's rows through unnormalised would make `_recorded_level` read `valquo_pct` off a row
+    that has no such key, return `None`, and refuse the anchor -- **the identical key-mismatch
+    this item's first half was about, one layer along, and it would have looked exactly like the
+    bug being fixed.** Returning rows in ONE vocabulary is what stops that.
+    """
+    rows = []
+    try:
+        rows = [r for r in ((_read_history(history_path) or {}).get("rows") or [])
+                if isinstance(r, dict)]
+    except Exception:                                                    # noqa: BLE001
+        rows = []
+    if rows or store is None:
+        return rows
+    try:
+        from . import index_track as _it
+        series = (_it.from_store(store) or {}).get("series") or []
+    except Exception:                                                    # noqa: BLE001
+        return []
+    out = []
+    for r in series:
+        if not isinstance(r, dict):
+            continue
+        out.append({"date": str(r.get("date") or "")[:10],
+                    "valquo_pct": r.get("valquo"), "spy_pct": r.get("spy"),
+                    "n_priced": r.get("n_priced")})
+    return out
+
+
+def _last_recorded_date(history_path: str = None, rows=None):
     """The latest date the bound record carries a row for, or None.  [item 57 B4]
 
     Separate from `_recorded_level` on purpose: that asks "was THIS day marked", which is the
     anchor question, and this asks "has a LATER day been marked", which is the ordering
     question. The door checked the first and not the second.
     """
-    try:
-        rows = (_read_history(history_path) or {}).get("rows") or []
-    except Exception:                                                    # noqa: BLE001
-        return None
+    # `rows` PRE-RESOLVED BY THE CALLER [item 80b], so the door reads the recorded series
+    # ONCE, from `recorded_rows`, and both this question and the anchor question are answered
+    # about the SAME rows. Two independent reads could disagree if the record moved between
+    # them, and the two refusals are meant to be two questions about one series.
+    if rows is None:
+        try:
+            rows = (_read_history(history_path) or {}).get("rows") or []
+        except Exception:                                                # noqa: BLE001
+            return None
     dates = [_date(str(r.get("date") or "")[:10]) for r in rows]
     dates = [d for d in dates if d is not None]
     return max(dates) if dates else None
@@ -595,7 +646,7 @@ REBALANCE_MAX_STALE_DAYS = 2
 
 
 def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = None,
-                     conformance: Callable = None) -> dict:
+                     conformance: Callable = None, store=None) -> dict:
     """Append ONE rebalance event to the bound book. Append-only, and it never rewrites.
 
     **EVERY REFUSAL LIVES HERE RATHER THAN IN THE HTTP DOOR**, so the CLI and the endpoint
@@ -625,9 +676,21 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
     `rebalances` list. Pinned by test.
     """
     import json
-    if meta_path is None:
+    # **BOTH PATHS, AND THE SECOND ONE IS ITEM 80b's BUG.** This read
+    # `meta_path, _h = index_track.default_paths()` and DISCARDED the history path, so
+    # `history_path` stayed `None` -- and `_read_history(None)` does `open(None, "rb")`, which
+    # raises `TypeError`, lands in the generic `except`, and returns a dict with NO `rows` key
+    # at all. Every recorded-row question then read an EMPTY series.
+    #
+    # Measured on Don's 2026-10-22 rebalance: refused with *"2026-10-22 has no recorded row, so
+    # a rebalance anchored there has no level to compound onto"* while `/api/index-track` was
+    # serving that exact row as the last point of its series. **The refusal was reading a file
+    # it was never given the name of.**
+    if meta_path is None or history_path is None:
         from . import index_track
-        meta_path, _h = index_track.default_paths()
+        _mp, _hp = index_track.default_paths()
+        meta_path = meta_path or _mp
+        history_path = history_path or _hp
     out = {"ok": False, "wrote": False, "reason": "", "n_events": None}
 
     if not isinstance(event, dict):
@@ -777,7 +840,13 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
                          "events are an ordered history" % (d.isoformat(), last.isoformat()))
         return out
 
-    if _recorded_level(d.isoformat(), history_path) is None:
+    # THE RECORDED SERIES, READ ONCE, FROM THE SOURCE THE SERVICE SERVES [item 80b].
+    # `recorded_rows` is CSV-then-store, which is `index_track`'s own resolution. Both
+    # refusals below are questions about THESE rows, so they cannot disagree with each other
+    # or with `/api/index-track`.
+    _rows = recorded_rows(history_path, store)
+    out["recorded_rows"] = len(_rows)
+    if _recorded_level(d.isoformat(), history_path, rows=_rows) is None:
         out["reason"] = ("%s has no recorded row, so a rebalance anchored there has no level "
                          "to compound onto" % d.isoformat())
         return out
@@ -799,7 +868,7 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
     # Refusing is the only safe branch. The operator's remedy is to append the event BEFORE
     # the next row is marked, which is what the runbook says to do; a slipped event needs a
     # decision from Don rather than a silent acceptance.
-    _latest = _last_recorded_date(history_path)
+    _latest = _last_recorded_date(history_path, rows=_rows)
     if _latest is not None and _latest > d:
         out["reason"] = (
             "the record already carries a row dated %s, which is AFTER the event date %s. "
@@ -938,7 +1007,7 @@ def distribution_credit(ticker: str, seg_base: str, mark: str, *,
 
 def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
                  now: _dt.datetime = None, refuse_before_close: bool = True,
-                 history_path: str = None) -> dict:
+                 history_path: str = None, store=None) -> dict:
     """Today's contract row, or a refusal that says why.
 
     On success:  `{"ok": True, "row": {...ROW_COLUMNS...}, "coverage": .., "unpriced": [..]}`
@@ -1058,7 +1127,25 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     # never shows up again, it just shifts every subsequent row by a constant nobody can find.
     anchor_level = 1.0
     if ev is not None and not ev.get("is_inception"):
-        rec = _recorded_level(seg_base_key, history_path)
+        # **THE PATH AND THE STORE, BOTH RESOLVED [item 80b], AND THIS WAS A LATENT OUTAGE.**
+        # `history_path` was never defaulted here and `/admin/track-row` calls
+        # `contract_row(date)` with no path at all, so `_recorded_level(seg_base_key, None)`
+        # read an EMPTY series -- and this branch only runs ONCE A REBALANCE EXISTS. The
+        # record had no events, so it had never fired. **The moment Don's 2026-10-22 event
+        # was recorded, the daily writer would have refused every row from then on** with
+        # "the rebalance dated 2026-10-22 has no recorded row", silently stopping the forward
+        # record that the operational gate depends on. Found by grepping this module's other
+        # `_recorded_level` caller rather than by hitting it.
+        #
+        # The identical defect was already found and fixed THIRTY LINES ABOVE this function's
+        # own caller in `app_saas`, whose comment reads *"`_read_history(None)` opened `None`,
+        # caught its own TypeError and returned a rowless refusal -- so the disk was never
+        # consulted at all."* Same bug, same file, one call deeper.
+        _hp = history_path
+        if _hp is None:
+            from . import index_track as _it_paths
+            _hp = _it_paths.default_paths()[1]
+        rec = _recorded_level(seg_base_key, rows=recorded_rows(_hp, store))
         if rec is None:
             return {"ok": False,
                     "reason": ("the rebalance dated " + seg_base_key + " has no recorded row, "
