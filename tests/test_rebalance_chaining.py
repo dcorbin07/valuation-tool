@@ -238,11 +238,16 @@ def test_inception_and_day_n_are_untouched_by_a_rebalance():
 # THE APPEND DOOR'S REFUSALS — append-only, ordered, anchored, and the Index
 # =======================================================================================
 def _ok_conformance(n, w, n_eligible=None):
-    return {"ok": True, "reason": ""}
+    # REPOINTED BY ITEM 80 (2026-10-23): `valquo_index.conformance` returns `conforms`
+    # and `why_not`, NOT `ok`/`reason`. This stub returned the shape the DOOR used to
+    # read, which is why that door refused every real book for weeks while this suite
+    # stayed green -- a seam whose return shape differs from the thing it stands in for.
+    return {"conforms": True, "why_not": []}
 
 
 def _no_conformance(n, w, n_eligible=None):
-    return {"ok": False, "reason": "only %d names" % n}
+    # The refusing half, in the real shape too [item 80].
+    return {"conforms": False, "why_not": ["only %d names" % n]}
 
 
 def _event(date="2026-11-20", ticker="CCC", scan_date=None):

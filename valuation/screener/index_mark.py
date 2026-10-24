@@ -662,10 +662,25 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
         # than assumed, because a book whose weights do not sum to 1 would otherwise report a
         # cap that binds when it does not.
         _tw = sum(q["weight"] for q in positions) or 1.0
-        c = conformance(len(positions), max(q["weight"] for q in positions) / _tw)
-        if not (c or {}).get("ok"):
+        c = conformance(len(positions), max(q["weight"] for q in positions) / _tw) or {}
+        # **`conforms` AND `why_not`, WHICH ARE THE KEYS THE FUNCTION ACTUALLY RETURNS
+        # [item 80, 2026-10-23].** This read `(c or {}).get("ok")` and fell back to
+        # `.get("reason")`, and `valquo_index.conformance` returns NEITHER key -- so the
+        # expression was `None` for every book, conforming or not, and **this door refused
+        # every rebalance there has ever been** with the generic fallback text. Don hit it
+        # mid-rebalance on an 81-name book at a 1.96% largest weight whose own
+        # `contract_conformance` block read `conforms: true`.
+        #
+        # **THE TESTS PASSED BECAUSE THEY INJECTED A STUB THAT RETURNED `ok`.** The `conformance`
+        # parameter exists so a test need not build a 50-name book, and a seam whose return
+        # SHAPE differs from the thing it stands in for is how a fixture comes to pass against
+        # behaviour that cannot happen -- this module's own `announce` docstring says so in as
+        # many words. `tests/test_item80.py` drives this door through the REAL function for
+        # exactly that reason, and an AST guard there pins that neither `ok` nor `reason` is
+        # read off a conformance result again.
+        if not c.get("conforms"):
             out["reason"] = ("the rebalance is not the contract-bound Index: %s"
-                             % ((c or {}).get("reason") or "conformance refused"))
+                             % ("; ".join(c.get("why_not") or []) or "conformance refused"))
             return out
 
     try:

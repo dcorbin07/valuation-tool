@@ -367,7 +367,7 @@ class B4_TheRebalanceDoor(unittest.TestCase):
                                        {"date": "2026-10-23", "n_priced": 60,
                                         "valquo_pct": 1.1}])
         got = IM.append_rebalance(ev, meta_path=bp, history_path=hp,
-                                  conformance=lambda n, w: {"ok": True})
+                                  conformance=lambda n, w: {"conforms": True})
         self.assertFalse(got["ok"], got)
         self.assertFalse(got["wrote"])
         self.assertIn("2026-10-23", got["reason"])
@@ -378,7 +378,7 @@ class B4_TheRebalanceDoor(unittest.TestCase):
         bp, hp, ev = self._setup(rows=[{"date": "2026-10-22", "n_priced": 60,
                                         "valquo_pct": 1.0}])
         got = IM.append_rebalance(ev, meta_path=bp, history_path=hp,
-                                  conformance=lambda n, w: {"ok": True})
+                                  conformance=lambda n, w: {"conforms": True})
         self.assertTrue(got["ok"], got)
         self.assertTrue(got["wrote"])
 
@@ -387,7 +387,7 @@ class B4_TheRebalanceDoor(unittest.TestCase):
         bp, hp, ev = self._setup(rows=[{"date": "2026-10-21", "n_priced": 60,
                                         "valquo_pct": 1.0}])
         got = IM.append_rebalance(ev, meta_path=bp, history_path=hp,
-                                  conformance=lambda n, w: {"ok": True})
+                                  conformance=lambda n, w: {"conforms": True})
         self.assertFalse(got["ok"])
         self.assertIn("no recorded row", got["reason"])
 

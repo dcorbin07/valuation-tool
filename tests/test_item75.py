@@ -406,7 +406,10 @@ class TheDoorRefusesABookBuiltAfterItsEvent(unittest.TestCase):
 
     @staticmethod
     def _ok(n, w):
-        return {"ok": True, "reason": ""}
+        # REPOINTED BY ITEM 80 (2026-10-23): the real `conformance` returns `conforms` and
+        # `why_not`. This stub spoke the shape the door wrongly read, which is how the door
+        # came to refuse every real book while this suite passed.
+        return {"conforms": True, "why_not": []}
 
     def _event(self, date, scan_date):
         return {"date": date, "scan_date": scan_date,
