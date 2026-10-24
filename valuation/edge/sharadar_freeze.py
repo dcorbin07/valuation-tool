@@ -434,19 +434,87 @@ def stage_derive(root: str, live_dir: str, force: bool = False) -> dict:
 # --------------------------------------------------------------------------- #
 #  3. prepare — the compact pickles the panel actually reads
 # --------------------------------------------------------------------------- #
+#: **A PREPARED CACHE IS STALE WHEN ITS SOURCE CSV IS NEWER THAN IT IS [item 81].**
+#:
+#: `prepare_*` is cache-first by design -- re-reading 2.5GB to get a pickle you already have is
+#: the waste this module exists to avoid -- and `--rebuild` was the only way to override it. So
+#: a SECOND refresh into the same freeze directory downloads fresh CSVs and then keeps the old
+#: pickles, and says "prepared daily: 17,480 tickers" while doing it.
+#:
+#: THAT IS NOT HYPOTHETICAL, and it is what the 2026-10-22 rebalance actually ran on. Measured
+#: on `data/backtest_freeze_2026-10` the morning after: every raw zip and every bulk CSV is
+#: stamped **2026-10-23**, every prepared pickle **2026-10-04**, and the `daily` cache's newest
+#: row is **2026-10-02**. The refresh worked, the caches did not move, and the book was ranked
+#: on market caps three weeks older than the session it is labelled as. Nothing said so.
+#:
+#: The freeze root is `backtest_freeze_%Y-%m`, so two refreshes in one month SHARE a directory
+#: -- which is how a 10-23 refresh came to inherit a 10-04 cache. Comparing mtimes fixes it
+#: wherever the directory came from, which is better than depending on the operator to notice
+#: the naming.
+#:
+#: TICKERS IS EXCLUDED AND THE REASON IS NAMED RATHER THAN LEFT AS AN OMISSION: it is the one
+#: table fetched from the API rather than streamed from a local file, so there is no source
+#: mtime to compare and a rebuild needs a live key. It stays cache-first and the log says so.
+STALE_IF_SOURCE_NEWER = ("actions", "events", "daily", "sf3")
+
+
+def _prepare_stale(cache_dir: str, bulk_dir: str, name: str, source: str) -> bool:
+    """Is `name`'s cache older than the CSV it was built from?
+
+    Absent cache -> not "stale", just absent; `prepare_*` builds it either way. A missing
+    source -> not stale, because there is nothing newer to rebuild from and `prepare_*`
+    already degrades to "skipping".
+    """
+    c = os.path.join(cache_dir, name + ".pkl")
+    s = os.path.join(bulk_dir, source)
+    if not (os.path.exists(c) and os.path.exists(s)):
+        return False
+    return os.path.getmtime(s) > os.path.getmtime(c)
+
+
 def stage_prepare(root: str, rebuild: bool = False) -> dict:
     from . import bulk as B
     bulk_dir = os.path.join(root, "bulk")
     cache_dir = os.path.join(bulk_dir, "prepared")
     os.makedirs(cache_dir, exist_ok=True)
+    srcs = {"actions": "actions.csv", "events": "events.csv",
+            "daily": "daily.csv", "sf3": "sf3.csv"}
+    stale = {n for n in STALE_IF_SOURCE_NEWER
+             if _prepare_stale(cache_dir, bulk_dir, n, srcs[n])}
+    for n in sorted(stale):
+        # THE LOCK HAS TO COME OFF OR THE REBUILD RAISES. `stage_lock` marks every file in a
+        # freeze read-only, which is right -- and it means `_save_cache`'s `open(p, "wb")`
+        # fails with PermissionError on exactly the files this is trying to refresh. Unlocked
+        # here, per file, and re-locked by the lock stage the same run.
+        p = os.path.join(cache_dir, n + ".pkl")
+        try:
+            os.chmod(p, stat.S_IWRITE | stat.S_IREAD)
+        except OSError:
+            pass
+        _log(f"{n}: {srcs[n]} is newer than the cache -- REBUILDING")
     out = {}
-    out["actions"] = len(B.prepare_actions(os.path.join(bulk_dir, "actions.csv"), cache_dir, rebuild))
-    out["events"] = len(B.prepare_events(os.path.join(bulk_dir, "events.csv"), cache_dir, rebuild))
-    out["daily"] = len(B.prepare_daily(os.path.join(bulk_dir, "daily.csv"), cache_dir, rebuild))
-    out["sf3"] = len(B.prepare_sf3(os.path.join(bulk_dir, "sf3.csv"), cache_dir, rebuild))
+    out["actions"] = len(B.prepare_actions(os.path.join(bulk_dir, "actions.csv"), cache_dir,
+                                           rebuild or "actions" in stale))
+    out["events"] = len(B.prepare_events(os.path.join(bulk_dir, "events.csv"), cache_dir,
+                                         rebuild or "events" in stale))
+    out["daily"] = len(B.prepare_daily(os.path.join(bulk_dir, "daily.csv"), cache_dir,
+                                       rebuild or "daily" in stale))
+    out["sf3"] = len(B.prepare_sf3(os.path.join(bulk_dir, "sf3.csv"), cache_dir,
+                                   rebuild or "sf3" in stale))
     out["tickers"] = len(B.prepare_tickers(cache_dir, api_key=_key(), rebuild=rebuild))
     for k, v in out.items():
         _log(f"prepared {k}: {v:,} tickers")
+    # THE MARKET-CAP VINTAGE, STATED. It is the number a rebalance is most sensitive to and the
+    # one nothing reported, so the refresh says it out loud and the build says it again.
+    newest = None
+    for recs in (B._load_cache("daily", cache_dir) or {}).values():
+        if recs and (newest is None or recs[-1][0] > newest):
+            newest = recs[-1][0]
+    _log(f"market caps now reach {newest} (daily cache newest row)")
+    _log("tickers is API-sourced, not refreshed from the export -- pass --rebuild with a key "
+         "to move it")
+    out["daily_newest_row"] = newest
+    out["rebuilt_because_source_newer"] = sorted(stale)
     return out
 
 

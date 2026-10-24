@@ -626,7 +626,13 @@ def _inst_breadth_at(prep, as_of, lag_days=45):
 
 
 def _daily_at(rows, as_of):
-    """Latest DAILY month-end row on/before as_of -> (marketcap, pe, pb, ps, evebitda).
+    """Latest DAILY row on/before as_of -> (marketcap, pe, pb, ps, evebitda).
+
+    "month-end" until item 81: the cache was one row per ticker-month, so an as-of earlier
+    than the month's last row fell back to the PREVIOUS month -- three weeks on a
+    rebalance built the evening after the session. `bulk.DAILY_TAIL_ROWS` now keeps each
+    ticker's recent sessions at full granularity, so this lands on an exact row. The walk
+    below is unchanged and is what makes the extra rows safe.
 
     Sharadar's own point-in-time values. Preferred over deriving market cap from
     shares x price: that derived path is what silently produced nothing when the `assets`

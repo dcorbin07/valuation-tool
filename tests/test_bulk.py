@@ -125,16 +125,35 @@ def test_sf3_keyword_binding_regression():
     assert only_calls["BBB"]["2024-03-31"]["value"] == 9999
 
 
-def test_prepare_daily_keeps_month_end_only():
+def test_prepare_daily_down_samples_and_keeps_the_month_end():
+    """REPOINTED BY ITEM 81, in the commit that moved the behaviour (`MA59`).
+
+    It was `..._keeps_month_end_only` and it FIRED, correctly: `DAILY_TAIL_ROWS` now keeps
+    each ticker's recent sessions at full granularity as well, because month-end-only threw
+    away the as-of's own row on a rebalance built the evening after the session (an as-of of
+    2026-10-22 against an export whose October row is the 23rd fell back to 09-30).
+
+    "Only the month end" was never the property worth protecting -- it was the implementation
+    of three properties that are: the cache is DOWN-SAMPLED rather than 2.5GB of daily rows,
+    every month is REPRESENTED by its last observation, and the tuple order is what
+    `_daily_at` unpacks positionally. All three are asserted here, and `tail_rows=0` pins the
+    old shape exactly, since every cache on disk was built with it.
+    """
     d = _tmp()
     out = bulk.prepare_daily(_daily_fixture(d), cache_dir=os.path.join(d, "c"))
     assert set(out) == {"AAA", "BBB"}
-    # January had two rows; only the later one survives, and rows stay ascending.
-    jan = [r for r in out["AAA"] if r[0].startswith("2024-01")]
-    assert len(jan) == 1 and jan[0][0] == "2024-01-31", out["AAA"]
-    assert [r[0] for r in out["AAA"]] == sorted(r[0] for r in out["AAA"])
+    # Each month is represented by its LAST observation -- January had two rows.
+    assert ("2024-01-31", 110.0, 16.0, 2.1, 3.1, 9.0) in out["AAA"], out["AAA"]
     # (date, marketcap, pe, pb, ps, evebitda) — order matters, _daily_at unpacks positionally.
-    assert jan[0] == ("2024-01-31", 110.0, 16.0, 2.1, 3.1, 9.0), jan[0]
+    assert [r[0] for r in out["AAA"]] == sorted(r[0] for r in out["AAA"])
+    assert all(len(r) == 6 for r in out["AAA"]), out["AAA"]
+    # DOWN-SAMPLED, and bounded by the tail rather than by the file.
+    assert len(out["AAA"]) <= bulk.DAILY_TAIL_ROWS + 12, out["AAA"]
+    # The pre-item-81 shape, which is what every pinned cache holds.
+    old = bulk.prepare_daily(_daily_fixture(d), cache_dir=os.path.join(d, "c0"),
+                             tail_rows=0)
+    jan = [r for r in old["AAA"] if r[0].startswith("2024-01")]
+    assert len(jan) == 1 and jan[0][0] == "2024-01-31", old["AAA"]
 
 
 def test_prepare_actions_split_parse():

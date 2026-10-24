@@ -206,14 +206,44 @@ def prepare_sf3(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
 # --------------------------------------------------------------------------- #
 #  DAILY — point-in-time market cap + valuation ratios
 # --------------------------------------------------------------------------- #
+#: **DAILY ROWS KEPT AT FULL GRANULARITY AT EACH TICKER'S RECENT END [item 81].**
+#:
+#: THE BLIND SPOT THIS CLOSES, measured rather than reasoned about. The down-sampling below
+#: keys on `(ticker, YYYY-MM)` and keeps the month's LAST row. `fundamental_panel._daily_at`
+#: then walks back to the newest row **on or before** the as-of -- which is correct, and which
+#: means a month whose only kept row is LATER than the as-of is skipped entirely and the answer
+#: comes from the month before.
+#:
+#: So on a fresh export taken the evening of 2026-10-23, October's kept row is 10-23, and a
+#: build `--as-of 2026-10-22` would silently take its market caps from **2026-09-30** -- three
+#: weeks stale, on the one number that decides which names clear the $10B tier. The export
+#: being fresh does not help: it is the down-sampling that throws the answer away.
+#:
+#: TWENTY-FIVE ROWS is about five weeks of sessions, chosen so a build delayed by a few weeks
+#: still lands on an exact row rather than on a month boundary. It is PER TICKER rather than
+#: keyed to the export's newest date, which keeps the rule independent of when the export was
+#: taken and leaves a delisted name's own final rows intact.
+#:
+#: **IT CAN ONLY EVER MAKE AN ANSWER MORE PRECISE, NEVER FUTURE-LOOKING.** Adding rows cannot
+#: move `_daily_at` forward past the as-of; it can only let it stop closer to it. And **no
+#: existing cache changes** -- caches are built once and research pins `data/bulk/prepared`
+#: (July 2026), which this does not rebuild.
+DAILY_TAIL_ROWS = 25
+
+
 def prepare_daily(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
-                  rebuild: bool = False) -> dict:
+                  rebuild: bool = False, tail_rows: int = DAILY_TAIL_ROWS) -> dict:
     """{ticker: [(date, marketcap, pe, pb, ps, evebitda), ...]} sorted by date.
 
-    Down-sampled to ONE ROW PER TICKER-MONTH (the last observation in each month). The
-    panel rebalances quarterly, so daily granularity is 20x waste; this turns 2.5GB into
-    a few MB while staying strictly point-in-time (we keep the last date actually present,
-    never a future one).
+    Down-sampled to ONE ROW PER TICKER-MONTH (the last observation in each month), **plus the
+    most recent `tail_rows` rows for each ticker at full daily granularity** -- see
+    `DAILY_TAIL_ROWS` for the defect that second half closes. The panel rebalances quarterly,
+    so daily granularity across all history is 20x waste; this turns 2.5GB into a hundred-odd
+    MB while staying strictly point-in-time (we keep the last date actually present, never a
+    future one).
+
+    `tail_rows=0` restores the pure month-end behaviour, which is what every cache on disk
+    today was built with.
     """
     cached = None if rebuild else _load_cache("daily", cache_dir)
     if cached is not None:
@@ -225,6 +255,7 @@ def prepare_daily(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
 
     t0 = time.time()
     latest: dict = {}          # (ticker, YYYY-MM) -> tuple
+    tail: dict = {}            # ticker -> {date: tuple}, the newest `tail_rows` only
     with open(csv_path, newline="", encoding="utf-8", errors="replace") as f:
         r = csv.reader(f)
         h = _header(r)
@@ -239,17 +270,34 @@ def prepare_daily(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
             d = row[iD]
             key = (row[iT], d[:7])
             prev = latest.get(key)
+            rec = None
             if prev is None or d > prev[0]:
-                latest[key] = (d, _f(row[iMC]), _f(row[iPE]), _f(row[iPB]),
-                               _f(row[iPS]), _f(row[iEE]))
+                rec = (d, _f(row[iMC]), _f(row[iPE]), _f(row[iPB]),
+                       _f(row[iPS]), _f(row[iEE]))
+                latest[key] = rec
+            if tail_rows:
+                # THE RECENT TAIL, AT FULL GRANULARITY. Bounded per ticker, so memory is
+                # `tickers x tail_rows` rather than the 2.5GB of rows streaming past.
+                if rec is None:
+                    rec = (d, _f(row[iMC]), _f(row[iPE]), _f(row[iPB]),
+                           _f(row[iPS]), _f(row[iEE]))
+                tb = tail.setdefault(row[iT], {})
+                tb[d] = rec
+                if len(tb) > tail_rows:
+                    del tb[min(tb)]
             if n % _PROGRESS_EVERY == 0:
                 _log(f"daily: {n/1e6:.0f}M rows, {time.time()-t0:.0f}s")
 
-    out: dict = {}
+    # UNIONED BY DATE, so a date that is both a month-end and in the tail appears once. The
+    # two sources agree on such a row by construction -- both keep the row as it was read.
+    byd: dict = {}
     for (t, _m), rec in latest.items():
-        out.setdefault(t, []).append(rec)
-    for t in out:
-        out[t].sort(key=lambda x: x[0])
+        byd.setdefault(t, {})[rec[0]] = rec
+    for t, tb in tail.items():
+        byd.setdefault(t, {}).update(tb)
+    out: dict = {}
+    for t, recs in byd.items():
+        out[t] = sorted(recs.values(), key=lambda x: x[0])
     _save_cache("daily", cache_dir, out)
     _log(f"daily: {len(out):,} tickers, {sum(len(v) for v in out.values()):,} month-rows "
          f"in {time.time()-t0:.0f}s")

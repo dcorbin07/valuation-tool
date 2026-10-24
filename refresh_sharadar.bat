@@ -9,8 +9,16 @@ rem  One double-click. Pulls a fresh Sharadar export into a dated freeze,
 rem  then updates data\backtest so the panel can see the latest close.
 rem  Prints one plain SUCCESS or FAILURE line at the end.
 rem
-rem  Written for the 2026-10-22 rebalance: Don runs this on the evening
-rem  of 2026-10-23, then follows REBALANCE_RUNBOOK_2026-10-22.md Path B.
+rem  Next rebalance: 2027-01-25. Run this on the evening of that day,
+rem  then follow REBALANCE_RUNBOOK_2027-01-25.md step 2.
+rem
+rem  IT NOW REFRESHES THE PREPARED CACHES TOO [item 81]. Step 1 rebuilds
+rem  any prepared cache whose source file is newer than it is -- without
+rem  that, a second pull in the same month downloads fresh data and keeps
+rem  the old caches, which is what made the 2026-10-22 book rank the
+rem  universe on three-week-old market caps. Step 3 then prints the exact
+rem  --bulk-overlay path the build needs; the pinned July caches under
+rem  data\bulk\prepared are never touched, because research pins them.
 rem
 rem  THE API KEY IS NEVER PRINTED. It is read from .env by the Python
 rem  tool; nothing here echoes it and nothing here writes it anywhere.
@@ -65,7 +73,15 @@ if errorlevel 2 goto SYNCFAIL
 if errorlevel 1 goto NOTNEWER
 echo.
 echo =================================================
-echo  SUCCESS: data\backtest now holds the latest close. Follow Path B.
+echo  SUCCESS: data\backtest now holds the latest close.
+echo.
+echo  The build needs this exact argument (step 2 of the runbook):
+echo.
+echo     --bulk-overlay !FREEZE!\bulk\prepared
+echo.
+echo  Without it the book is ranked on the PINNED July market caps and
+echo  the build will refuse. Check the line the build prints: it names
+echo  the newest market-cap row it is using.
 echo =================================================
 goto END
 

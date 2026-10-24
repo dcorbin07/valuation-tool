@@ -326,6 +326,13 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         # which is why CI -- where `data/` is gitignored and the book never exists -- exercises
         # the skip rather than the read.
         "tests/test_allocation.py",
+        # NOT A CONSUMER AT ALL, added 2026-10-24 (item 81) and reconciled rather than
+        # waved through. It asserts that the 2027-01-25 RUNBOOK tells Don to point `--out`
+        # at this path -- the string appears inside a document-content assertion. It never
+        # opens the file, so it cannot hold a second opinion about the book; what it pins is
+        # that the instruction to use the ONE path is still in the runbook, which is the same
+        # concern this guard has. (`--out` elsewhere means the band silently gets no `held`.)
+        "tests/test_item81.py",
         # Added 2026-08-17 (DEEPITM-FIN), reconciled rather than allow-listed. It reads
         # positions[].ticker as a MEMBERSHIP LIST -- to report how many Index names the options
         # freeze covers (11 of 86) and to ship a no-verdict cell for them. It never writes the

@@ -23884,3 +23884,161 @@ earlier the same evening.
 
 `valuation/screener/index_mark.py`, `valuation/web/app.py`, `tests/test_item80.py`,
 `tests/test_rebalance_chaining.py`, `tests/test_item75.py`, `tests/test_item57b.py`.
+
+---
+
+## ITEM 81 — the market caps were three months stale, and so were the caches that were meant to fix that
+
+**THE JANUARY REBALANCE NOW RUNS WITHOUT ANY OF OCTOBER'S WORKAROUNDS, AND THE OCTOBER NIGHT
+HAD THREE DEFECTS RATHER THAN ONE.** `DECISIONS.md` records the one that was caught — *"the
+July caches were three months stale"* — and the hand-written
+`rebalance_build_2026-10-22.py` that worked around it. Measured the morning after, that
+workaround was itself twenty days short of the session it was labelled as, and a third defect
+would have taken a further three weeks off even with a same-evening export. **The recorded book
+is in force, is recorded, and is NOT re-derived here** (nothing appended, nothing sent,
+`DECISIONS.md` not edited).
+
+**WHAT THE BUILD ACTUALLY READ ON THE NIGHT, measured rather than inferred.** `data/bulk/prepared`'s
+`daily` cache — the point-in-time market cap, the one number that decides which names clear the
+$10B floor — ends **2026-07-29**, 60 trading days before the as-of. The workaround repointed
+`daily` and `sf3` at `data/backtest_freeze_2026-10`, whose `daily` ends **2026-10-02**: better,
+and still **14 trading days** behind, on a book published as of the 22nd.
+
+**AND THE 2026-10-23 EXPORT WAS SITTING RIGHT BESIDE IT, WHICH IS THE FINDING.** In that same
+freeze directory every raw zip and every bulk CSV is stamped **2026-10-23** (`daily.csv` at
+19:55 that evening) and **every prepared pickle is stamped 2026-10-04**. `prepare_*` is
+cache-first by design — re-streaming 2.5GB for a pickle you already have is the waste `bulk.py`
+exists to avoid — and `--rebuild` was the only override, which `refresh_sharadar.bat` does not
+pass. **So the refresh downloaded a current export, reported "prepared daily: 17,480 tickers",
+and kept a cache from three weeks earlier.** The freeze root is `backtest_freeze_%Y-%m`, so two
+pulls in one month share a directory and the second inherits the first's caches. Fixed by
+comparing mtimes — a cache older than the CSV it was built from is rebuilt, the read-only
+freeze lock is lifted per file first (`_save_cache`'s `open(p, "wb")` would otherwise raise
+`PermissionError` on exactly the files being refreshed), and the refresh now prints the date the
+market caps reach.
+
+**THE THIRD DEFECT WOULD HAVE SURVIVED A PERFECT EXPORT, AND IT IS THE ONE WORTH REMEMBERING.**
+`prepare_daily` down-samples to one row per ticker-month, keeping the month's LAST row, and
+`_daily_at` walks back to the newest row **on or before** the as-of. Those two are each correct
+and together they throw the answer away: a fresh export taken on the evening of the 23rd makes
+October's only kept row **10-23**, which is LATER than an as-of of **10-22**, so the month is
+skipped and the caps come from **09-30**. Reproduced on one synthetic input, both ways, in a
+single test: month-end-only resolves the 22nd to 2026-09-30, the repaired cache resolves it to
+2026-10-22. `DAILY_TAIL_ROWS = 25` keeps each ticker's most recent ~5 weeks of sessions at full
+granularity, bounded per ticker so memory is `tickers x 25` rather than the 2.5GB streaming
+past. **It can only ever make an answer more precise, never future-looking** — adding rows
+cannot move `_daily_at` past the as-of, only let it stop closer — and **no cache on disk
+changes**, because none is rebuilt. `tail_rows=0` restores exactly what every pinned cache was
+built with.
+
+**THE REFUSAL, AND IT IS THE PART THAT MAKES THE REST UNNECESSARY TO REMEMBER.** The build now
+refuses when the `daily` cache's newest row is more than **5 trading days** before the as-of —
+about a calendar week, which is the room an operator genuinely needs. Measured against the real
+tree: `--as-of 2026-10-22` on the July caches is refused **in about ten seconds**, naming the
+cache, the date, the gap, the bar and the remedy, where before it produced a book nobody could
+tell was wrong. **It is counted in TRADING days through `market_session`** — the package's one
+calendar — so a build delayed over a holiday weekend is not refused for the holiday (`MA21`).
+**It cannot fire on a historical build and therefore needs no escape hatch**: a backtest as of
+2009 reads a cache reaching years past its as-of, and a cache that reaches past the as-of is not
+stale. Checked **twice**, by one function at two call sites (`B7`): cheaply against the
+requested date before the quarter-hour load, and again against the date the scoring resolved,
+because with no `--as-of` the effective date is not knowable until the export is loaded. The
+order is pinned off the AST, since the whole value of the first call is that it comes first.
+
+**THE OVERLAY IS PER CACHE, AND A WHOLESALE DIRECTORY SWAP WAS MEASURED TO BE WRONG.**
+`--bulk-overlay DIR` takes `daily` and `sf3` from a dated freeze and everything else from the
+pinned directory. Repointing `_bulk_dir` at the freeze instead would have been one line, and a
+freeze carries **five** caches while `data/bulk/prepared` carries **nine** — so `congress`,
+`edgar13d`, `elite_conv` and `short_interest` would all have been absent, and `_bulk` degrades a
+missing cache to `{}` and raises nothing. That is `C5`: an absent input read as a measured zero.
+**And two of the five are NARROWER in the freeze, which is why the default set is two names and
+not five**: `daily` (+158 names), `sf3` (+103) and `events` (+163) all gain names as a fresher
+export should, while `actions` is missing **1,181** and `tickers` **5,234**. Overlaying those
+would narrow the universe the book is drawn from — a construction change wearing a data
+refresh's clothes. They ship in the manifest as **AVAILABLE, NOT USED** on every build, so the
+omission is in the log rather than being a silent cap, and `--bulk-overlay-names` extends the
+set deliberately. The overlay also **refuses once any cache has been read**: half-applied is the
+worst state, because July caps with October 13F publishes a book neither export describes and
+nothing in the payload could say so.
+
+**A FOURTH DEFECT, FOUND WHILE READING THE RECORDED BOOK RATHER THAN LOOKED FOR.** Its payload
+reads `n_scored` **1,835**, against the runbook's own §6 item 4 — *"THE DEFAULT `--limit 3000` IS
+NOW A SUBSET, AND IT MOVES 9 OF ~85 NAMES"* — which carried `--limit 4000` in bold with the
+measurement. **The one-off script did not pass it**, so the book in force was scored on a
+market-cap-ranked subset of a 3,520-name export, which `WRDSProvider.universe` itself labels
+*"SMOKE-TEST SUBSET, not a verdict"*. `--limit` now defaults to **None**, i.e. the whole export
+unranked, which is the branch `universe`'s own comment calls the one verdicts come from. **A
+flag that has to be remembered on the night is the workaround this item removes.** It is not a
+filter on the edges of a book — the composite is a cross-sectional z-score, so the number of
+names scored moves the decile boundary — and **it changes which names are in the book, so it is
+flagged to Don rather than slipped in**: `--limit 3000` still works and still prints its own
+banner. Every other caller passes `data_dir=None` (the live-scan route) and is untouched.
+
+**THE END-TO-END TEST, AND IT IS A FIDELITY CHECK RATHER THAN A NEW BOOK.** A fresh `daily`
+cache was built from the freeze's own 2026-10-23 CSV into a scratch directory — **17,492
+tickers, 2,317,039 rows, newest row 2026-10-23**, in 229s, exercising the tail on real data —
+with `sf3.pkl` COPIED from the freeze unchanged so the comparison has one variable. Then the
+full build, `--as-of 2026-10-22 --config taxable --limit 3000` with the previous 2026-07-24 book
+supplied as `held` so the band had the same input, writing to a scratch path. Nothing under
+`data/` was written, nothing was appended, nothing sent.
+
+| | recorded 2026-10-22 | rebuilt on fresh caps |
+|---|---|---|
+| `data_as_of` | 2026-10-22 | **2026-10-22** |
+| positions | 81 | **81** |
+| eligible tier | 806 | 810 |
+| names scored | 1,835 | 1,834 |
+| band | applied, 27 retained | applied, **29 retained** |
+| conformance | conforms | **conforms** |
+| overlap | — | **70 of 81 (86.4%)** |
+
+**The 11 names that move are the point, not a discrepancy.** Fresher market caps move names
+across the $10B floor and re-standardise the z-score, so the eligible tier grows by four and the
+decile boundary shifts; the shared names' weights differ by at most **0.0029**. Same
+construction, same count, same as-of, same conformance, one variable changed. `in` AMG, FIX,
+KNX, NBIS, OSCR, PAYC, R, RYAN, SSL, UMBF, WTFC; `out` CART, CGNX, CINF, CL, FORM, FROG, HMC,
+KHC, ONTO, ROKU, SANM.
+
+**THE RUNBOOK IS REWRITTEN AS `REBALANCE_RUNBOOK_2027-01-25.md`** — the date DERIVED
+(`index_in_force.next_rebalance("2026-10-22")` returns `2027-01-25`, 63 trading days with
+holidays, agreeing with the recorded event's own field) rather than typed. One path, five
+commands, every argument's purpose and its failure mode in a table, the manifest and
+market-cap-vintage lines an operator must read, every refusal and its remedy, the dry run before
+the send, and §5's derive-the-vintage check. **§0 is the one thing that needs a decision:
+Sharadar access ends around 2026-11-03, a 2027-01-25 rebalance needs it renewed before then,
+that is a purchase, and it is Don's — with a table of what the frozen data can and cannot do so
+the call is made on facts.** Research is unaffected either way; a January rebalance is not.
+
+**A DEFECT IN THE RUNBOOK'S OWN FIRST DRAFT, CAUGHT BY RUNNING IT RATHER THAN READING IT.** It
+told Don to run `from valuation.screener.index_mark import next_rebalance`, and that function
+lives in **`index_in_force`** — so the one command whose whole purpose is *"check the date rather
+than trust this file"* raised `ImportError`. A grep for the module name would not have caught it,
+because the wrong module also exists. The test now **parses every `python -c` snippet the runbook
+contains and actually imports what it imports**, which catches the family rather than the
+instance. **A runbook command that does not resolve is worse than no command**, because it is
+read once a quarter, at speed, by one person.
+
+**TWO SMALLER CORRECTIONS MADE ON THE WAY.** `_daily_at`'s docstring said *"Latest DAILY
+**month-end** row"*, which stopped being true the moment the cache carried a tail — repointed in
+the same commit (`MA59`). And `refresh_sharadar.bat` pointed at the spent
+`REBALANCE_RUNBOOK_2026-10-22.md`; it now names the current runbook and **prints the exact
+`--bulk-overlay` path, derived from the freeze it just wrote**, so step 2's one new argument
+cannot be mistyped.
+
+**46 tests, 32 of them failing against the pre-change tree with the four sources restored
+byte-for-byte** (`scripts/i81_before.py`, binary I/O throughout so a CRLF source cannot be
+rewritten on the way back). Full gate green.
+
+**WHAT THIS DID NOT DO, named so it is not mistaken for done.** No book is built or appended;
+the recorded October book is untouched and not re-derived. **`DECISIONS.md` is not edited** and a
+test asserts it. No key, no `.github` change, nothing appended to the forward record. The pinned
+July caches are not rebuilt, and a test asserts the overlay path never opens a cache for
+writing. **Sharadar is not renewed and no money is spent.** `events` is left on the pinned cache
+by default (available, reported, not used) rather than quietly widened. The freeze root's
+month granularity is **not** changed to a day — the mtime rule fixes the consequence wherever
+the directory came from, which is better than depending on an operator noticing a folder name.
+
+`valuation/edge/bulk.py`, `valuation/edge/data_providers.py`, `valuation/edge/valquo_index.py`,
+`valuation/edge/sharadar_freeze.py`, `valuation/edge/fundamental_panel.py`,
+`refresh_sharadar.bat`, `REBALANCE_RUNBOOK_2027-01-25.md`, `scripts/i81_before.py`,
+`tests/test_item81.py`.

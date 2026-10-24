@@ -484,6 +484,62 @@ class WRDSProvider(HistoricalDataProvider):
         return os.path.join(os.path.dirname(os.path.normpath(self.dir or ".")),
                             "bulk", "prepared")
 
+    #: **CACHES THAT MAY COME FROM A FRESHER EXPORT THAN THE REST [item 81].**
+    #:
+    #: The bulk caches are prepared once and then pinned: every banked research figure on this
+    #: project rests on `data/bulk/prepared`, whose `daily` cache ends 2026-07-29. A quarterly
+    #: rebalance needs a market cap from the rebalance week, and rebuilding those caches in
+    #: place would silently move every one of those figures. So the build points at a DATED
+    #: directory for the caches whose staleness decides the book, and leaves the rest alone.
+    #:
+    #: **PER CACHE, NOT A WHOLESALE DIRECTORY SWAP, and that is measured rather than cautious.**
+    #: A freeze built by `sharadar_freeze` carries FIVE caches; `data/bulk/prepared` carries
+    #: nine. Repointing `_bulk_dir` at the freeze therefore empties `congress`, `edgar13d`,
+    #: `elite_conv` and `short_interest` -- and `_bulk` degrades a missing cache to `{}`, so
+    #: every consumer of those four would read "no data" and raise nothing. That is the `C5`
+    #: family: an absent input read as a measured zero.
+    #:
+    #: **AND TWO OF THE FIVE ARE NARROWER, SO THEY ARE NOT IN THE DEFAULT SET.** Measured on
+    #: the 2026-10 freeze against the July caches: `daily` (+158 names), `sf3` (+103) and
+    #: `events` (+163) all GAIN names, as a fresher export should; `actions` is missing 1,181
+    #: names and `tickers` 5,234. Overlaying those two would narrow the universe the book is
+    #: drawn from, which is a construction change wearing a data refresh's clothes. They stay
+    #: available to `--bulk-overlay-names` and are reported as AVAILABLE, NOT USED, so the
+    #: omission is visible in the build log rather than being a silent cap.
+    BULK_OVERLAY_DEFAULT = ("daily", "sf3")
+
+    def bulk_overlay(self, directory, names=None):
+        """Take `names` from `directory` and everything else from `bulk_dir`.
+
+        Returns the manifest: {name: {"source": dir, "entries": n, "used": bool}} for every
+        cache the overlay directory holds, used or not. Must be called BEFORE any cache is
+        read -- it refuses afterwards rather than half-applying, because a build that read
+        `daily` from July and `sf3` from October would publish a book neither export
+        describes, and nothing in the payload could say so.
+        """
+        if getattr(self, "_bulk_cache", None):
+            raise RuntimeError(
+                "bulk_overlay: caches already read (%s); set the overlay before scoring"
+                % ",".join(sorted(self._bulk_cache)))
+        if not os.path.isdir(directory):
+            raise RuntimeError("bulk_overlay: %r is not a directory" % directory)
+        from .bulk import _load_cache
+        want = tuple(names) if names else tuple(self.BULK_OVERLAY_DEFAULT)
+        present = sorted(f[:-4] for f in os.listdir(directory) if f.endswith(".pkl"))
+        missing = [n for n in want if n not in present]
+        if missing:
+            raise RuntimeError("bulk_overlay: %r holds no %s cache (it holds %s)"
+                               % (directory, ", ".join(missing), ", ".join(present) or "none"))
+        self._bulk_overlay = (directory, want)
+        man = {}
+        for n in present:
+            used = n in want
+            d = _load_cache(n, directory if used else self.bulk_dir) or {}
+            man[n] = {"source": directory if used else self.bulk_dir,
+                      "entries": len(d), "used": used}
+        self.bulk_manifest = man
+        return man
+
     def _bulk(self, name):
         cache = getattr(self, "_bulk_cache", None)
         if cache is None:
@@ -491,7 +547,9 @@ class WRDSProvider(HistoricalDataProvider):
         if name not in cache:
             try:
                 from .bulk import _load_cache
-                cache[name] = _load_cache(name, self.bulk_dir) or {}
+                ov = getattr(self, "_bulk_overlay", None)
+                d = ov[0] if (ov and name in ov[1]) else self.bulk_dir
+                cache[name] = _load_cache(name, d) or {}
             except Exception:
                 cache[name] = {}
         return cache[name]

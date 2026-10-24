@@ -646,7 +646,90 @@ def _enrich_profiles(payload: dict, store=None) -> str:
     return f"filled name/sector on {filled} of {len(positions)} positions from the live feed"
 
 
-def _full_universe_rows(data_dir: str, limit: int = 3000, as_of: str = None):
+#: **HOW MANY SESSIONS THE MARKET MAY HAVE TRADED THAT THE MARKET-CAP CACHE CANNOT SEE
+#: [item 81].**
+#:
+#: The 2026-10-22 rebalance was built against a `daily` cache ending **2026-07-29** -- sixty
+#: sessions, three months, on the one number that decides which names clear the $10B tier --
+#: and nothing anywhere said so. It was caught by hand on the night, worked around by hand on
+#: the night, and the worked-around build still scored its caps from **2026-10-02**, fourteen
+#: sessions behind the session it was labelled as. Both of those must refuse rather than pass.
+#:
+#: **FIVE SESSIONS is about a calendar week**, which is the room an operator needs: Sharadar's
+#: own recommended pull is after the close, exports are taken a day or two before a build, and
+#: a build delayed over a weekend must not be refused for being delayed over a weekend. It is
+#: counted in TRADING days through `market_session`, the package's one calendar, so a build on
+#: the Monday after Thanksgiving is not refused for the holiday.
+#:
+#: **IT CANNOT FIRE ON A HISTORICAL BUILD, which is why it needs no escape hatch.** A research
+#: build as of 2009 reads a cache whose newest row is years LATER than its as-of, and a cache
+#: that reaches past the as-of is not stale -- `_daily_at` walks back to the row on or before
+#: the date either way. So the count is zero for every backtest and this constant is only ever
+#: consulted by a build dated near today (`MA21`: a gate that cries wolf is one you switch off).
+MAX_DAILY_CACHE_STALE_DAYS = 5
+
+
+def daily_cache_vintage(prov) -> dict:
+    """The `daily` cache this provider will actually read: newest row, tickers, source.
+
+    Reported on every full-universe build, because the market-cap vintage is not recoverable
+    from the payload afterwards. The payload carries `data_as_of`, which is the date the
+    operator ASKED for; which export the caps came from is a separate fact, and on 2026-10-22
+    the two were three months apart.
+
+    Reads through `prov._bulk`, so it reports the cache the scoring will use -- including any
+    `--bulk-overlay`. Reading the directory instead would describe a file that may not be the
+    one in play.
+    """
+    rows = prov._bulk("daily") or {}
+    newest, n = None, 0
+    for recs in rows.values():
+        if recs:
+            n += 1
+            d = recs[-1][0]
+            if newest is None or d > newest:
+                newest = d
+    ov = getattr(prov, "_bulk_overlay", None)
+    return {"newest_row": newest, "tickers": len(rows), "tickers_with_rows": n,
+            "source": (ov[0] if (ov and "daily" in ov[1]) else prov.bulk_dir)}
+
+
+def refuse_stale_daily_cache(vintage: dict, as_of: str | None,
+                             max_stale: int = MAX_DAILY_CACHE_STALE_DAYS) -> str | None:
+    """The refusal text, or None. See `MAX_DAILY_CACHE_STALE_DAYS`.
+
+    `as_of` of None means "the export's newest close", which is not known until the export is
+    loaded -- so the caller checks twice: cheaply against the requested date before the
+    fifteen-minute load, and again against the date the scoring resolved. One function, two
+    call sites, so the two cannot answer differently (`B7`).
+    """
+    if not as_of:
+        return None
+    newest = (vintage or {}).get("newest_row")
+    if not newest:
+        return ("the daily market-cap cache at %s is empty or unreadable, so every name "
+                "would be scored with no market cap. Build it with "
+                "`python -m valuation.edge.sharadar_freeze --stage all`."
+                % (vintage or {}).get("source"))
+    try:
+        a = _dt.date.fromisoformat(str(as_of)[:10])
+        b = _dt.date.fromisoformat(str(newest)[:10])
+    except ValueError:
+        return None
+    from ..screener.market_session import trading_days_between
+    behind = trading_days_between(b, a, inclusive_start=False)
+    if behind <= max_stale:
+        return None
+    return ("the daily market-cap cache at %s ends %s, which is %d trading days before the "
+            "requested as-of of %s (the bar is %d). Market caps decide which names clear the "
+            "large-cap floor, so this build would rank today's universe on %s's caps. Refresh "
+            "the caches from a current export and point the build at them with "
+            "--bulk-overlay DIR -- see REBALANCE_RUNBOOK_2027-01-25.md."
+            % (vintage["source"], newest, behind, str(as_of)[:10], max_stale, newest))
+
+
+def _full_universe_rows(data_dir: str, limit: int = None, as_of: str = None,
+                        bulk_overlay: str = None, bulk_overlay_names=None):
     """Score the WHOLE Sharadar universe -> (rows, as_of, dropped).
 
     `as_of` builds the book as of a NAMED session instead of the export's newest close [item
@@ -661,6 +744,10 @@ def _full_universe_rows(data_dir: str, limit: int = 3000, as_of: str = None):
     floor, i.e. ten mega-caps wearing a decile's label. Scoring the full point-in-time
     universe instead gives a real decile (86 of 861 eligible large caps at last run) and needs
     no live API, so a quarterly rebalance can run headless.
+
+    `bulk_overlay` takes the market-cap and 13F caches from a DATED directory instead of the
+    pinned `data/bulk/prepared` [item 81], and the market-cap vintage is printed either way.
+    See `WRDSProvider.BULK_OVERLAY_DEFAULT` and `MAX_DAILY_CACHE_STALE_DAYS`.
     """
     from .data_providers import WRDSProvider
     from .fundamental_panel import score_universe_now
@@ -673,6 +760,28 @@ def _full_universe_rows(data_dir: str, limit: int = 3000, as_of: str = None):
     ok, msg = prov.ready()
     if not ok:
         raise RuntimeError(f"Sharadar export not readable at {data_dir!r}: {msg}")
+    # ---- ITEM 81: WHICH CACHES, AND HOW OLD -------------------------------------------------
+    #
+    # THE OVERLAY IS SET BEFORE ANYTHING IS READ, and `bulk_overlay` refuses if it is not. A
+    # build that read `daily` from October and `sf3` from July would publish a book neither
+    # export describes.
+    if bulk_overlay:
+        man = prov.bulk_overlay(bulk_overlay, bulk_overlay_names)
+        for n in sorted(man):
+            e = man[n]
+            print("[cache] %-14s %-7s %s (%s entries)"
+                  % (n, "USED" if e["used"] else "not used", e["source"],
+                     format(e["entries"], ",")), flush=True)
+    vintage = daily_cache_vintage(prov)
+    print("[cache] market caps from %s, newest row %s (%s tickers)"
+          % (vintage["source"], vintage["newest_row"], format(vintage["tickers"], ",")),
+          flush=True)
+    # CHEAPLY FIRST. The load is about a quarter of an hour and this is a command run once a
+    # quarter under time pressure, so a stale cache must be refused in a second rather than
+    # after the load (the same reason `--as-of` validates its format before the calendar).
+    bad = refuse_stale_daily_cache(vintage, as_of)
+    if bad:
+        raise RuntimeError(bad)
     tickers = prov.universe(limit=limit) or list(U.bundled_tickers())
     res = score_universe_now(prov, tickers, as_of=as_of)
     # A NAMED REFUSAL REACHES THE OPERATOR INTACT. "scored no rows" is true of a bad as-of and
@@ -682,6 +791,12 @@ def _full_universe_rows(data_dir: str, limit: int = 3000, as_of: str = None):
         raise RuntimeError(res["refused"])
     if not res or not res.get("rows"):
         raise RuntimeError("scored no rows from the full universe")
+    # AND AGAIN AGAINST THE DATE THE SCORING RESOLVED. With no `--as-of` the effective date is
+    # the export's newest close, which is not knowable before the load -- so the cheap check
+    # above cannot see it, and a July cache against a fresh export would otherwise pass.
+    bad = refuse_stale_daily_cache(vintage, res.get("as_of"))
+    if bad:
+        raise RuntimeError(bad)
     return res["rows"], res.get("as_of"), (res.get("dropped_mc_divergence") or [])
 
 
@@ -752,8 +867,9 @@ def _previous_book(path: str) -> list:
 
 
 def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
-                      limit: int = 3000, candidate_name: str, carry_held: bool = False,
-                      allow_free_route: bool = False, as_of: str | None = None) -> dict:
+                      limit: int | None = None, candidate_name: str, carry_held: bool = False,
+                      allow_free_route: bool = False, as_of: str | None = None,
+                      bulk_overlay: str | None = None, bulk_overlay_names=None) -> dict:
     """Write a NAMED CANDIDATE book. Nothing here is adopted, default or published.
 
     THE FREE ROUTE IS REFUSED BY NAME AND THE REFUSAL IS A MEASUREMENT, NOT A PREFERENCE.
@@ -779,8 +895,9 @@ def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | N
                cfg["free_route"]["source"]))
     dropped, scan_date = [], None
     if data_dir:
-        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit,
-                                                      as_of=as_of)
+        rows, scan_date, dropped = _full_universe_rows(
+            data_dir, limit=limit, as_of=as_of, bulk_overlay=bulk_overlay,
+            bulk_overlay_names=bulk_overlay_names)
         source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
                   "shipped settings.py weights")
         if as_of:
@@ -818,9 +935,10 @@ def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | N
 
 
 def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
-           limit: int = 3000, config: str | None = None,
+           limit: int | None = None, config: str | None = None,
            candidate_name: str | None = None, carry_held: bool = False,
-           as_of: str | None = None, **kw) -> dict:
+           as_of: str | None = None, bulk_overlay: str | None = None,
+           bulk_overlay_names=None, **kw) -> dict:
     """Build the book and write the JSON. Returns the payload.
 
     `data_dir` -> score the full Sharadar universe point-in-time (the headless path, and the
@@ -837,7 +955,8 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
                                "A candidate already fixes the decile, weighting, cap and band.")
         return _export_candidate(store=store, path=path, data_dir=data_dir, limit=limit,
                                  candidate_name=candidate_name, carry_held=carry_held,
-                                 as_of=as_of, **kw)
+                                 as_of=as_of, bulk_overlay=bulk_overlay,
+                                 bulk_overlay_names=bulk_overlay_names, **kw)
     cfg_meta = None
     if config:
         from ..screener import settings as S
@@ -869,8 +988,9 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
         kw["held"] = _previous_book(path)
     dropped, scan_date = [], None
     if data_dir:
-        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit,
-                                                      as_of=as_of)
+        rows, scan_date, dropped = _full_universe_rows(
+            data_dir, limit=limit, as_of=as_of, bulk_overlay=bulk_overlay,
+            bulk_overlay_names=bulk_overlay_names)
         source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
                   "shipped settings.py weights")
         if as_of:
@@ -949,7 +1069,29 @@ def main(argv=None):
                     help="score the whole Sharadar universe point-in-time instead of the last "
                          "live scan (headless; the only path that yields a real top decile). "
                          "Optionally takes the export dir, default data/backtest.")
-    ap.add_argument("--limit", type=int, default=3000, help="universe size for --full-universe")
+    # **THE DEFAULT IS THE WHOLE EXPORT, AND IT USED TO BE A SILENT SUBSET [item 81].**
+    #
+    # This defaulted to 3000, which was the whole export while the export held 2,827 names and
+    # became a market-cap-ranked SUBSET when it grew past 3,000. `WRDSProvider.universe` prints
+    # "SMOKE-TEST SUBSET, not a verdict" when that happens -- the function saying its own output
+    # may not carry a verdict -- and `CLAUDE.md`'s METHODOLOGY RULE says the same.
+    #
+    # IT IS NOT A FILTER ON THE EDGES OF THE BOOK. The composite is a cross-sectional z-score,
+    # so scoring 1,839 names instead of 2,038 re-standardises every column and moves the decile
+    # boundary: item 75 measured NINE of ~85 names changing, and only one of the six that
+    # appeared under the full export sat outside the top 3,000 at all.
+    #
+    # The 2026-10-22 runbook carried `--limit 4000` for exactly this reason, in bold, with the
+    # measurement -- and the one-off script that actually built the recorded book did not pass
+    # it, so the book in force was scored on 1,835 names rather than the export's 2,038. A
+    # default that has to be remembered on the night is the workaround this item removes.
+    #
+    # `None` means the whole export and no ranking (`universe`'s own branch). An operator who
+    # wants the old behaviour types `--limit 3000` and gets the subset banner with it.
+    ap.add_argument("--limit", type=int, default=None,
+                    help="universe size for --full-universe. Default: the WHOLE export, "
+                         "unranked. A value below the export's size takes a market-cap-ranked "
+                         "subset and labels itself a smoke test.")
     # **THE BAND WIDTH IS DERIVED, NOT TYPED [item 75].** This help text read "20%% band" long
     # after Don adopted S14 at 0.30 on 2026-08-13, so an operator reading `--help` to check
     # what they were about to build was told the wrong construction. Retyping it as 30 fixes
@@ -975,6 +1117,29 @@ def main(argv=None):
     ap.add_argument("--candidate", default=None, choices=sorted(INDEX_CANDIDATES),
                     help="a NAMED, NON-DEFAULT candidate construction (INDEX_CANDIDATES). "
                          "Nothing here is adopted or published; requires --full-universe.")
+    # ---- ITEM 81: WHICH EXPORT THE MARKET CAPS COME FROM --------------------------------------
+    #
+    # The 2026-10-22 rebalance needed a hand-written monkeypatch to get a current market cap
+    # into the build, because `refresh_sharadar.bat` refreshes `data/backtest` and nothing ever
+    # refreshed the `data/bulk/prepared` caches the build also reads -- and those caches must
+    # NOT be rebuilt in place, because every banked research figure on this project pins them.
+    # So the fresh caches live in the dated freeze directory `sharadar_freeze` already writes,
+    # and the build is told to read them from there.
+    #
+    # THE DEFAULT SET IS DERIVED, NOT TYPED (`MA5`): the help text for `--config` read "20%
+    # band" for weeks after Don adopted 0.30, which is the same defect one line up.
+    from .data_providers import WRDSProvider as _WP
+    _OVERLAY_DEFAULT = ",".join(_WP.BULK_OVERLAY_DEFAULT)
+    ap.add_argument("--bulk-overlay", default=None, metavar="DIR",
+                    help="take the market-cap and 13F caches from DIR (a dated "
+                         "data/backtest_freeze_*/bulk/prepared) instead of the pinned "
+                         "data/bulk/prepared, which banked research figures rest on. Needs "
+                         "--full-universe.")
+    ap.add_argument("--bulk-overlay-names", default=None, metavar="a,b",
+                    help="which caches to take from --bulk-overlay (default: %s). Named "
+                         "deliberately: two of the five caches a freeze carries hold FEWER "
+                         "names than the pinned ones, so overlaying them would narrow the "
+                         "universe. See WRDSProvider.BULK_OVERLAY_DEFAULT." % _OVERLAY_DEFAULT)
     ap.add_argument("--carry-held", action="store_true",
                     help="apply the no-trade band against the book already on disk. OFF by "
                          "default for a candidate: the book on disk is a DIFFERENT "
@@ -994,6 +1159,18 @@ def main(argv=None):
             print("--as-of needs --full-universe: the saved live-scan snapshot has no history "
                   "to cut, so a named session cannot be built from it.")
             return 1
+    if a.bulk_overlay and not a.full_universe:
+        # The live-scan path reads no bulk cache at all, so accepting the flag there would
+        # take a dated directory and ignore it -- and the operator would believe the book
+        # carried fresh market caps. Same refusal, same reason, as `--as-of`.
+        print("--bulk-overlay needs --full-universe: the saved live-scan snapshot does not "
+              "read the bulk caches, so pointing them elsewhere would change nothing.")
+        return 1
+    if a.bulk_overlay_names and not a.bulk_overlay:
+        print("--bulk-overlay-names needs --bulk-overlay.")
+        return 1
+    _ov_names = ([x.strip() for x in a.bulk_overlay_names.split(",") if x.strip()]
+                 if a.bulk_overlay_names else None)
     if a.config and a.config in INDEX_CANDIDATES:
         print("%r is a candidate construction, not a book config -- pass --candidate %s."
               % (a.config, a.config))
@@ -1013,7 +1190,8 @@ def main(argv=None):
     try:
         p = export(path=a.out, data_dir=a.full_universe, limit=a.limit,
                    config=a.config, candidate_name=a.candidate, carry_held=a.carry_held,
-                   as_of=a.as_of, **_kw)
+                   as_of=a.as_of, bulk_overlay=a.bulk_overlay,
+                   bulk_overlay_names=_ov_names, **_kw)
     except RuntimeError as e:
         print(f"Could not build the book: {e}")
         return 1
