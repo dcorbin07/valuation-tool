@@ -13,6 +13,7 @@ Routes:
 from __future__ import annotations
 
 import io
+import os
 import tempfile
 
 from flask import Flask, render_template, request, jsonify, send_file
@@ -278,8 +279,21 @@ def health():
         _sec_health = _sector_census()
     except Exception:                                                   # noqa: BLE001
         _sec_health = None
+    # **WHICH COMMIT IS ACTUALLY SERVING [item 80, 2026-10-23].** Added because confirming a
+    # deploy was not possible: `render.yaml` sets `autoDeploy: true` and nothing on any surface
+    # said what had deployed, so "the fix is live" could only ever be INFERRED from main's HEAD
+    # plus elapsed time. On a night when Don was waiting mid-rebalance on a one-line fix, that
+    # is the difference between telling him it is live and telling him it probably is.
+    #
+    # `RENDER_GIT_COMMIT` is set by Render itself on every deploy. Absent locally, which reads
+    # as `null` rather than as a guess. **A commit SHA is not a secret** -- this repository is
+    # public by the posture `render.yaml` documents -- and nothing else is added: no path, no
+    # branch, no environment, no token.
+    _commit = os.environ.get("RENDER_GIT_COMMIT") or None
     return jsonify({"ok": True, "ai_enabled": CONFIG.ai_enabled,
                     "sector_sources": _sec_health,
+                    "commit": _commit,
+                    "commit_short": (_commit[:7] if _commit else None),
                     "ai_provider": CONFIG.resolved_ai_provider,
                     "mc_trials": CONFIG.montecarlo_trials})
 

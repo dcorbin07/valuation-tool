@@ -310,6 +310,56 @@ class TheSEAMThatHidItIsNamed(unittest.TestCase):
         self.assertIn("not the contract-bound Index", got["reason"])
 
 
+class TheDEPLOYCanBeCONFIRMEDRatherThanInferred(unittest.TestCase):
+    """`/api/health` now says which commit is serving. [item 80's own Done step]
+
+    **IT EXISTS BECAUSE CONFIRMING A DEPLOY WAS NOT POSSIBLE.** `render.yaml` sets
+    `autoDeploy: true` and no surface said what had deployed, so "the fix is live" could only be
+    INFERRED from main's HEAD plus elapsed time. On the night Don was waiting mid-rebalance on a
+    one-line fix, that is the difference between telling him it is live and telling him it
+    probably is.
+    """
+
+    def _client(self, commit=None):
+        import importlib
+        if commit is None:
+            os.environ.pop("RENDER_GIT_COMMIT", None)
+        else:
+            os.environ["RENDER_GIT_COMMIT"] = commit
+        app = importlib.import_module("valuation.web.app")
+        return app.create_app().test_client()
+
+    def tearDown(self):
+        os.environ.pop("RENDER_GIT_COMMIT", None)
+
+    def test_it_reports_the_commit_render_set(self):
+        d = self._client("abc1234def5678").get("/api/health").get_json()
+        self.assertTrue(d["ok"])
+        self.assertEqual(d["commit"], "abc1234def5678")
+        self.assertEqual(d["commit_short"], "abc1234")
+
+    def test_ABSENT_READS_AS_NULL_rather_than_as_a_guess(self):
+        """Local runs and any host that does not set it. `None` is an answer; a fabricated or
+        inferred SHA would be worse than none, because the whole point is confirmation."""
+        d = self._client(None).get("/api/health").get_json()
+        self.assertIsNone(d["commit"])
+        self.assertIsNone(d["commit_short"])
+        self.assertTrue(d["ok"], "the health check must not fail for want of a commit")
+
+    def test_NOTHING_ELSE_WAS_ADDED_to_that_payload(self):
+        """No path, no branch, no environment, no token -- a deploy marker is not a place to
+        start publishing the service's configuration."""
+        d = self._client("deadbeef").get("/api/health").get_json()
+        self.assertEqual(set(d), {"ok", "ai_enabled", "sector_sources", "commit",
+                                  "commit_short", "ai_provider", "mc_trials"})
+
+    def test_the_health_check_path_render_probes_is_the_one_that_carries_it(self):
+        """`render.yaml`'s `healthCheckPath` is `/api/health`, so the marker is on the surface
+        Render already calls -- derived from the file rather than assumed."""
+        with io.open(os.path.join(REPO, "render.yaml"), encoding="utf-8") as fh:
+            self.assertIn("healthCheckPath: /api/health", fh.read())
+
+
 class TheSEEDDoorWasAlreadyRight(unittest.TestCase):
     """Item 80 step 3, pinned rather than asserted in prose."""
 
