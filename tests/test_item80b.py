@@ -180,9 +180,25 @@ class ThroughTheRealAppRoute(_Tmp):
     store-backed record.* The route resolves its own store, so this is the only form that
     exercises what Don's `--send` actually hits."""
 
+    #: **SET, NOT READ FROM THE ENVIRONMENT, and the first cut got this wrong in the one way
+    #: that only shows up in CI.** It used `CONFIG.admin_token`, which comes from Don's local
+    #: `.env` and is EMPTY on a runner -- so `_admin_ok()` correctly refused and all three route
+    #: cases came back `401 != 201`. They passed locally and failed the gate. **A test whose
+    #: result depends on a secret being present is not testing the door**, and the inverse of
+    #: this repository's own "guards that fail open in CI" note: here it was a test failing
+    #: CLOSED. `test_admin_door_success` already solved it by assigning a known token; this
+    #: follows that rather than inventing a second way.
+    TOKEN = "i80b-test-token"
+
     def _client(self):
+        CONFIG.admin_token = self.TOKEN
         app = create_saas_app(CONFIG)
-        return app.test_client(), {"X-Admin-Token": CONFIG.admin_token}
+        # NOT `TESTING = True`: that makes Flask re-raise, so a handler that explodes surfaces
+        # as a test ERROR rather than as the 500 a caller actually receives -- and a 500 from
+        # this door is precisely what my own `_store()` slip would have produced.
+        app.config["TESTING"] = False
+        app.config["PROPAGATE_EXCEPTIONS"] = False
+        return app.test_client(), {"X-Admin-Token": self.TOKEN}
 
     def _seed_store(self, client, series):
         """Put the recorded series where `/api/index-track` reads it from on a deploy."""
