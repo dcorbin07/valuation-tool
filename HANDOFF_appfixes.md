@@ -24018,6 +24018,24 @@ contains and actually imports what it imports**, which catches the family rather
 instance. **A runbook command that does not resolve is worse than no command**, because it is
 read once a quarter, at speed, by one person.
 
+**A DEFECT IN MY OWN REFUSAL, AND THE LAND CAUGHT IT RATHER THAN THE LOCAL GATE.** The first
+cut refused an EMPTY `daily` cache as well as a stale one, on the reasoning that every name
+would then be scored with no point-in-time market cap. The reasoning is true and the refusal is
+wrong: **`_bulk` degrades a missing cache to `{}` BY DESIGN**, so building with no bulk caches
+is a configuration this project has always supported -- `tests/test_item75.py`'s fixtures do
+exactly that -- and the refusal **pre-empted item 75's own, more specific, as-of refusals**, so
+a useful message was replaced by a less useful one. Turning a tolerated absence into a hard stop
+is the mirror image of `C5`, and `MA21`'s cry-wolf rule besides. **It did not weaken the gate to
+remove it:** October's cache had a newest row of 2026-07-29 and is still refused, and an absent
+cache cannot produce a silently WRONG market cap, only an absent one, which the payload's
+coverage already reports.
+
+**AND A PROCESS MISTAKE WORTH RECORDING, because it is what let that reach CI: I read the local
+gate's output while it was still running and took three failures for the whole result.** The
+runner's summary line is the completion signal and it was not there; `test_item75.py` appeared in
+that same run minutes later, and the finished run reads **338 suites, 4 failures**. A partial
+gate is not a gate.
+
 **TWO SMALLER CORRECTIONS MADE ON THE WAY.** `_daily_at`'s docstring said *"Latest DAILY
 **month-end** row"*, which stopped being true the moment the cache carried a tail — repointed in
 the same commit (`MA59`). And `refresh_sharadar.bat` pointed at the spent

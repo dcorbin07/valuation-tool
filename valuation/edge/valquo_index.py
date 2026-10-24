@@ -707,10 +707,23 @@ def refuse_stale_daily_cache(vintage: dict, as_of: str | None,
         return None
     newest = (vintage or {}).get("newest_row")
     if not newest:
-        return ("the daily market-cap cache at %s is empty or unreadable, so every name "
-                "would be scored with no market cap. Build it with "
-                "`python -m valuation.edge.sharadar_freeze --stage all`."
-                % (vintage or {}).get("source"))
+        # **AN ABSENT CACHE IS NOT A STALE ONE, AND REFUSING IT WAS MY OWN DEFECT.**
+        #
+        # The first cut of this function refused an empty `daily` cache too, on the reasoning
+        # that every name would then be scored with no point-in-time market cap. That reasoning
+        # is true and the refusal is still wrong: `_bulk` degrades a missing cache to `{}` BY
+        # DESIGN, so "no bulk caches" is a configuration the build has always supported -- it
+        # falls back to the fundamentals' own `marketcap`. `tests/test_item75.py` builds exactly
+        # that way and went red, which is how this was found, and the refusal ALSO pre-empted
+        # item 75's own as-of refusals: a more specific and more useful message was replaced by
+        # a less specific one.
+        #
+        # Turning a tolerated absence into a hard stop is the mirror image of `C5` -- and it is
+        # the shape `MA21` warns about, because a gate that stops legitimate builds is a gate
+        # somebody switches off. It is also not the October defect: that cache had a newest row
+        # of 2026-07-29 and is still refused below. An EMPTY cache cannot produce a silently
+        # wrong market cap, only an absent one, which the payload's coverage already reports.
+        return None
     try:
         a = _dt.date.fromisoformat(str(as_of)[:10])
         b = _dt.date.fromisoformat(str(newest)[:10])

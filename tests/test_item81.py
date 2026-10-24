@@ -270,10 +270,23 @@ class TheStalenessRefusal(unittest.TestCase):
         # fewer than 6 sessions, so a calendar-day bar of 5 would refuse and this must not.
         self.assertIsNone(V.refuse_stale_daily_cache(self._v("2026-12-21"), "2026-12-29"))
 
-    def test_an_empty_cache_refuses_rather_than_scoring_every_name_with_no_market_cap(self):
-        msg = V.refuse_stale_daily_cache({"newest_row": None, "source": "D"}, "2026-10-22")
-        self.assertIsNotNone(msg)
-        self.assertIn("empty or unreadable", msg)
+    def test_an_absent_cache_is_not_stale_and_must_not_be_refused(self):
+        """MY OWN DEFECT, caught by `tests/test_item75.py` going red in CI.
+
+        The first cut refused an empty `daily` cache as well. `_bulk` degrades a missing cache
+        to `{}` BY DESIGN, so building with no bulk caches is a configuration this project has
+        always supported -- item 75's fixtures do exactly that -- and the refusal also
+        pre-empted item 75's own, more specific, as-of refusals. Turning a tolerated absence
+        into a hard stop is the mirror image of `C5`, and `MA21`'s cry-wolf rule besides.
+
+        It is not the October defect either: that cache had a newest row of 2026-07-29 and is
+        still refused. An absent cache cannot produce a silently WRONG market cap.
+        """
+        self.assertIsNone(
+            V.refuse_stale_daily_cache({"newest_row": None, "source": "D"}, "2026-10-22"))
+        self.assertIsNone(V.refuse_stale_daily_cache({}, "2026-10-22"))
+        # and the dated defect still refuses, so this did not weaken the gate
+        self.assertIsNotNone(V.refuse_stale_daily_cache(self._v("2026-07-29"), "2026-10-22"))
 
     def test_no_as_of_defers_to_the_second_check(self):
         """With no `--as-of` the effective date is unknown until the export is loaded."""
