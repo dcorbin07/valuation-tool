@@ -350,6 +350,338 @@
           "weight": 0.00117
         }
       ],
+      "rebalances": [
+        {
+          "date": "2026-10-22",
+          "positions": [
+            {
+              "ticker": "SNDK",
+              "weight": 0.01964
+            },
+            {
+              "ticker": "MU",
+              "weight": 0.0192
+            },
+            {
+              "ticker": "APA",
+              "weight": 0.0189
+            },
+            {
+              "ticker": "DINO",
+              "weight": 0.01832
+            },
+            {
+              "ticker": "ALLY",
+              "weight": 0.01638
+            },
+            {
+              "ticker": "IX",
+              "weight": 0.01616
+            },
+            {
+              "ticker": "HPE",
+              "weight": 0.01609
+            },
+            {
+              "ticker": "FCNCA",
+              "weight": 0.01535
+            },
+            {
+              "ticker": "BNS",
+              "weight": 0.01489
+            },
+            {
+              "ticker": "CF",
+              "weight": 0.01484
+            },
+            {
+              "ticker": "VOD",
+              "weight": 0.01442
+            },
+            {
+              "ticker": "ET",
+              "weight": 0.01413
+            },
+            {
+              "ticker": "WDC",
+              "weight": 0.01405
+            },
+            {
+              "ticker": "STM",
+              "weight": 0.014
+            },
+            {
+              "ticker": "PR",
+              "weight": 0.01364
+            },
+            {
+              "ticker": "RNR",
+              "weight": 0.013
+            },
+            {
+              "ticker": "SKM",
+              "weight": 0.01258
+            },
+            {
+              "ticker": "ARW",
+              "weight": 0.01256
+            },
+            {
+              "ticker": "EG",
+              "weight": 0.01244
+            },
+            {
+              "ticker": "JEF",
+              "weight": 0.01168
+            },
+            {
+              "ticker": "TER",
+              "weight": 0.01114
+            },
+            {
+              "ticker": "INCY",
+              "weight": 0.01104
+            },
+            {
+              "ticker": "CVE",
+              "weight": 0.01035
+            },
+            {
+              "ticker": "COKE",
+              "weight": 0.01013
+            },
+            {
+              "ticker": "RF",
+              "weight": 0.00979
+            },
+            {
+              "ticker": "BPOP",
+              "weight": 0.00976
+            },
+            {
+              "ticker": "CGNX",
+              "weight": 0.00913
+            },
+            {
+              "ticker": "STRL",
+              "weight": 0.00827
+            },
+            {
+              "ticker": "OVV",
+              "weight": 0.00798
+            },
+            {
+              "ticker": "SU",
+              "weight": 0.00749
+            },
+            {
+              "ticker": "IMO",
+              "weight": 0.00739
+            },
+            {
+              "ticker": "GGG",
+              "weight": 0.00651
+            },
+            {
+              "ticker": "ONTO",
+              "weight": 0.00631
+            },
+            {
+              "ticker": "THC",
+              "weight": 0.00621
+            },
+            {
+              "ticker": "OXY",
+              "weight": 0.00582
+            },
+            {
+              "ticker": "ACGL",
+              "weight": 0.00575
+            },
+            {
+              "ticker": "ZTO",
+              "weight": 0.0057
+            },
+            {
+              "ticker": "FORM",
+              "weight": 0.00565
+            },
+            {
+              "ticker": "JBHT",
+              "weight": 0.00528
+            },
+            {
+              "ticker": "TECK",
+              "weight": 0.00386
+            },
+            {
+              "ticker": "RGA",
+              "weight": 0.00327
+            },
+            {
+              "ticker": "EOG",
+              "weight": 0.00286
+            },
+            {
+              "ticker": "KGC",
+              "weight": 0.0019
+            },
+            {
+              "ticker": "MEDP",
+              "weight": 0.00158
+            },
+            {
+              "ticker": "ASML",
+              "weight": 0.00126
+            },
+            {
+              "ticker": "WDS",
+              "weight": 0.00109
+            },
+            {
+              "ticker": "TPL",
+              "weight": 0.0009
+            },
+            {
+              "ticker": "KHC",
+              "weight": 0.00085
+            },
+            {
+              "ticker": "BEN",
+              "weight": 0.00045
+            },
+            {
+              "ticker": "KSPI",
+              "weight": 0.01944
+            },
+            {
+              "ticker": "HUM",
+              "weight": 0.01932
+            },
+            {
+              "ticker": "EXEL",
+              "weight": 0.01925
+            },
+            {
+              "ticker": "WST",
+              "weight": 0.01866
+            },
+            {
+              "ticker": "SWK",
+              "weight": 0.01827
+            },
+            {
+              "ticker": "CORT",
+              "weight": 0.01822
+            },
+            {
+              "ticker": "INTC",
+              "weight": 0.01817
+            },
+            {
+              "ticker": "VLO",
+              "weight": 0.0179
+            },
+            {
+              "ticker": "AMCR",
+              "weight": 0.01785
+            },
+            {
+              "ticker": "CNC",
+              "weight": 0.01765
+            },
+            {
+              "ticker": "SYF",
+              "weight": 0.01758
+            },
+            {
+              "ticker": "FTNT",
+              "weight": 0.01738
+            },
+            {
+              "ticker": "STX",
+              "weight": 0.01724
+            },
+            {
+              "ticker": "CHTR",
+              "weight": 0.01697
+            },
+            {
+              "ticker": "IBKR",
+              "weight": 0.01675
+            },
+            {
+              "ticker": "DELL",
+              "weight": 0.01672
+            },
+            {
+              "ticker": "TPR",
+              "weight": 0.0167
+            },
+            {
+              "ticker": "ASX",
+              "weight": 0.01665
+            },
+            {
+              "ticker": "FHN",
+              "weight": 0.01626
+            },
+            {
+              "ticker": "AVTR",
+              "weight": 0.01606
+            },
+            {
+              "ticker": "ICLR",
+              "weight": 0.01587
+            },
+            {
+              "ticker": "UMC",
+              "weight": 0.01569
+            },
+            {
+              "ticker": "MPC",
+              "weight": 0.01562
+            },
+            {
+              "ticker": "SANM",
+              "weight": 0.01506
+            },
+            {
+              "ticker": "CART",
+              "weight": 0.01491
+            },
+            {
+              "ticker": "SMTC",
+              "weight": 0.01471
+            },
+            {
+              "ticker": "ASND",
+              "weight": 0.01462
+            },
+            {
+              "ticker": "FROG",
+              "weight": 0.01454
+            },
+            {
+              "ticker": "CL",
+              "weight": 0.0144
+            },
+            {
+              "ticker": "HMC",
+              "weight": 0.01408
+            },
+            {
+              "ticker": "CINF",
+              "weight": 0.01398
+            },
+            {
+              "ticker": "ROKU",
+              "weight": 0.01356
+            }
+          ],
+          "scan_date": "2026-10-22"
+        }
+      ],
       "scan_date": "2026-07-24"
     },
     "recorder": "data/valquo_track.json + valquo_track_history.csv",
@@ -612,25 +944,60 @@
         "n_priced": 85.0,
         "spy_pct": 3.1624,
         "valquo_pct": 2.5778
+      },
+      {
+        "date": "2026-10-19",
+        "excess_pp": -0.4468,
+        "n_priced": 85.0,
+        "spy_pct": 3.599,
+        "valquo_pct": 3.1522
+      },
+      {
+        "date": "2026-10-20",
+        "excess_pp": 0.1784,
+        "n_priced": 85.0,
+        "spy_pct": 3.9464,
+        "valquo_pct": 4.1248
+      },
+      {
+        "date": "2026-10-21",
+        "excess_pp": 0.5238,
+        "n_priced": 85.0,
+        "spy_pct": 4.4924,
+        "valquo_pct": 5.0162
+      },
+      {
+        "date": "2026-10-22",
+        "excess_pp": -1.7849,
+        "n_priced": 85.0,
+        "spy_pct": 3.2584,
+        "valquo_pct": 1.4735
+      },
+      {
+        "date": "2026-10-23",
+        "excess_pp": -1.2604,
+        "n_priced": 81.0,
+        "spy_pct": 2.7191,
+        "valquo_pct": 1.4587
       }
     ],
     "sources": {
       "committed_backup": 0,
       "ingested_store": 0,
-      "tracker_files": 37
+      "tracker_files": 42
     }
   },
   "counts": {
-    "bound_index_days": 37,
-    "index_days": 52,
-    "index_holdings": 95,
+    "bound_index_days": 42,
+    "index_days": 57,
+    "index_holdings": 96,
     "ingested_index_days": 0,
-    "option_alerts": 51,
-    "option_alerts_closed": 27,
-    "paper_orders": 51,
-    "paper_orders_closed": 10
+    "option_alerts": 55,
+    "option_alerts_closed": 32,
+    "paper_orders": 55,
+    "paper_orders_closed": 14
   },
-  "generated_at": "2026-10-18T11:00:56",
+  "generated_at": "2026-10-25T11:23:16",
   "index_holdings": [
     {
       "bench_entry_price": 770.56,
@@ -833,6 +1200,16 @@
       "weight": 0.02078
     },
     {
+      "bench_entry_price": 759.97,
+      "entry_date": "2026-10-23",
+      "entry_price": 86.4,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "CLX",
+      "weight": 0.01031
+    },
+    {
       "bench_entry_price": 778.01,
       "entry_date": "2026-10-13",
       "entry_price": 46.73,
@@ -851,6 +1228,16 @@
       "shares": null,
       "ticker": "DB",
       "weight": 0.01878
+    },
+    {
+      "bench_entry_price": 773.09,
+      "entry_date": "2026-10-21",
+      "entry_price": 686.7,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "DDS",
+      "weight": 0.01037
     },
     {
       "bench_entry_price": 779.09,
@@ -1473,16 +1860,6 @@
       "weight": 0.01263
     },
     {
-      "bench_entry_price": 773.38,
-      "entry_date": "2026-09-22",
-      "entry_price": 268.34,
-      "note": "quote-marked",
-      "order_id": null,
-      "shares": null,
-      "ticker": "VICR",
-      "weight": 0.00132
-    },
-    {
       "bench_entry_price": 778.57,
       "entry_date": "2026-10-09",
       "entry_price": 433.75,
@@ -2103,6 +2480,56 @@
       "index_ret": -0.0206740597,
       "n_positions": 95,
       "n_priced": 94
+    },
+    {
+      "active_ret": -0.0155225623,
+      "as_of": "2026-10-19",
+      "bench_ret": -0.0076634522,
+      "detail": "{\"weight_priced\": 1.3295, \"n_holdings\": 95, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.0231860145,
+      "n_positions": 95,
+      "n_priced": 94
+    },
+    {
+      "active_ret": -0.0091209199,
+      "as_of": "2026-10-20",
+      "bench_ret": -0.0043361574,
+      "detail": "{\"weight_priced\": 1.3295, \"n_holdings\": 95, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.0134570774,
+      "n_positions": 95,
+      "n_priced": 94
+    },
+    {
+      "active_ret": -0.0096080992,
+      "as_of": "2026-10-21",
+      "bench_ret": 0.0008873767,
+      "detail": "{\"weight_priced\": 1.3399, \"n_holdings\": 96, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.0087207225,
+      "n_positions": 96,
+      "n_priced": 95
+    },
+    {
+      "active_ret": -0.0018683516,
+      "as_of": "2026-10-22",
+      "bench_ret": -0.0109328535,
+      "detail": "{\"weight_priced\": 1.3399, \"n_holdings\": 96, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.0128012051,
+      "n_positions": 96,
+      "n_priced": 95
+    },
+    {
+      "active_ret": 0.0025411804,
+      "as_of": "2026-10-23",
+      "bench_ret": -0.0159742757,
+      "detail": "{\"weight_priced\": 1.3489, \"n_holdings\": 96, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.0134330953,
+      "n_positions": 96,
+      "n_priced": 95
     }
   ],
   "ingested_index_track": null,
@@ -2698,12 +3125,12 @@
     },
     {
       "alert_ts": "2026-09-16 21:32",
-      "commission": null,
+      "commission": 1.3,
       "dte": 65,
       "entry_premium": 40.4,
-      "exit_premium": null,
-      "exit_reason": null,
-      "exit_ts": null,
+      "exit_premium": 44.5,
+      "exit_reason": "time_stop [self-scored]",
+      "exit_ts": "2026-10-19",
       "expiry": "2026-11-20",
       "features": "{\"confidence\": {\"expectancy_estimate\": 0.0725, \"level\": \"high\", \"min_bucket_n\": 223}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"one contract costs $4,040, above the $1,000 budget - cannot be sized correctly\", \"skip\": true}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.011187322139739886}}",
       "flow_read": null,
@@ -2715,12 +3142,12 @@
       "momentum_score": null,
       "occ_symbol": "TMO261120C00650000",
       "opt_right": "call",
-      "pnl_dollars": null,
-      "pnl_pct": null,
-      "pnl_pct_net": null,
+      "pnl_dollars": 410.0,
+      "pnl_pct": 0.1014851485,
+      "pnl_pct_net": 0.1011633663,
       "record_epoch": "original",
       "score": 82.9,
-      "status": "open",
+      "status": "closed",
       "strike": 650.0,
       "target_delta": 0.5426502084,
       "technical_score": null,
@@ -2760,12 +3187,12 @@
     },
     {
       "alert_ts": "2026-09-18 22:43",
-      "commission": null,
+      "commission": 1.3,
       "dte": 63,
       "entry_premium": 7.35,
-      "exit_premium": null,
-      "exit_reason": null,
-      "exit_ts": null,
+      "exit_premium": 4.3,
+      "exit_reason": "time_stop [self-scored]",
+      "exit_ts": "2026-10-20",
       "expiry": "2026-11-20",
       "features": "{\"confidence\": {\"expectancy_estimate\": 0.0587, \"level\": \"moderate\", \"min_bucket_n\": 307}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 1, \"dollar_risk\": 735.0, \"reason\": null, \"skip\": false}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.11234481811523434}}",
       "flow_read": "Call-heavy flow (P/C 0.61)",
@@ -2777,12 +3204,12 @@
       "momentum_score": null,
       "occ_symbol": "AAPL261120C00355000",
       "opt_right": "call",
-      "pnl_dollars": null,
-      "pnl_pct": null,
-      "pnl_pct_net": null,
+      "pnl_dollars": -305.0,
+      "pnl_pct": -0.4149659864,
+      "pnl_pct_net": -0.4167346939,
       "record_epoch": "original",
       "score": 82.6,
-      "status": "open",
+      "status": "closed",
       "strike": 355.0,
       "target_delta": 0.3384027447,
       "technical_score": null,
@@ -2946,12 +3373,12 @@
     },
     {
       "alert_ts": "2026-09-23 21:40",
-      "commission": null,
+      "commission": 1.3,
       "dte": 58,
       "entry_premium": 10.1,
-      "exit_premium": null,
-      "exit_reason": null,
-      "exit_ts": null,
+      "exit_premium": 12.1,
+      "exit_reason": "time_stop [self-scored]",
+      "exit_ts": "2026-10-22",
       "expiry": "2026-11-20",
       "features": "{\"confidence\": {\"expectancy_estimate\": 0.0566, \"level\": \"low\", \"min_bucket_n\": 223}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"one contract costs $1,010, above the $1,000 budget - cannot be sized correctly\", \"skip\": true}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.042500867843628}}",
       "flow_read": "Call-heavy flow (P/C 0.43)",
@@ -2963,12 +3390,12 @@
       "momentum_score": null,
       "occ_symbol": "PM261120C00190000",
       "opt_right": "call",
-      "pnl_dollars": null,
-      "pnl_pct": null,
-      "pnl_pct_net": null,
+      "pnl_dollars": 200.0,
+      "pnl_pct": 0.198019802,
+      "pnl_pct_net": 0.1967326733,
       "record_epoch": "original",
       "score": 81.6,
-      "status": "open",
+      "status": "closed",
       "strike": 190.0,
       "target_delta": 0.5625237819,
       "technical_score": null,
@@ -3194,12 +3621,12 @@
     },
     {
       "alert_ts": "2026-10-09 18:54",
-      "commission": null,
+      "commission": 1.3,
       "dte": 70,
       "entry_premium": 12.9,
-      "exit_premium": null,
-      "exit_reason": null,
-      "exit_ts": null,
+      "exit_premium": 29.3,
+      "exit_reason": "target [self-scored]",
+      "exit_ts": "2026-10-22",
       "expiry": "2026-12-18",
       "features": "{\"confidence\": {\"expectancy_estimate\": 0.0691, \"level\": \"moderate\", \"min_bucket_n\": 307}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"one contract costs $1,290, above the $1,000 budget - cannot be sized correctly\", \"skip\": true}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.02173274874687195}}",
       "flow_read": "Call-heavy flow (P/C 0.59)",
@@ -3211,12 +3638,12 @@
       "momentum_score": null,
       "occ_symbol": "MA261218C00620000",
       "opt_right": "call",
-      "pnl_dollars": null,
-      "pnl_pct": null,
-      "pnl_pct_net": null,
+      "pnl_dollars": 1640.0,
+      "pnl_pct": 1.2713178295,
+      "pnl_pct_net": 1.2703100775,
       "record_epoch": "original",
       "score": 82.3,
-      "status": "open",
+      "status": "closed",
       "strike": 620.0,
       "target_delta": 0.338350854,
       "technical_score": null,
@@ -3287,12 +3714,12 @@
     },
     {
       "alert_ts": "2026-10-09 18:54",
-      "commission": null,
+      "commission": 1.3,
       "dte": 70,
       "entry_premium": 7.65,
-      "exit_premium": null,
-      "exit_reason": null,
-      "exit_ts": null,
+      "exit_premium": 15.5,
+      "exit_reason": "target [self-scored]",
+      "exit_ts": "2026-10-20",
       "expiry": "2026-12-18",
       "features": "{\"confidence\": {\"expectancy_estimate\": 0.0691, \"level\": \"moderate\", \"min_bucket_n\": 307}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 1, \"dollar_risk\": 765.0, \"reason\": null, \"skip\": false}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.030277462005615208}}",
       "flow_read": "Call-heavy flow (P/C 0.25)",
@@ -3304,12 +3731,12 @@
       "momentum_score": null,
       "occ_symbol": "V261218C00405000",
       "opt_right": "call",
-      "pnl_dollars": null,
-      "pnl_pct": null,
-      "pnl_pct_net": null,
+      "pnl_dollars": 785.0,
+      "pnl_pct": 1.0261437908,
+      "pnl_pct_net": 1.0244444444,
       "record_epoch": "original",
       "score": 80.5,
-      "status": "open",
+      "status": "closed",
       "strike": 405.0,
       "target_delta": 0.3376134471,
       "technical_score": null,
@@ -3687,6 +4114,130 @@
       "technical_score": null,
       "ticker": "AAPL",
       "underlying_price": 343.4599914551
+    },
+    {
+      "alert_ts": "2026-10-21 18:10",
+      "commission": null,
+      "dte": null,
+      "entry_premium": null,
+      "exit_premium": null,
+      "exit_reason": "no contract - not scoreable: the alert was logged from a descriptor with no chain, so it has no strike/expiry to mark, no exit to apply and no date on which it could mature",
+      "exit_ts": null,
+      "expiry": null,
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0481, \"level\": \"thin\", \"min_bucket_n\": 385}, \"contract_source\": \"descriptor (no chain)\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"no live contract available\", \"skip\": true}, \"term\": {\"source\": \"unavailable\", \"term_ok\": null, \"term_slope\": null}}",
+      "flow_read": "Call-heavy flow (P/C 0.41)",
+      "horizon": "swing",
+      "id": 52,
+      "iv": null,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"MACD bullish cross\", \"Near 52-wk high\", \"Call-heavy flow (P/C 0.41)\", \"High IV 84% (rich premium)\"]",
+      "momentum_score": null,
+      "occ_symbol": null,
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "pnl_pct_net": null,
+      "record_epoch": "original",
+      "score": 83.0,
+      "status": "no_contract",
+      "strike": null,
+      "target_delta": null,
+      "technical_score": null,
+      "ticker": "EMR",
+      "underlying_price": 164.6349945068
+    },
+    {
+      "alert_ts": "2026-10-21 20:56",
+      "commission": null,
+      "dte": null,
+      "entry_premium": null,
+      "exit_premium": null,
+      "exit_reason": "no contract - not scoreable: the alert was logged from a descriptor with no chain, so it has no strike/expiry to mark, no exit to apply and no date on which it could mature",
+      "exit_ts": null,
+      "expiry": null,
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0481, \"level\": \"thin\", \"min_bucket_n\": 385}, \"contract_source\": \"descriptor (no chain)\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"no live contract available\", \"skip\": true}, \"term\": {\"source\": \"unavailable\", \"term_ok\": null, \"term_slope\": null}}",
+      "flow_read": "Call-heavy flow (P/C 0.52)",
+      "horizon": "swing",
+      "id": 53,
+      "iv": null,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"Breakout (upper band)\", \"Volume surge 1.8x\", \"Call-heavy flow (P/C 0.52)\", \"Unusual call volume vs OI\"]",
+      "momentum_score": null,
+      "occ_symbol": null,
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "pnl_pct_net": null,
+      "record_epoch": "original",
+      "score": 83.3,
+      "status": "no_contract",
+      "strike": null,
+      "target_delta": null,
+      "technical_score": null,
+      "ticker": "DHR",
+      "underlying_price": 233.8600006104
+    },
+    {
+      "alert_ts": "2026-10-22 20:52",
+      "commission": null,
+      "dte": null,
+      "entry_premium": null,
+      "exit_premium": null,
+      "exit_reason": "no contract - not scoreable: the alert was logged from a descriptor with no chain, so it has no strike/expiry to mark, no exit to apply and no date on which it could mature",
+      "exit_ts": null,
+      "expiry": null,
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0481, \"level\": \"thin\", \"min_bucket_n\": 385}, \"contract_source\": \"descriptor (no chain)\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"no live contract available\", \"skip\": true}, \"term\": {\"source\": \"unavailable\", \"term_ok\": null, \"term_slope\": null}}",
+      "flow_read": "Call-heavy flow (P/C 0.64)",
+      "horizon": "swing",
+      "id": 54,
+      "iv": null,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"Near 52-wk high\", \"Volume surge 2.3x\", \"Call-heavy flow (P/C 0.64)\", \"High IV 75% (rich premium)\"]",
+      "momentum_score": null,
+      "occ_symbol": null,
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "pnl_pct_net": null,
+      "record_epoch": "original",
+      "score": 80.2,
+      "status": "no_contract",
+      "strike": null,
+      "target_delta": null,
+      "technical_score": null,
+      "ticker": "KMI",
+      "underlying_price": 33.7200012207
+    },
+    {
+      "alert_ts": "2026-10-23 20:41",
+      "commission": null,
+      "dte": null,
+      "entry_premium": null,
+      "exit_premium": null,
+      "exit_reason": "no contract - not scoreable: the alert was logged from a descriptor with no chain, so it has no strike/expiry to mark, no exit to apply and no date on which it could mature",
+      "exit_ts": null,
+      "expiry": null,
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0481, \"level\": \"thin\", \"min_bucket_n\": 385}, \"contract_source\": \"descriptor (no chain)\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"no live contract available\", \"skip\": true}, \"term\": {\"source\": \"unavailable\", \"term_ok\": null, \"term_slope\": null}}",
+      "flow_read": "Call-heavy flow (P/C 0.17)",
+      "horizon": "swing",
+      "id": 55,
+      "iv": null,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"Near 52-wk high\", \"Volume surge 1.5x\", \"Call-heavy flow (P/C 0.17)\", \"High IV 157% (rich premium)\"]",
+      "momentum_score": null,
+      "occ_symbol": null,
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "pnl_pct_net": null,
+      "record_epoch": "original",
+      "score": 83.0,
+      "status": "no_contract",
+      "strike": null,
+      "target_delta": null,
+      "technical_score": null,
+      "ticker": "DVN",
+      "underlying_price": 51.3899993896
     }
   ],
   "paper_orders": [
@@ -4081,22 +4632,22 @@
       "entry_order_id": "38581793",
       "entry_premium": 7.6,
       "entry_ts": "2026-09-14T15:03:53.331Z",
-      "exit_order_id": "40355589",
-      "exit_premium": null,
+      "exit_order_id": "40471951",
+      "exit_premium": 5.85,
       "exit_reason": "time_stop",
-      "exit_ts": null,
+      "exit_ts": "2026-10-20T23:27:16",
       "expiry": "2026-11-20",
-      "last_mark": 6.55,
-      "last_mark_ts": "2026-10-16T23:55:21",
-      "last_mid": 6.725,
-      "note": null,
+      "last_mark": 4.3,
+      "last_mark_ts": "2026-10-20T23:27:16",
+      "last_mid": 4.425,
+      "note": "DESYNC: record_outcome did not match an open alert — this paper row is closed but the scorecard has no outcome for it (audit B5)",
       "occ_symbol": "AAPL261120C00355000",
-      "state": "closing",
+      "state": "closed",
       "stop_premium": 3.8,
       "target_premium": 15.2,
       "ticker": "AAPL",
       "time_stop_date": "2026-10-16",
-      "updated_at": "2026-10-16T23:55:21"
+      "updated_at": "2026-10-20T23:27:16"
     },
     {
       "alert_id": 18,
@@ -4225,22 +4776,22 @@
       "entry_order_id": "38887994",
       "entry_premium": 6.4,
       "entry_ts": "2026-09-21T13:49:57.251Z",
-      "exit_order_id": "40355588",
-      "exit_premium": null,
-      "exit_reason": "target",
-      "exit_ts": null,
+      "exit_order_id": "40566689",
+      "exit_premium": 12.35,
+      "exit_reason": "time_stop",
+      "exit_ts": "2026-10-22T23:39:33",
       "expiry": "2026-11-20",
-      "last_mark": 13.75,
-      "last_mark_ts": "2026-10-16T23:55:21",
-      "last_mid": 14.025,
-      "note": null,
+      "last_mark": 12.4,
+      "last_mark_ts": "2026-10-22T23:39:32",
+      "last_mid": 13.025,
+      "note": "DESYNC: record_outcome did not match an open alert — this paper row is closed but the scorecard has no outcome for it (audit B5)",
       "occ_symbol": "ABBV261120C00280000",
-      "state": "closing",
+      "state": "closed",
       "stop_premium": 3.2,
       "target_premium": 12.8,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-20",
-      "updated_at": "2026-10-16T23:55:21"
+      "updated_at": "2026-10-22T23:39:33"
     },
     {
       "alert_id": 22,
@@ -4249,22 +4800,22 @@
       "entry_order_id": "38887995",
       "entry_premium": 6.8,
       "entry_ts": "2026-09-21T13:49:57.266Z",
-      "exit_order_id": null,
-      "exit_premium": null,
-      "exit_reason": null,
-      "exit_ts": null,
+      "exit_order_id": "40525837",
+      "exit_premium": 4.35,
+      "exit_reason": "time_stop",
+      "exit_ts": "2026-10-21T23:42:41",
       "expiry": "2026-11-20",
-      "last_mark": 6.55,
-      "last_mark_ts": "2026-10-16T23:55:21",
-      "last_mid": 6.725,
-      "note": null,
+      "last_mark": 5.75,
+      "last_mark_ts": "2026-10-21T23:42:40",
+      "last_mid": 5.875,
+      "note": "DESYNC: record_outcome did not match an open alert — this paper row is closed but the scorecard has no outcome for it (audit B5)",
       "occ_symbol": "AAPL261120C00355000",
-      "state": "open",
+      "state": "closed",
       "stop_premium": 3.4,
       "target_premium": 13.6,
       "ticker": "AAPL",
       "time_stop_date": "2026-10-20",
-      "updated_at": "2026-10-16T23:55:21"
+      "updated_at": "2026-10-21T23:42:41"
     },
     {
       "alert_id": 23,
@@ -4321,22 +4872,22 @@
       "entry_order_id": "38980382",
       "entry_premium": 6.25,
       "entry_ts": "2026-09-22T14:22:21.588Z",
-      "exit_order_id": "40355587",
-      "exit_premium": null,
-      "exit_reason": "target",
-      "exit_ts": null,
+      "exit_order_id": "40566688",
+      "exit_premium": 12.35,
+      "exit_reason": "time_stop",
+      "exit_ts": "2026-10-22T23:39:32",
       "expiry": "2026-11-20",
-      "last_mark": 13.75,
-      "last_mark_ts": "2026-10-16T23:55:21",
-      "last_mid": 14.025,
-      "note": null,
+      "last_mark": 12.4,
+      "last_mark_ts": "2026-10-22T23:39:32",
+      "last_mid": 13.025,
+      "note": "DESYNC: record_outcome did not match an open alert — this paper row is closed but the scorecard has no outcome for it (audit B5)",
       "occ_symbol": "ABBV261120C00280000",
-      "state": "closing",
+      "state": "closed",
       "stop_premium": 3.125,
       "target_premium": 12.5,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-21",
-      "updated_at": "2026-10-16T23:55:21"
+      "updated_at": "2026-10-22T23:39:32"
     },
     {
       "alert_id": 28,
@@ -4393,22 +4944,22 @@
       "entry_order_id": "39345423",
       "entry_premium": 6.3,
       "entry_ts": "2026-09-29T13:59:24.688Z",
-      "exit_order_id": "40355586",
-      "exit_premium": null,
-      "exit_reason": "target",
-      "exit_ts": null,
+      "exit_order_id": "40525835",
+      "exit_premium": 11.7,
+      "exit_reason": "target (marked; exit order expired)",
+      "exit_ts": "2026-10-21T23:42:41",
       "expiry": "2026-11-20",
-      "last_mark": 13.75,
-      "last_mark_ts": "2026-10-16T23:55:21",
-      "last_mid": 14.025,
-      "note": null,
+      "last_mark": 12.45,
+      "last_mark_ts": "2026-10-24T00:03:34",
+      "last_mid": 13.85,
+      "note": "exit order expired; will retry | order expired",
       "occ_symbol": "ABBV261120C00280000",
-      "state": "closing",
+      "state": "open",
       "stop_premium": 3.15,
       "target_premium": 12.6,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-25",
-      "updated_at": "2026-10-16T23:55:21"
+      "updated_at": "2026-10-24T00:03:34"
     },
     {
       "alert_id": 30,
@@ -4417,22 +4968,22 @@
       "entry_order_id": "39345425",
       "entry_premium": 6.3,
       "entry_ts": "2026-09-29T13:59:24.719Z",
-      "exit_order_id": "40355585",
-      "exit_premium": null,
-      "exit_reason": "target",
-      "exit_ts": null,
+      "exit_order_id": "40525834",
+      "exit_premium": 11.7,
+      "exit_reason": "target (marked; exit order expired)",
+      "exit_ts": "2026-10-21T23:42:41",
       "expiry": "2026-11-20",
-      "last_mark": 13.75,
-      "last_mark_ts": "2026-10-16T23:55:21",
-      "last_mid": 14.025,
-      "note": null,
+      "last_mark": 12.45,
+      "last_mark_ts": "2026-10-24T00:03:34",
+      "last_mid": 13.85,
+      "note": "exit order expired; will retry | order expired",
       "occ_symbol": "ABBV261120C00280000",
-      "state": "closing",
+      "state": "open",
       "stop_premium": 3.15,
       "target_premium": 12.6,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-25",
-      "updated_at": "2026-10-16T23:55:21"
+      "updated_at": "2026-10-24T00:03:34"
     },
     {
       "alert_id": 32,
@@ -4895,24 +5446,120 @@
       "contracts": 1,
       "created_at": "2026-10-16T23:02:29",
       "entry_order_id": "40355583",
-      "entry_premium": null,
-      "entry_ts": "2026-10-16T23:02:30",
+      "entry_premium": 7.5,
+      "entry_ts": "2026-10-19T14:01:45.212Z",
       "exit_order_id": null,
       "exit_premium": null,
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-12-18",
+      "last_mark": 8.55,
+      "last_mark_ts": "2026-10-24T00:03:33",
+      "last_mid": 8.775,
+      "note": null,
+      "occ_symbol": "AAPL261218C00360000",
+      "state": "open",
+      "stop_premium": 3.75,
+      "target_premium": 15.0,
+      "ticker": "AAPL",
+      "time_stop_date": "2026-11-17",
+      "updated_at": "2026-10-24T00:03:33"
+    },
+    {
+      "alert_id": 52,
+      "contracts": 1,
+      "created_at": "2026-10-21T23:42:40",
+      "entry_order_id": null,
+      "entry_premium": null,
+      "entry_ts": null,
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": null,
       "last_mark": null,
       "last_mark_ts": null,
       "last_mid": null,
-      "note": null,
-      "occ_symbol": "AAPL261218C00360000",
-      "state": "submitted",
-      "stop_premium": 4.225,
-      "target_premium": 16.9,
-      "ticker": "AAPL",
-      "time_stop_date": "2026-11-17",
-      "updated_at": "2026-10-16T23:02:30"
+      "note": "no contract on the alert (chain unavailable when it fired)",
+      "occ_symbol": null,
+      "state": "skipped",
+      "stop_premium": null,
+      "target_premium": null,
+      "ticker": "EMR",
+      "time_stop_date": null,
+      "updated_at": "2026-10-21T23:42:40"
+    },
+    {
+      "alert_id": 53,
+      "contracts": 1,
+      "created_at": "2026-10-21T23:42:40",
+      "entry_order_id": null,
+      "entry_premium": null,
+      "entry_ts": null,
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": null,
+      "last_mark": null,
+      "last_mark_ts": null,
+      "last_mid": null,
+      "note": "no contract on the alert (chain unavailable when it fired)",
+      "occ_symbol": null,
+      "state": "skipped",
+      "stop_premium": null,
+      "target_premium": null,
+      "ticker": "DHR",
+      "time_stop_date": null,
+      "updated_at": "2026-10-21T23:42:40"
+    },
+    {
+      "alert_id": 54,
+      "contracts": 1,
+      "created_at": "2026-10-22T23:39:32",
+      "entry_order_id": null,
+      "entry_premium": null,
+      "entry_ts": null,
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": null,
+      "last_mark": null,
+      "last_mark_ts": null,
+      "last_mid": null,
+      "note": "no contract on the alert (chain unavailable when it fired)",
+      "occ_symbol": null,
+      "state": "skipped",
+      "stop_premium": null,
+      "target_premium": null,
+      "ticker": "KMI",
+      "time_stop_date": null,
+      "updated_at": "2026-10-22T23:39:32"
+    },
+    {
+      "alert_id": 55,
+      "contracts": 1,
+      "created_at": "2026-10-23T23:33:41",
+      "entry_order_id": null,
+      "entry_premium": null,
+      "entry_ts": null,
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": null,
+      "last_mark": null,
+      "last_mark_ts": null,
+      "last_mid": null,
+      "note": "no contract on the alert (chain unavailable when it fired)",
+      "occ_symbol": null,
+      "state": "skipped",
+      "stop_premium": null,
+      "target_premium": null,
+      "ticker": "DVN",
+      "time_stop_date": null,
+      "updated_at": "2026-10-23T23:33:41"
     }
   ],
   "schema_version": 1,
