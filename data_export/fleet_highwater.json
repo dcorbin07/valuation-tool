@@ -1,52 +1,52 @@
 {
   "books": {
     "f10_clean_csp": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:21",
+      "max_seq": 16
     },
     "f11_dip_reject_puts": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:21",
+      "max_seq": 16
     },
     "f12_postevent_reversal": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:21",
+      "max_seq": 16
     },
     "f13_second_event": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:21",
+      "max_seq": 16
     },
     "f14_fda_nohump": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:21",
+      "max_seq": 16
     },
     "f15_insider_cluster": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:21",
+      "max_seq": 16
     },
     "f17_vrp_percentile_sells": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f18_boring_book": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f19_density_gate": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f1_fill_ab": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f20_married_put_storm": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f21_v6opt_dip_csp": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 7,
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 14,
       "reanchors": [
         {
           "archive": "f21_v6opt_dip_csp.1.superseded.csv",
@@ -59,8 +59,8 @@
       ]
     },
     "f22_dip_csp_random_twin": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 7,
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 14,
       "reanchors": [
         {
           "archive": "f22_dip_csp_random_twin.1.superseded.csv",
@@ -73,40 +73,40 @@
       ]
     },
     "f23_insider_cluster_shares": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 3
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 5
     },
     "f2_menu_gate": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f3_bear_puts": {
-      "last_seen": "2026-10-17T12:31:32",
-      "max_seq": 432
+      "last_seen": "2026-10-23T16:11:30",
+      "max_seq": 603
     },
     "f4_eventfree_premium": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f4b_eventfree_25d": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 1
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 3
     },
     "f5_ivcheap": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f6_collar_ledger": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "f8_csp_entry_financing": {
-      "last_seen": "2026-10-17T12:31:29",
-      "max_seq": 14
+      "last_seen": "2026-10-23T16:09:22",
+      "max_seq": 16
     },
     "testbook": {
-      "last_seen": "2026-10-17T12:31:33",
-      "max_seq": 67
+      "last_seen": "2026-10-23T16:11:31",
+      "max_seq": 93
     }
   },
   "ok": true,
