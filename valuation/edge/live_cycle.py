@@ -578,8 +578,14 @@ def reconcile(client, state: dict) -> dict:
                 # already in `filled` below, so taking the whole `qty` would double-count it.
                 oq = LS._f((o or {}).get("qty"))
                 of = LS._f((o or {}).get("filled_qty")) or 0.0
+                # **AND ITS LIMIT PRICE [item 83].** `qty_open` alone cannot say how much
+                # CASH an open buy has spoken for, and that is what a no-borrow budget has to
+                # subtract. Read here because this is the only place the order object exists,
+                # and it is the same field the fill record below already reads -- so this adds
+                # a key rather than a second source.
                 out["resting"].append({"id": str((o or {}).get("id") or coid),
                                        "ticker": sym, "side": side, "coid": coid,
+                                       "limit_price": LS._f((o or {}).get("limit_price")),
                                        "qty_open": (max(0.0, oq - of)
                                                     if oq is not None else None)})
         if fq and fq > 0 and sym:
@@ -2040,7 +2046,15 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # five trading days. Don, 2026-10-18: *"Waiting for cash is a normal state, not a
         # failure... it does not re-alert every cycle and does not burn the ceiling. The
         # ceiling still applies to orders that are sent and never fill."*
-        budget = SETTLE.spendable(account) if account is not None else {
+        # **OPEN BUYS ARE RESERVED BEFORE THE BUDGET IS TAKEN [item 83].** Alpaca's `cash`
+        # does not fall when an order is placed, only when it fills, so a cap at cash alone
+        # still overdraws while a previous cycle's buy is working -- and 38 were working when
+        # the 2026-10-26 cycle sized its second round. `rec["resting"]` is already filtered to
+        # THIS slot's own orders by the prefix filter in `reconcile`, which is the right scope
+        # for this slot's budget.
+        _reserved = SETTLE.open_buy_value((rec or {}).get("resting") or [])
+        out["reserved_for_open_buys"] = _reserved
+        budget = SETTLE.spendable(account, reserved=_reserved) if account is not None else {
             "ok": False, "amount": None, "field": None,
             "reason": ("no account reply was supplied to this cycle, so nothing bounds a buy "
                        "and none is sized")}

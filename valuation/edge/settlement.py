@@ -76,15 +76,35 @@ WAIT_ALERT_AFTER_TRADING_DAYS = SETTLEMENT_TRADING_DAYS + 1
 #: Deliberately the same number as the cycle ceiling it replaces -- what changed is the unit.
 MAX_EVENT_TRADING_DAYS = 5
 
-#: The broker's own name for the figure that bounds a buy. **The ONLY key this project sizes a
-#: buy from.** A committed literal (`MA13`) so a future edit to the sizing rule shows up as a
-#: change to this line rather than as a different string somewhere inside the cycle.
-NO_BORROW_FIELD = "non_marginable_buying_power"
+#: **THE ONLY FIELD A BUY IS SIZED FROM, AND IT IS `cash` [item 83].**
+#:
+#: IT WAS `non_marginable_buying_power`, ON THE PREMISE THAT THE NAME MEANT "SPENDABLE WITHOUT
+#: BORROWING". **On a margin account that premise is false, and it put the paper account into a
+#: margin debit on 2026-10-26.** Alpaca's own documented sample account (the account-plans page)
+#: reads `cash` **-23,140.20** with `non_marginable_buying_power` **+7,386.56** at
+#: `multiplier` 4 -- a positive no-borrow figure on an account already thousands of dollars
+#: overdrawn. The field is buying power for securities that cannot be MARGINED; it is not the
+#: cash on hand.
+#:
+#: WHAT HAPPENED, measured from the two cycles' own saved bodies. The paper account's
+#: `multiplier` is **4.0**. The 17:30Z cycle sized a budget of **$50,060.26** from that field and
+#: the 17:46Z cycle **$41,831.33**, and the second bought the whole **$12,603.48** remaining gap
+#: while **38 orders from the first cycle were still resting**. The account finished at
+#: `cash` **-$4,759.68** against `equity` $100,220.70 -- about **4.75% borrowed**. The arithmetic
+#: closes: spending $12,603.48 and landing at -$4,759.68 implies roughly **+$7,844** of cash when
+#: a budget of $41,831.33 was handed out.
+#:
+#: `cash` CANNOT INCLUDE BORROWED FUNDS AT ANY MULTIPLIER, which is the whole reason it is the
+#: cap. Every buying-power field is levered or margin-derived at a multiplier above 1, and the
+#: multiplier is deliberately NOT branched on: an unreported or wrong multiplier must not be able
+#: to widen a budget.
+NO_BORROW_FIELD = "cash"
 
-#: Levered figures, named so a reader can see they were considered and refused rather than
-#: overlooked. Never read. A buy sized from either of these is a margin debit, in an account
-#: that is not allowed to carry one.
-LEVERED_FIELDS = ("regt_buying_power", "daytrading_buying_power")
+#: Levered or margin-derived figures, named so a reader can see they were considered and refused
+#: rather than overlooked. **Never read for sizing.** `non_marginable_buying_power` joined this
+#: list in item 83 and is the reason that item exists.
+LEVERED_FIELDS = ("buying_power", "regt_buying_power", "daytrading_buying_power",
+                  "non_marginable_buying_power")
 
 #: What Alpaca says when an order is refused for want of funds. Matched to tell a SETTLEMENT
 #: WAIT from a broker fault -- the one is normal and keeps the sells, the other means no orders
@@ -104,13 +124,60 @@ def _f(x) -> Optional[float]:
     return v if v == v and v not in (float("inf"), float("-inf")) else None
 
 
-def spendable(account) -> dict:
+def open_buy_value(resting) -> dict:
+    """The dollar value of this slot's OPEN BUY orders -> `{ok, amount, n, unpriced, reason}`.
+
+    **AN OPEN BUY IS CASH ALREADY SPOKEN FOR.** Alpaca's `cash` is the balance now; it does not
+    fall when an order is placed, only when it fills. So a budget capped at `cash` alone still
+    overdraws whenever a previous cycle's buy is still working -- which is exactly the state the
+    2026-10-26 paper cycle was in, with 38 orders resting when it sized its second round.
+
+    **AN ORDER THIS CANNOT VALUE MAKES THE WHOLE RESERVATION REFUSE (`ok` False), AND THE CALLER
+    SENDS NO BUYS.** Reading an unvaluable open order as $0 is the direction that borrows, and it
+    is the same call `live_slots.order_plan` already makes one level down: *"An unreadable open
+    quantity means the committed quantity is unknown, and planning against an unknown is how the
+    stacking happened."* Our own orders are `day` LIMIT orders and always carry a limit price, so
+    this is a state that should not arise -- it is loud rather than silent if it ever does.
+
+    SELLS ARE NOT RESERVED, deliberately: a sell RELEASES cash when it fills. Reserving it would
+    stop a rebalance from ever reinvesting its own proceeds.
+    """
+    rows = [r for r in (resting or [])
+            if isinstance(r, dict) and str(r.get("side") or "").lower() == "buy"]
+    total, unpriced = 0.0, []
+    for r in rows:
+        q = _f(r.get("qty_open"))
+        px = _f(r.get("limit_price"))
+        if q is None or px is None or q < 0 or px <= 0:
+            unpriced.append(str(r.get("ticker") or r.get("id") or "?"))
+            continue
+        total += q * px
+    if unpriced:
+        return {"ok": False, "amount": None, "n": len(rows), "unpriced": sorted(set(unpriced)),
+                "reason": ("%d open buy order(s) carry no readable quantity and price (%s), so "
+                           "the cash already spoken for is unknown and no buy is sized"
+                           % (len(unpriced), ", ".join(sorted(set(unpriced))[:6])))}
+    return {"ok": True, "amount": round(total, 2), "n": len(rows), "unpriced": [],
+            "reason": ("%.2f of cash is already committed to %d open buy order(s)"
+                       % (total, len(rows)))}
+
+
+def spendable(account, reserved=None) -> dict:
     """How much this account can spend on a buy **without borrowing**, and which field said so.
 
     Accepts either client's account shape -- `AlpacaPaperBroker.account()` returns a normalised
     dict and `_LiveClient.account()` returns `{"ok", "data"}` around Alpaca's raw body --
     because the two have diverged four times already and a budget reading only one of them
     would be the fifth.
+
+    **THE BUDGET IS `cash` MINUS THE CASH ALREADY COMMITTED TO OPEN BUYS, AND NOTHING ELSE
+    [item 83].** No buying-power field is consulted for the amount at any multiplier; see
+    `NO_BORROW_FIELD` for the margin debit that rule exists to prevent. A NEGATIVE cash balance
+    reads as **zero**, so an account already overdrawn buys nothing and cannot deepen the debit.
+
+    `reserved` is the result of `open_buy_value`, or a bare number, or None for "nothing open".
+    It is **PASSED IN, NOT READ HERE**, like `min_topup`: this function touches no broker and no
+    environment, which is what makes the rule testable against Alpaca's own documented sample.
 
     `ok` False means **the broker did not report a figure this code is willing to spend
     against**, which is a broken input: the caller sends no buys. It is NOT a settlement wait,
@@ -126,36 +193,46 @@ def spendable(account) -> dict:
         return {"ok": False, "amount": None, "field": None,
                 "reason": "no account was supplied, so no buy can be sized"}
 
-    nmbp = _f(a.get(NO_BORROW_FIELD))
-    cash = _f(a.get("cash"))
-    bp = _f(a.get("buying_power"))
+    cash = _f(a.get(NO_BORROW_FIELD))
     mult = _f(a.get("multiplier"))
 
-    if nmbp is not None:
-        amount, field = nmbp, NO_BORROW_FIELD
-        why = ("the broker's own non-margin buying power, which is Alpaca's documented "
-               "'current available non-margin dollar buying power'")
-    elif cash is not None and bp is not None:
-        # `buying_power` equals cash ONLY at multiplier 1 and is levered above it, so the cash
-        # term is what makes this safe at any multiplier. Taking the min rather than branching
-        # on `multiplier` means an unreported or wrong multiplier cannot widen the budget.
-        amount, field = min(cash, bp), "min(cash, buying_power)"
-        why = ("the broker did not report %s, so the budget is the smaller of cash and buying "
-               "power -- buying power alone is levered whenever the multiplier is above 1"
-               % NO_BORROW_FIELD)
-    elif cash is not None:
-        amount, field = cash, "cash"
-        why = "the broker reported only a cash balance, which cannot include borrowed funds"
-    else:
-        return {"ok": False, "amount": None, "field": None, "multiplier": mult,
-                "reason": ("the broker reported no spendable figure (%s, cash and buying_power "
-                           "are all absent or unreadable), so no buy is sized and none is sent"
-                           % NO_BORROW_FIELD)}
+    # THE FIGURES THE BUDGET WAS DERIVED FROM, RECORDED [item 83]. The 2026-10-26 bodies saved
+    # the chosen amount, its field and the multiplier and NOT the balances behind them -- so
+    # nobody could tell from the record whether a budget had exceeded cash. They ship now.
+    seen = {"cash": cash, "multiplier": mult}
+    for k in LEVERED_FIELDS:
+        seen[k] = _f(a.get(k))
 
-    amount = max(0.0, round(float(amount), 2))
-    return {"ok": True, "amount": amount, "field": field, "why": why, "multiplier": mult,
+    if cash is None:
+        return {"ok": False, "amount": None, "field": None, "multiplier": mult,
+                "account_figures": seen,
+                "reason": ("the broker reported no readable cash balance, so no buy is sized "
+                           "and none is sent -- a buying-power field is never substituted for "
+                           "it, because every one of them is levered above multiplier 1")}
+
+    if isinstance(reserved, dict):
+        if reserved.get("ok") is False:
+            return {"ok": False, "amount": None, "field": NO_BORROW_FIELD, "multiplier": mult,
+                    "account_figures": seen, "reserved": reserved,
+                    "reason": reserved.get("reason") or ("the cash already committed to open "
+                                                         "buys is unknown, so no buy is sized")}
+        res = _f(reserved.get("amount")) or 0.0
+    else:
+        res = _f(reserved) or 0.0
+    res = max(0.0, res)
+
+    # **NEGATIVE CASH READS AS ZERO.** An overdrawn account buys nothing; it does not get a
+    # budget computed from a negative number and it does not deepen the debit.
+    amount = max(0.0, round(float(cash) - res, 2))
+    field = NO_BORROW_FIELD if not res else "%s - open buy orders" % NO_BORROW_FIELD
+    return {"ok": True, "amount": amount, "field": field, "multiplier": mult,
+            "account_figures": seen, "reserved": (reserved if isinstance(reserved, dict)
+                                                  else {"amount": res}),
             "levered_fields_not_read": list(LEVERED_FIELDS),
-            "reason": "%.2f spendable without borrowing, from %s" % (amount, field)}
+            "why": ("cash cannot include borrowed funds at any multiplier, which is why it is "
+                    "the cap; every buying-power field is levered or margin-derived above 1"),
+            "reason": ("%.2f spendable without borrowing, from %s (cash %.2f, %.2f committed "
+                       "to open buys)" % (amount, field, cash, res))}
 
 
 def is_settlement_wait(reason, detail=None) -> bool:

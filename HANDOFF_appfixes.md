@@ -24064,3 +24064,247 @@ the directory came from, which is better than depending on an operator noticing 
 `valuation/edge/sharadar_freeze.py`, `valuation/edge/fundamental_panel.py`,
 `refresh_sharadar.bat`, `REBALANCE_RUNBOOK_2027-01-25.md`, `scripts/i81_before.py`,
 `tests/test_item81.py`.
+
+---
+
+## ITEM 82 — the daily LIVE CHECK failed a correct 81-name book
+
+**READ FROM THE RUN RATHER THAN REASONED ABOUT.** `LIVE CHECK` run #31 (`40387659164`,
+2026-10-26 19:32 UTC) came back **30 passed, 1 failed, 0 skipped**, and the single failure is:
+
+```
+FAIL  Index holds 85+ names                        n_positions 81
+```
+
+**Nothing else failed**, so the brief's "fix that too if anything else did" branch does not fire.
+
+**THE CHECKER WAS ASSERTING THE PREVIOUS BOOK'S SIZE AS THOUGH IT WERE THE RULE.** The
+2026-10-22 rebalance formed **81** names; it conforms; the rebalance door accepted it. The
+contract floor is **50** (`CONTRACT_MIN_POSITIONS`). The old 86-name book was formed 2026-07-30,
+and a rebalance is precisely the event that moves that number — so `n >= 85` was a literal with
+a three-month shelf life, and it would have fired on both weekday runs until changed. That is
+how an alert channel teaches its reader to ignore it (`MA21`).
+
+**THE RULE IS NOW THE DOOR'S OWN, CALLED RATHER THAN RESTATED.** `valquo_index.conformance` is
+the function `index_mark.append_rebalance` refuses on, and the checker derives its two inputs
+exactly as that door does: the position count, and the largest weight **normalised by the
+weights' own sum**. Neither 50 nor 8% is typed in the checker — so the next change to either
+moves this check with it (`MA5`) — and **81 is not typed either**, so this cannot quietly become
+a different assertion about today's book. Pinned on the AST, which sees code rather than prose
+about code.
+
+**IT IS STRICTLY STRONGER THAN THE COUNT IT REPLACES, not merely looser.** A truncated book
+still fails on the floor, **and** a book with one runaway position now fails on the cap, which
+`n >= 85` could never see — tested with 90 names holding 30% in one of them, which the old rule
+passed outright.
+
+**ONE MEASURED DECISION: WHICH OF THE BRIEF'S TWO ROUTES.** The brief allowed reading a
+conformance verdict the public payload "already carries, or adds". Measured on the live
+endpoint: `/api/valquo-index` carries `n_positions` and `positions[].weight` and **does not
+carry `contract_conformance`** — the in-force payload is assembled by `index_in_force` from the
+bound record, while that block is produced by `build_index`. Adding it to the route would have
+been a public-surface change with a deploy window in which the checker's new code meets the old
+payload, and the checker would have had to treat an absent block as either a failure (cry wolf)
+or a pass (vacuous). **Deriving the door's two inputs from what the payload already carries
+needs no route change and has no such window**, and it is the same arithmetic the door performs.
+
+**RULE 3 WAS CHECKED, NOT ASSUMED.** `live_check.py` is stdlib-only *"so the workflow needs a
+checkout and nothing else"* — a rule about `pip install`, not about project modules.
+`valuation.edge.valquo_index`'s module-level imports are `datetime`, `json`, `os` and `typing`,
+and importing it pulls in **zero** third-party modules, measured against
+`sys.stdlib_module_names`. A test re-measures that, so a future top-level `import pandas` in
+that module turns this red rather than turning a public runner red.
+
+**STEP 4, THE SWEEP FOR OTHER OLD COUNTS: `live_check.py:405` WAS THE ONLY ONE IN THE TREE.** An
+AST sweep over the monitors for any comparison of a position count against an integer literal
+finds nothing else. `index_book.py` mentions 86 twice and both are **prose recording history**
+("the published book held 86"), which is correct as history — and is exactly why the pin reads
+the syntax tree rather than grepping. The pin covers `live_check.py`, `rebalance_watch.py`,
+`index_book.py` and `index_in_force.py`.
+
+**VERIFIED AGAINST THE REAL SITE, not only against fixtures:**
+
+```
+PASS  Index is the contract-bound book   n_positions 81 against the contract floor of 50,
+                                         largest weight 0.0196 against the 8% cap
+```
+
+**A SECOND FAILURE APPEARED IN MY OWN AD-HOC RUN AND IS A TIMING ARTEFACT, measured rather than
+waved away.** `FAIL hot list is fresh — scan_date 2026-10-23, last session 2026-10-26`. The
+hot-list scan cron is **22:23 UTC** and I ran the checker at **22:05 UTC** — after the close, so
+`last_closed_session()` had moved to 10-26, and before the scan that refreshes it. Confirmed
+against the clock: at 22:08 UTC `/api/hotstocks` still read `scan_date 2026-10-23`. **The two
+scheduled runs are 13:45 and 23:05 UTC**, and the workflow's own comment says 23:05 is chosen to
+sit after the 22:23 publish. So this is the one gap the schedule deliberately avoids, it did not
+fire in run #31 (19:32Z is before the close), and it is not a defect. Reported because a reader
+of my run's output would otherwise count two failures.
+
+**AN EXISTING GUARD FIRED AND IT WAS A WORDING MATCH, NOT A BEHAVIOUR ONE.**
+`tests/test_live_check.py::test_a_short_book_fails` matched the LABEL `"85+"`, so renaming
+the line broke it -- while the property it exists for, a short book failing, was still true
+and was sitting in the very output the failure printed. Repointed in the same commit (`MA59`)
+to assert the FAIL and its reason rather than its wording. **It also surfaced an overlap I
+had not checked for before writing a new suite:** that file already owns an Index section, so
+the two are now separated by name -- `test_live_check.py` owns the checker's general
+behaviour, `test_item82.py` owns the conformance rule.
+
+**12 tests, 10 of them failing against the pre-change tree** (`scripts/i82_before.py`, baseline
+pinned to the SHA rather than `HEAD`). The headline test asserts `failed == 0` **before** the
+renamed label, so it cannot be satisfied by a rename — it fails pre-fix because the verdict was
+wrong, not because the wording changed.
+
+**NOT DONE:** the public payload is unchanged, no route touched, no book built, nothing appended,
+`DECISIONS.md` not edited, no `.github` change.
+
+`scripts/live_check.py`, `tests/test_item82.py`, `scripts/i82_before.py`.
+
+---
+
+## ITEM 83 — the paper account borrowed on the rebalance, because the field's name was not what it meant
+
+**THE CAUSE IS THE ONE THE BRIEF NAMED, AND IT IS NOW MEASURED FROM THE CYCLES' OWN SAVED
+BODIES.** Both artifacts downloaded and read:
+
+| | 17:30Z (`40369206418`) | 17:46Z (`40371817752`) |
+|---|---|---|
+| budget | **$50,060.26** | **$41,831.33** |
+| sized from | `non_marginable_buying_power` | `non_marginable_buying_power` |
+| `multiplier` | **4.0** | **4.0** |
+| orders | 68 sells, 49 buys | 49 buys, 0 sells |
+| buy cost planned | $50,060.26 (80% of the gap) | **$12,603.48 (100% of the gap)** |
+| orders still resting | 0 | **38** |
+
+**THE PAPER ACCOUNT IS A MARGIN ACCOUNT AT MULTIPLIER 4**, so a budget taken from
+`non_marginable_buying_power` can exceed the cash on hand. That field is buying power for
+securities that cannot be **MARGINED**; it is not the cash. Alpaca's own documented sample
+account makes the gap unmissable: `cash` **−23,140.20** with `non_marginable_buying_power`
+**+7,386.56** at `multiplier` 4 — a positive "no-borrow" figure on an account thousands of
+dollars overdrawn.
+
+**THE ARITHMETIC CLOSES TO THE CENT, which is what makes this the cause rather than a story
+consistent with it.** The second cycle spent **$12,603.48** and the account ended at `cash`
+**−$4,759.68**, so cash was about **+$7,843.80** when a budget of **$41,831.33** was handed out.
+Capped at cash, that cycle would have bought ~$7,844 and landed at ~$0. The debit is
+**$4,759.68 on $100,220.70 of equity — 4.75% borrowed**, and the ~2.7× buying power on the
+dashboard is the margin account confirming itself.
+
+**AND THE SECOND HALF MATTERS AS MUCH AS THE FIRST: `cash` ALONE IS NOT ENOUGH EITHER.** Alpaca's
+`cash` does not fall when an order is placed, only when it fills — and **38 orders were still
+resting** when the 17:46Z cycle sized its round. So a cap at cash still overdraws while a
+previous cycle's buy is working. The budget now reserves the cash committed to open **buy**
+orders first. Sells are deliberately not reserved: a sell *releases* cash, and reserving it
+would stop a rebalance ever reinvesting its own proceeds.
+
+**THE RULE, in one definition in `settlement.py`:** the budget is `cash`, less open buy orders,
+and **a negative cash reads as zero** so an overdrawn account buys nothing and cannot deepen the
+debit. No buying-power field is consulted for the amount at any multiplier, and the multiplier is
+deliberately not branched on — an unreported or wrong one must not be able to widen a budget.
+`NO_BORROW_FIELD` is now `"cash"`, which finally makes that constant's **name true of what it
+holds**; `non_marginable_buying_power` joins `LEVERED_FIELDS`, named as refused rather than
+merely unread.
+
+**ONE SUPPORTING CHANGE, read where the data exists.** A resting entry carried `ticker`, `side`
+and `qty_open` and **no price**, so it could not say how much cash an open buy had spoken for.
+`reconcile` now records `limit_price` too — read from the order object at the one place it
+exists, and the same field the fill record two lines below already reads, so this adds a key
+rather than a second source. An open buy this cannot value makes the whole reservation **refuse**
+and the cycle sends no buys: reading an unvaluable order as $0 is the direction that borrows, and
+it is the same call `live_slots.order_plan` already makes for the quantity.
+
+**A SECOND FINDING THE BRIEF DID NOT ASK FOR, AND IT IS WHY THE FIRST TOOK DERIVATION RATHER THAN
+READING: THE SAVED BODY RECORDED THE BUDGET AND NOT THE BALANCES BEHIND IT.** The `budget` block
+held `amount`, `field`, `multiplier` and prose — so **nobody could tell from the record whether a
+budget had exceeded cash**, which is the one question the record needed to answer. `cash` and
+every refused field now ship in `account_figures` on every cycle.
+
+**FOUR OF ITEM 67's GUARDS FIRED, CORRECTLY, AND ARE REPOINTED IN THE SAME COMMIT (`MA59`).**
+They asserted the OLD rule by name — `field == "non_marginable_buying_power"`,
+`NO_BORROW_FIELD == "non_marginable_buying_power"`, the `min(cash, buying_power)` fallback, and a
+refusal's exact wording. Each is repointed to the property it stood in for: a buy is sized from a
+figure that cannot contain borrowed money; the levered fields are named as refused; **the answer
+does not move when any levered field is dropped or inflated** (which is the real content of "a
+wrong multiplier cannot widen the budget"); and a missing balance is a broken input rather than a
+settlement wait, asserted through `is_settlement_wait` instead of a phrase. The amount on item
+67's own `LEVERED` fixture is **unchanged at 250.0** — that fixture's cash and no-borrow figure
+happen to agree — so the behavioural assertion survives and only the field name moved. **Item
+67's AST guard, that nothing outside `settlement.py` and the two read-only reports names a
+buying-power field, still passes**, and item 83 re-asserts it so this item cannot have added one.
+
+**A SECOND GUARD FIRED FOR THE SAME REASON ONE ITEM OVER, AND IT IS THE SHARPER INSTANCE.**
+`tests/test_item73.py::test_the_budget_is_resolved_BEFORE_the_ceiling_in_the_source` searched
+for the literal `"SETTLE.spendable(account)"` and RAISED `ValueError: substring not found`
+when the call gained a `reserved=` argument. **A guard whose whole subject is an ORDERING had
+identified its call by the exact text of its arguments**, and the ordering it protects never
+moved. Matched on `SETTLE.spendable(` now -- the call rather than one spelling of it -- so the
+next argument cannot break it either. Two guards in one gate run, both failing on wording
+while the behaviour they guard held: the substring-match family, again.
+
+**AND THE GATE CAUGHT BOTH BECAUSE IT WAS RUN TO COMPLETION.** The first run's partial output
+showed only the known pandas-3 failure; these two appeared minutes later. The summary line is
+the completion signal -- the same lesson item 81 paid for with a failed land.
+
+### STEP 3 — THE PAPER ACCOUNT'S CURRENT STATE: THE NEXT CYCLE RESTORES IT BY ITSELF
+
+**IT DOES, AND NO EXTRA SELL NEEDS PROPOSING — so the brief's "wait for Don's yes" branch does
+not fire.** `live_slots.targets` is the only sizing rule in the live path and it is
+`target_i = pct/100 × equity × w_i`. The paper slot runs at **`pct` 100.0** (read from the body),
+so the targets sum to **equity** — $100,220.70 — while the book holds about **$104,980** of
+stock. Every name is therefore above its target, the next cycle's plan is **sells**, and trimming
+to 100% of equity sells about **$4,760** and brings cash back to roughly **zero**. It trims; it
+does not borrow.
+
+Two caveats stated rather than buried: equity moves with prices, so the exact figure will differ
+on the day; and the excess is **not spread evenly** — it sits in the names whose sells did not
+fill before the close, because day limit orders expire there. Those are precisely the names
+furthest above target, so they are the first the trim reaches.
+
+**HOW FAR OFF THE INDEX THE BOOK IS: it is LEVERED, not mis-weighted.** The composition is still
+the Index's; the gross exposure is about **104.75% of equity** instead of 100%. The distortion is
+in the names that did not sell, and it is bounded by the $4,759.68 debit.
+
+### STEP 4 — THE LIVE SLOT: NOT REACHABLE FROM THIS LANE, AND THAT IS A FINDING IN ITSELF
+
+**I could not do a read-only account read of the IRA, and I am not going to report figures I did
+not read.** Two measurements, both from data already captured:
+
+* **this lane holds no Alpaca credentials** — no `ALPACA*` or `LIVE_*` variable is in its
+  environment, and the standing rule puts live keys on Render only, never in a local `.env`;
+* **the IRA was never contacted by either cycle anyway.** Both ran `mode: paper` —
+  *"paper-only: the paper slot transmits on the paper client and every live slot stays a dry run
+  whatever its settings"* — and the single live slot recorded `pct` **0.0**, `armed` **False**,
+  `order_read` **`not_attempted`**, `account_id_recorded` **False**, and
+  `sized_on: "the PAPER account's equity, because this slot has no live client"`.
+
+So at 0% the IRA is not merely unarmed: **nothing is reading it**, and its `multiplier` is
+unobserved. The brief's own statement that limited-margin IRAs cannot borrow *"rests on Alpaca's
+documentation and has not been observed"* — that remains exactly true, and this item does not
+change it. **What the fix does do is make the question less load-bearing:** the budget is now
+capped at cash on *every* account type, so the IRA could not overdraw even if Alpaca did extend
+it credit. Before the fix, an IRA reporting a positive `non_marginable_buying_power` against
+negative cash would have been sized the same wrong way the paper account was.
+
+**Reading the IRA's fields needs a credentialed read-only call**, which is Don's or a lane with
+the keys. `_LiveClient.account_report()` is the read-only door that already exists for it.
+
+### STEP 5 — ROUTED, NOT DONE
+
+**The auditor lane should re-check this one change before the live percentage moves above 0.**
+Reported here as the brief instructs; this lane did not ask them and did not change any
+percentage.
+
+**15 of 17 item-83 tests fail against the pre-change tree, and item 67's four repointed guards
+fail against it too** (`scripts/i83_before.py`) — the second direction is what proves the repoint
+tracked a real change of rule rather than a loosening. **Two of the 17 pass pre-fix and both for
+good reasons, stated so the count is not read as weaker than it is:** the negative-cash clamp
+already existed on the old `cash` branch (what was missing was *reaching* that branch at all),
+and the AST guard held before and after, correctly.
+
+**NOT DONE:** no order of any kind, no percentage changed, no key read or printed, the paper
+account's state not touched by hand, nothing appended to the record, `DECISIONS.md` not edited,
+no `.github` change. `account_settlement_report` still calls `spendable` without a reservation —
+it is a read-only report that constructs no order (`constructs_an_order: False`) and has no
+resting list in scope, so it reports the pre-reservation cap; named here rather than left for a
+reader to trip over.
+
+`valuation/edge/settlement.py`, `valuation/edge/live_cycle.py`, `tests/test_item83.py`,
+`tests/test_item67.py`, `scripts/i83_before.py`.
