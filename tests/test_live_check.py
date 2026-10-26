@@ -714,10 +714,25 @@ class TheIndexChecks(unittest.TestCase):
                         rep.lines)
 
     def test_a_short_book_fails(self):
+        """REPOINTED BY ITEM 82, in the commit that moved the behaviour (`MA59`).
+
+        It matched the LABEL `"85+"` and fired when that label changed -- while the property
+        it exists for, a short book failing, was still true and was sitting in the very
+        output it printed. So it was a wording match, not a behaviour one.
+
+        `n >= 85` is gone because it was the PREVIOUS book's size used as a rule: the
+        2026-10-22 rebalance holds 81 names, conforms, and failed this check on 2026-10-26.
+        The rule is now `valquo_index.conformance`, the contract floor of 50 plus the 8% cap
+        -- see `tests/test_item82.py`, which owns that rule; this file owns the checker's
+        general behaviour, and the two are kept apart deliberately.
+        """
         rep = LC.Report()
         with _Net({("GET", "/api/valquo-index"): _j(self._payload(n=10))}):
             LC.check_index("https://x", rep)
-        self.assertTrue(any("FAIL" in ln and "85+" in ln for ln in rep.lines), rep.lines)
+        self.assertTrue(any(ln.startswith("FAIL") and "contract-bound book" in ln
+                            for ln in rep.lines), rep.lines)
+        # AND IT FAILS FOR THE REASON, not merely somewhere.
+        self.assertTrue(any("below the contract floor" in ln for ln in rep.lines), rep.lines)
 
     def test_weights_that_do_not_sum_to_one_fail(self):
         rep = LC.Report()

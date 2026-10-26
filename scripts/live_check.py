@@ -64,6 +64,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from valuation.screener import market_session as MS   # noqa: E402  (stdlib-only module)
+# RULE 3 IS ABOUT `pip install`, NOT ABOUT PROJECT MODULES -- and that was MEASURED rather
+# than assumed before importing this one: `valuation.edge.valquo_index`'s module-level
+# imports are `datetime`, `json`, `os` and `typing`, and importing it pulls in ZERO
+# third-party modules (checked against `sys.stdlib_module_names`). Everything heavy in that
+# module is imported inside the functions that need it, none of which run here.
+from valuation.edge import valquo_index as VI          # noqa: E402  (stdlib-only module)
 
 DEFAULT_BASE = "https://valquo.co"
 
@@ -401,11 +407,48 @@ def check_index(base, rep):
                 % (d.get("is_preview"), card.get("is_tracked_construction"),
                    card.get("construction")))
 
+    # ---- IS THIS THE CONTRACT-BOUND INDEX? [item 82] ----------------------------------
+    #
+    # THIS CHECK USED TO READ `n >= 85`, AND ON 2026-10-26 IT FAILED A CORRECT BOOK. The
+    # 2026-10-22 rebalance formed 81 names and conforms; the contract floor is 50; the
+    # rebalance door accepted it. So the checker was asserting the size of the PREVIOUS
+    # book -- 86 names formed 2026-07-30 -- as though it were the rule, and a rebalance is
+    # exactly the event that moves it. It would have failed on both weekday runs until
+    # changed, which is the way an alert channel teaches its reader to ignore it (`MA21`).
+    #
+    # **THE RULE IS NOW THE DOOR'S OWN, CALLED RATHER THAN RESTATED.** `conformance` is the
+    # same function `index_mark.append_rebalance` refuses on, and the two inputs are derived
+    # here exactly as that door derives them: the position count, and the largest weight
+    # NORMALISED by the weights' own sum. Neither 50 nor 8% is typed here, so the next
+    # change to either moves this check with it; and 81 is not typed either, so this cannot
+    # become a different assertion about today's book.
+    #
+    # IT IS STRICTLY STRONGER THAN THE COUNT IT REPLACES, not merely looser: a truncated
+    # book still fails on the floor, AND a book with one runaway position now fails on the
+    # cap, which `n >= 85` could never see.
     n = int(d.get("n_positions") or 0)
-    if n >= 85:
-        rep.ok("Index holds 85+ names", "n_positions %d" % n)
+    _w = [p.get("weight") for p in (d.get("positions") or [])
+          if isinstance(p.get("weight"), (int, float))]
+    if not _w:
+        # NOT "CONFORMS BY DEFAULT". A payload with no weights cannot be scored against the
+        # cap, and reading an absent input as a passing one is how a check comes to certify
+        # nothing at all.
+        rep.bad("Index is the contract-bound book",
+                "the payload carries %d positions and NO numeric weights, so the cap "
+                "condition cannot be evaluated" % n)
     else:
-        rep.bad("Index holds 85+ names", "n_positions %d" % n)
+        _c = VI.conformance(n, max(_w) / (sum(_w) or 1.0)) or {}
+        _d = ("n_positions %d against the contract floor of %s, largest weight %.4f "
+              "against the %.0f%% cap"
+              % (n, _c.get("min_positions"), max(_w) / (sum(_w) or 1.0),
+                 100.0 * float(_c.get("max_weight") or 0.0)))
+        # BRANCHED ON `conforms`, NOT ON `why_not` BEING EMPTY -- the MIN_NAMES clause can
+        # add a reason without flipping the verdict, so the two are not interchangeable.
+        if _c.get("conforms"):
+            rep.ok("Index is the contract-bound book", _d)
+        else:
+            rep.bad("Index is the contract-bound book",
+                    "%s -- %s" % (_d, "; ".join(_c.get("why_not") or ["conformance refused"])))
 
     ws = [p.get("weight") for p in (d.get("positions") or [])
           if isinstance(p.get("weight"), (int, float))]
