@@ -210,6 +210,24 @@ manager from Don's own words in chat.
   5. **"Waiting for cash" is a normal state:** one plain alert, and no ceiling burn.
 
   The auditor reviews item 73 before any percentage above 0.
+- **2026-10-24 — SHARADAR IS NOT RENEWED IN NOVEMBER (Don, chat).** Access lapses around
+  2026-11-03 and that is fine. Don renews around January only if the 2027-01-25 rebalance needs it.
+  The manager and the lanes do not raise renewal again before then; the January runbook's §0 is
+  settled by this entry.
+- **2026-10-24 — CORRECTION TO THE ENTRY BELOW (manager's error; found by item 81).** The
+  recorded 10-22 book was scored on **2026-10-02 market caps and 1,835 names**, not 10-22 caps
+  on the ~2,038-name universe. Two causes: the freeze's caches had never been rebuilt from the
+  10-23 export, and the manager's one-off script left out the runbook's `--limit 4000`. A fully
+  correct build shares 70 of the 81 names, and the shared weights differ by at most 0.0029. The
+  record is append-only, so the recorded book stands and is not re-derived; it conformed, and it
+  is not a vintage event. Item 81 fixes all three causes for 2027-01-25.
+- **2026-10-23 — THE 2026-10-22 REBALANCE IS RECORDED** (HTTP 201, 81 positions, Path B on the
+  refreshed Sharadar export, built `--as-of 2026-10-22`, incumbent construction, not a vintage
+  event). 49 names kept, 32 added, 37 dropped; the 30% band retained 27. Built with the
+  manager's one-off `rebalance_build_2026-10-22.py`, which took the market-cap and 13F caches
+  from the 2026-10-04 freeze because the July caches were three months stale. Two door bugs were
+  fixed on the night (items 80 and 80b). The next rebalance is dated 2027-01-25; item 81
+  prepares it. Sharadar renewal timing: see the 2026-10-24 entry above.
 - **2026-10-22 — FAIR VALUES FAR BELOW PRICE (Don, chat; item 79).** A fair value below 0.5x
   price is never labelled "high confidence"; its confidence is capped one level down. This is a
   display judgment, not a measured threshold, and nothing is hidden or revalued. The loud flag
