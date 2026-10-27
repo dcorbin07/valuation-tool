@@ -506,9 +506,17 @@ class TheBUDGETSitsAboveTheCEILING(unittest.TestCase):
     """
 
     def test_the_budget_is_resolved_BEFORE_the_ceiling_in_the_source(self):
+        """REPOINTED BY ITEM 83, in the commit that moved the call (`MA59`).
+
+        It searched for the literal `"SETTLE.spendable(account)"` and RAISED `ValueError:
+        substring not found` when item 83 added a `reserved=` argument -- so a guard whose
+        subject is an ORDERING identified its call by the exact text of its arguments. The
+        ordering it protects never changed. Matched on `SETTLE.spendable(` now, which is the
+        call rather than one spelling of it, and survives the next argument too.
+        """
         import inspect
         src = inspect.getsource(LC.run_slot)
-        i_budget = src.index("SETTLE.spendable(account)")
+        i_budget = src.index("SETTLE.spendable(")
         i_alloc = src.index("SETTLE.allocate_buys(")
         i_ceiling = src.index("THE CEILING COUNTS ATTEMPTS")
         self.assertLess(i_budget, i_ceiling,

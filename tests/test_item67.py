@@ -134,21 +134,41 @@ class _Tmp(unittest.TestCase):
 class TheBudgetIsTheBrokersNoBorrowFigure(unittest.TestCase):
     """Alpaca's `/v2/account` publishes several buying-power fields with different meanings."""
 
-    def test_the_primary_is_non_marginable_buying_power(self):
+    def test_the_primary_is_CASH_and_no_longer_non_marginable_buying_power(self):
+        """REPOINTED BY ITEM 83, in the commit that moved the behaviour (`MA59`).
+
+        It asserted `field == "non_marginable_buying_power"` and FIRED, correctly: that
+        field is margin-derived, and sizing a buy from it put the paper account into a
+        $4,759.68 debit on 2026-10-26. The PROPERTY this test stood for -- a buy is sized
+        from a figure that cannot contain borrowed money -- is unchanged and is asserted
+        here; only the field that satisfies it has changed. The AMOUNT is still 250.0 on
+        this fixture, because its cash and its no-borrow figure happen to agree.
+        """
         got = SETTLE.spendable(LEVERED)
         self.assertTrue(got["ok"])
-        self.assertEqual(got["field"], "non_marginable_buying_power")
+        self.assertEqual(got["field"], "cash")
         self.assertEqual(got["amount"], 250.0)
+        self.assertIn("non_marginable_buying_power", SETTLE.LEVERED_FIELDS)
 
-    def test_without_it_the_budget_is_the_SMALLER_of_cash_and_buying_power(self):
-        """**AND THE MIN IS WHAT MAKES IT SAFE AT ANY MULTIPLIER.** Alpaca documents
-        `buying_power` as equal to cash only when `multiplier` is 1, and levered above it --
-        so the cash term, not a branch on the multiplier, is what bounds this. An unreported
-        or wrong multiplier then cannot widen the budget."""
-        a = {k: v for k, v in LEVERED.items() if k != "non_marginable_buying_power"}
-        got = SETTLE.spendable(a)
-        self.assertEqual(got["amount"], 250.0, got)
-        self.assertIn("cash", got["field"])
+    def test_a_buying_power_field_is_never_SUBSTITUTED_for_cash(self):
+        """REPOINTED BY ITEM 83. There is no longer a fallback chain to test.
+
+        This was "without `non_marginable_buying_power` the budget is min(cash, buying
+        power)". Item 83 removed every buying-power field from the sizing path, so the
+        premise no longer exists -- and the property it protected is now stronger and is
+        what this asserts: **the answer does not move when the levered fields do.** That is
+        the real content of "an unreported or wrong multiplier cannot widen the budget".
+        """
+        base = SETTLE.spendable(LEVERED)
+        for drop in ("non_marginable_buying_power", "buying_power", "regt_buying_power",
+                     "multiplier"):
+            a = {k: v for k, v in LEVERED.items() if k != drop}
+            self.assertEqual(SETTLE.spendable(a)["amount"], base["amount"],
+                             "dropping %s moved the budget" % drop)
+        # And INFLATING them cannot widen it either, which is the direction that borrows.
+        fat = dict(LEVERED, buying_power="999999", regt_buying_power="999999",
+                   non_marginable_buying_power="999999", multiplier="4")
+        self.assertEqual(SETTLE.spendable(fat)["amount"], base["amount"])
 
     def test_cash_alone_is_usable(self):
         got = SETTLE.spendable({"cash": "40.00"})
@@ -160,7 +180,12 @@ class TheBudgetIsTheBrokersNoBorrowFigure(unittest.TestCase):
         got = SETTLE.spendable({"equity": "1000"})
         self.assertFalse(got["ok"])
         self.assertIsNone(got["amount"])
-        self.assertIn("no spendable figure", got["reason"])
+        # REPOINTED BY ITEM 83 FROM THE WORDING TO THE PROPERTY. This matched the phrase
+        # "no spendable figure", which the new refusal does not use. What must hold is that
+        # the refusal is a BROKEN INPUT and not a settlement wait -- asserted directly, so
+        # the next rewording cannot break it either.
+        self.assertFalse(SETTLE.is_settlement_wait(got["reason"]))
+        self.assertIn("no buy is sized", got["reason"])
 
     def test_both_client_shapes_are_accepted(self):
         """The paper broker normalises its account; `_LiveClient` returns Alpaca's raw body in
@@ -189,7 +214,9 @@ class TheBudgetNeverBorrows(_Tmp):
                     for o in sess.placed if o.get("side") == "buy")
         self.assertLessEqual(spent, 250.0 + 1e-9,
                              "a buy was sized above the no-borrow figure: %.2f" % spent)
-        self.assertEqual(got["budget"]["field"], "non_marginable_buying_power")
+        # THE AMOUNT IS THE ASSERTION THAT MATTERS and it is unchanged; the FIELD moved to
+        # `cash` in item 83 (`MA59` -- repointed in the commit that moved it).
+        self.assertEqual(got["budget"]["field"], "cash")
         self.assertEqual(got["budget"]["amount"], 250.0)
 
     def test_the_rest_is_DEFERRED_rather_than_dropped(self):
@@ -212,10 +239,18 @@ class TheBudgetNeverBorrows(_Tmp):
         self.assertTrue(all(o["side"] == "buy" for o in got["deferred"]))
 
     def test_the_levered_fields_are_NAMED_as_refused(self):
-        """Named rather than merely unread, so a reader can see they were considered."""
-        self.assertIn("regt_buying_power", SETTLE.LEVERED_FIELDS)
-        self.assertIn("daytrading_buying_power", SETTLE.LEVERED_FIELDS)
-        self.assertEqual(SETTLE.NO_BORROW_FIELD, "non_marginable_buying_power")
+        """Named rather than merely unread, so a reader can see they were considered.
+
+        REPOINTED BY ITEM 83: `non_marginable_buying_power` moved from being the figure a
+        buy was sized from to being one of the refused ones, which is the whole of that
+        item. `NO_BORROW_FIELD` is now `cash`, and the constant's NAME is finally true of
+        what it holds -- cash is the only field that cannot contain borrowed money.
+        """
+        for f in ("buying_power", "regt_buying_power", "daytrading_buying_power",
+                  "non_marginable_buying_power"):
+            self.assertIn(f, SETTLE.LEVERED_FIELDS)
+        self.assertEqual(SETTLE.NO_BORROW_FIELD, "cash")
+        self.assertNotIn(SETTLE.NO_BORROW_FIELD, SETTLE.LEVERED_FIELDS)
 
     def test_ONLY_settlement_py_READS_A_BUYING_POWER_FIELD(self):
         """**ASSERTED ON THE SYNTAX TREE, over the whole live path.**
