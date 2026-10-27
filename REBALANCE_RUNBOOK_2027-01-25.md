@@ -16,25 +16,25 @@ python -c "from valuation.screener.index_in_force import next_rebalance; print(n
 
 ---
 
-## 0. THE ONE THING THAT NEEDS A DECISION, AND IT NEEDS IT BEFORE JANUARY
+## 0. SHARADAR — SETTLED BY DON, NOT A DECISION THIS RUNBOOK ASKS FOR
 
-**SHARADAR ACCESS ENDS AROUND 2026-11-03.** It was renewed on 2026-10-04 for one month. From
-early November the pull in step 1 fails with an authorisation error — which is correct behaviour,
-not a bug — and nothing in this runbook past step 1 can run on fresh data.
+**SUPERSEDED BY DON'S RULING OF 2026-10-24** (`DECISIONS.md`): access lapses around
+**2026-11-03 and that is fine**; Don renews around January **only if the 2027-01-25 rebalance
+needs it**; and the lanes do not raise renewal again before then. That entry says in terms that
+*"the January runbook's §0 is settled by this entry"*, so this section no longer asks Don for
+anything.
 
-**SO A 2027-01-25 REBALANCE NEEDS SHARADAR RENEWED BEFORE IT, AND THAT IS A PURCHASE. IT IS
-DON'S DECISION AND NOBODY ELSE'S.** It is not a technical blocker to be worked around on the
-night: without a current export the market caps and fundamentals the book is ranked on would be
-three months old, and §2's refusal will stop the build rather than let that through.
+What it leaves is one fact to act on, on the night:
 
-What the frozen data under `data\backtest_freeze_*` can and cannot do, so the decision is made
-on facts rather than on hope:
+* **If the export was renewed**, step 1 runs and everything below applies.
+* **If it was not**, step 1 fails at the pull with an authorisation error — which is correct
+  behaviour, not a bug — and **§2's refusals will stop the build** rather than let a book be
+  ranked on three-month-old accounts. The book in force then stays in force, unrebalanced, and
+  that should be logged as a delay with its reason rather than left to read as a book that
+  silently stopped.
 
-| | with Sharadar renewed | without it |
-|---|---|---|
-| research and backtests | unchanged | **unchanged** — the freezes are permanent and nothing needs re-pulling |
-| a **2027-01-25 rebalance** | runs, as below | **cannot be built honestly.** The newest close on disk would be 2026-10-23, three months stale |
-| the forward record | continues | the book in force stays in force, unrebalanced, and that should be logged as a delay with its reason rather than left to read as a book that silently stopped |
+Research and backtests are unaffected either way: the freezes under `data\backtest_freeze_*` are
+permanent and nothing needs re-pulling for them.
 
 **There is no third option.** Building the January book on October data and dating it January is
 the one thing this runbook exists to prevent, and §2 refuses it in code.
@@ -60,7 +60,7 @@ prepared **bulk caches** — point-in-time market cap and 13F — which it did n
 not moved since **July**, so the October build was about to rank the universe on **three-month-old
 market caps**, which is the single number that decides which names clear the $10 billion floor.
 
-It was caught by hand on the night and patched by hand on the night. Three separate faults are
+It was caught by hand on the night and patched by hand on the night. FOUR separate faults are
 now fixed, and each of them would have been enough on its own:
 
 1. **The caches were never refreshed at all.** The script updated `data\backtest` and nothing
@@ -79,6 +79,14 @@ now fixed, and each of them would have been enough on its own:
    23rd — *later* than an as-of of the 22nd — and the build fell back to **09-30**. The cache now
    also keeps each ticker's most recent five weeks of sessions, so an as-of lands on an exact
    row. It can only ever make an answer more precise.
+
+4. **AND THE SAME SKIP IN THE DERIVE STAGE, FOUND BY ITEM 84 A DAY LATER.** Fixing the CACHES
+   left the three tables built from the raw export -- fundamentals, insider and 13F -- with the
+   identical "skip if the file is already there" rule. So the 10-23 refresh pulled fresh SF1,
+   SF2 and SF3A zips and rebuilt **none** of them: the book was ranked on accounts filed
+   through **2026-10-02**. The staleness rule is now ONE definition shared by both stages, and
+   the refresh REFUSES rather than printing SUCCESS when a derived table is older than the raw
+   file it comes from.
 
 **It never prints the API key.** The key is read from `.env` by the Python tool. If `.env` is
 missing it says so immediately instead of failing twenty minutes into a download.
@@ -143,6 +151,44 @@ overlaying those two would narrow the universe the book is drawn from, which is 
 change wearing a data refresh's clothes. They are reported as *not used* on every build so the
 omission is visible rather than silent. `--bulk-overlay-names daily,sf3,events` extends the set
 deliberately if a later session decides to.
+
+### The four dates to read, and the one that was wrong in October
+
+**THE BUILD NOW PRINTS EVERY INPUT'S OWN VINTAGE BEFORE IT SCORES ANYTHING [item 84].** Read
+these five lines. They take about a minute to appear and they are the whole of the check:
+
+```
+[cache] daily          USED      …\backtest_freeze_2027-01\bulk\prepared (…)
+[cache] sf3            USED      …\backtest_freeze_2027-01\bulk\prepared (…)
+[export] fundamentals.csv   newest 2027-01-25   (…, column datekey)
+[export] insiders.csv       newest 2027-01-25   (…, column filingdate)
+[export] institutional.csv  newest 2026-12-31   (…, column date)
+[cache] market caps from …\backtest_freeze_2027-01\bulk\prepared, newest row 2027-01-25 (…)
+```
+
+| line | must read | if it does not |
+|---|---|---|
+| **market caps** | the rebalance date, or within a few sessions | the overlay is missing or wrong — the build refuses at 5 trading days |
+| **fundamentals.csv** | within a week or two of the rebalance date | **this is October's defect.** The build refuses past 10 trading days |
+| **insiders.csv** | same as fundamentals | reported, not gated — insider filings are sporadic |
+| **institutional.csv** | the **last quarter-end** (2026-12-31 for a January build) | reported, not gated — 13F is quarterly, so a quarter-end date is CORRECT and current |
+
+**WHY FUNDAMENTALS IS THE ONE THAT BIT.** On 2026-10-22 that line would have read **newest
+2026-10-02** — twenty days — because the refresh pulled fresh raw files and rebuilt none of the
+three tables derived from them. 230 companies had filed a quarter in between; 69 of them are
+$10B+ and five were in the recorded book. Nothing in the output said so, and `data_as_of` read
+`2026-10-22` because that is the session that was *asked for*. **The payload now also carries
+`data_as_of_inputs`, which says what each input actually reached**, so the two can never again
+be confused by a reader of the JSON:
+
+```
+python -c "import json;d=json.load(open('data/valquo_index.json'));print(json.dumps(d['data_as_of_inputs'],indent=1))"
+```
+
+**AND THE 13F LINE IS THE ONE MOST LIKELY TO LOOK WRONG AND BE RIGHT.** A January build showing
+`institutional.csv newest 2026-12-31` is correct and current: SF3A is quarterly, so its own span
+ends at the last quarter-end. Measured on the 10-23 export, SF3A's raw span also ended
+2026-09-30 — so of the three tables that failed to rebuild, **only two were stale in substance.**
 
 ### If the build refuses
 

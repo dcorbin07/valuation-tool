@@ -18,6 +18,7 @@ without this repo carrying a data file that changes every day.
 """
 from __future__ import annotations
 
+import csv as _csv
 import datetime as _dt
 import json
 import os
@@ -669,6 +670,132 @@ def _enrich_profiles(payload: dict, store=None) -> str:
 MAX_DAILY_CACHE_STALE_DAYS = 5
 
 
+#: **HOW FAR BEHIND THE AS-OF THE FUNDAMENTALS MAY BE [item 84].**
+#:
+#: Item 81 gave the market-cap cache a staleness refusal and the fundamentals none, so the
+#: 2026-10-22 book was built on filings through **2026-10-02** -- twenty days -- and nothing
+#: said so. In the 10-23 export 230 companies had filed a quarter in between; 69 of them are
+#: $10B+, and five were in the recorded book (GGG, JEF, MEDP, MU, SYF).
+#:
+#: **TEN TRADING DAYS, WHICH IS LOOSER THAN THE MARKET-CAP BAR OF FIVE, AND DELIBERATELY SO.**
+#: A market cap exists for every name on every session, so a cache behind by a week is simply
+#: stale. A FILING arrives when a company chooses: in the quiet fortnight between earnings
+#: seasons the newest `datekey` in a perfectly current export genuinely sits a week or more
+#: back, and a five-day bar would refuse a correct export (`MA21`). Ten covers that without
+#: admitting the three-week gap this item exists to stop.
+#:
+#: IT CANNOT FIRE ON A HISTORICAL BUILD, for the same reason item 81's cannot: a research build
+#: as of 2009 reads an export whose newest filing is years LATER, the count is zero, and the
+#: bar is never consulted.
+MAX_FUNDAMENTALS_STALE_DAYS = 10
+
+#: The date column that defines each export table's reach. `datekey` for SF1 and `filingdate`
+#: for SF2 because those are the dates the panel is allowed to KNOW something on, which is the
+#: same choice `sharadar_freeze.DATE_COL` makes -- stated here rather than imported, because
+#: this module must stay importable by a build that has no freeze on disk.
+#:
+#: **BOTH 13F SPELLINGS ARE TRIED, and that is not defensive dressing:** SF3/SF3A renamed the
+#: quarter column `calendardate` -> `date` between the 2026-08 and 2026-10 exports, and a single
+#: hard-coded name made an earlier manifest report NO DATE AT ALL for three tables. A reporter
+#: that goes silent is worse than one that fails.
+EXPORT_DATE_COLS = {"fundamentals.csv": ("datekey",),
+                    "insiders.csv": ("filingdate", "transactiondate", "date"),
+                    "institutional.csv": ("calendardate", "date")}
+
+
+def _max_date_in_csv(path: str, cols) -> dict:
+    """The newest value of the first of `cols` present -> {present, date, rows, column}.
+
+    ONE STREAMING PASS over the one column that matters, which is the cheapest this can be:
+    SF1 is ordered by ticker and then by date, so the newest filing is NOT at the tail and a
+    cheap seek cannot find it. About three seconds on the 184MB fundamentals file and under a
+    minute on the 691MB insiders one, against a build that takes a quarter of an hour.
+    """
+    if not os.path.exists(path):
+        return {"present": False, "date": None, "rows": 0, "column": None}
+    best, n, col = None, 0, None
+    try:
+        with open(path, newline="", encoding="utf-8", errors="replace") as f:
+            r = _csv.reader(f)
+            h = next(r, None)
+            if not h:
+                return {"present": True, "date": None, "rows": 0, "column": None,
+                        "note": "empty or headerless"}
+            for c in cols:
+                if c in h:
+                    col = c
+                    break
+            if col is None:
+                return {"present": True, "date": None, "rows": 0, "column": None,
+                        "note": "no date column; tried %s" % ", ".join(cols)}
+            i = h.index(col)
+            for row in r:
+                n += 1
+                if i < len(row) and row[i] and (best is None or row[i] > best):
+                    best = row[i]
+    except OSError as e:
+        return {"present": True, "date": None, "rows": n, "column": col,
+                "note": "unreadable: %s" % e}
+    return {"present": True, "date": best, "rows": n, "column": col}
+
+
+def export_vintages(data_dir: str) -> dict:
+    """The newest date each export table actually reaches -> {name: {...}}.
+
+    Reported on every full-universe build, because it is not recoverable from the payload
+    afterwards -- and on 2026-10-22 it was the whole difference between the book the record
+    describes and the book that was built. `data_as_of` says which session was ASKED for; this
+    says what the inputs could actually see.
+    """
+    out = {}
+    for name, cols in EXPORT_DATE_COLS.items():
+        out[name] = _max_date_in_csv(os.path.join(data_dir, name), cols)
+    return out
+
+
+def refuse_stale_fundamentals(vintages: dict, as_of: str | None,
+                              max_stale: int = MAX_FUNDAMENTALS_STALE_DAYS) -> str | None:
+    """The refusal text, or None. See `MAX_FUNDAMENTALS_STALE_DAYS`.
+
+    **ONLY `fundamentals.csv` GATES, and the other two are REPORTED.** That is a measurement
+    rather than a preference: 13F is quarterly, so `institutional.csv` legitimately sits up to
+    three months behind -- the 2026-10-23 export's SF3A reaches 2026-09-30 and is perfectly
+    current -- and a bar that refused it would refuse every correct build outside the filing
+    window. Insider filings are sporadic for the same reason. Gating on either would be a gate
+    somebody switches off (`MA21`).
+    """
+    if not as_of:
+        return None
+    rec = (vintages or {}).get("fundamentals.csv") or {}
+    if not rec.get("present"):
+        return ("fundamentals.csv is not in the export directory, so no name can be scored "
+                "point-in-time")
+    newest = rec.get("date")
+    if not newest:
+        # ABSENT IS NOT CURRENT. A file whose date column could not be read tells us nothing
+        # about how fresh it is, and reading that as "fresh enough" is the `C5` family.
+        return ("fundamentals.csv carries no readable %s, so how far behind the requested "
+                "as-of it sits cannot be established (%s)"
+                % ("/".join(EXPORT_DATE_COLS["fundamentals.csv"]),
+                   rec.get("note") or "no further detail"))
+    try:
+        a = _dt.date.fromisoformat(str(as_of)[:10])
+        b = _dt.date.fromisoformat(str(newest)[:10])
+    except ValueError:
+        return None
+    from ..screener.market_session import trading_days_between
+    behind = trading_days_between(b, a, inclusive_start=False)
+    if behind <= max_stale:
+        return None
+    return ("fundamentals.csv's newest filing is %s, which is %d trading days before the "
+            "requested as-of of %s (the bar is %d). Every name would be scored on accounts "
+            "that old, and a company that reported in between would be ranked on its previous "
+            "quarter. Re-derive the export from a current pull -- `refresh_sharadar.bat` now "
+            "rebuilds a derived table whose source is newer than it is -- and see "
+            "REBALANCE_RUNBOOK_2027-01-25.md."
+            % (newest, behind, str(as_of)[:10], max_stale))
+
+
 def daily_cache_vintage(prov) -> dict:
     """The `daily` cache this provider will actually read: newest row, tickers, source.
 
@@ -785,6 +912,24 @@ def _full_universe_rows(data_dir: str, limit: int = None, as_of: str = None,
             print("[cache] %-14s %-7s %s (%s entries)"
                   % (n, "USED" if e["used"] else "not used", e["source"],
                      format(e["entries"], ",")), flush=True)
+    # ---- ITEM 84: WHAT DATE EACH EXPORT TABLE ACTUALLY REACHES ------------------------------
+    #
+    # Item 81 gave the market-cap cache a vintage line and a refusal and left the FUNDAMENTALS
+    # unchecked, so the 10-22 book was scored on filings through 2026-10-02 and the printout
+    # said nothing. All three are reported; only fundamentals gates (see the refusal for why).
+    vint = export_vintages(data_dir)
+    for _n in ("fundamentals.csv", "insiders.csv", "institutional.csv"):
+        _r = vint.get(_n) or {}
+        print("[export] %-18s newest %-12s (%s rows, column %s)"
+              % (_n, _r.get("date") or _r.get("note") or "ABSENT",
+                 format(_r.get("rows") or 0, ","), _r.get("column")), flush=True)
+    # **REPORTED HERE, REFUSED AFTER THE AS-OF IS VALIDATED, AND THE ORDER IS THE WHOLE
+    # POINT.** My first cut refused here, and it PRE-EMPTED item 75's own refusals: on its
+    # 2025 fixture the export ends 2025-03-17 and the as-of is 2025-04-25, where the right
+    # complaint is "your as-of is beyond the data" and mine arrived first saying "the
+    # fundamentals are stale". **That is item 83's mistake one item later** -- a new guard
+    # standing in front of a more specific one and making it unreachable. A stale-fundamentals
+    # refusal is only meaningful once the as-of is known to be a session the export covers.
     vintage = daily_cache_vintage(prov)
     print("[cache] market caps from %s, newest row %s (%s tickers)"
           % (vintage["source"], vintage["newest_row"], format(vintage["tickers"], ",")),
@@ -810,7 +955,23 @@ def _full_universe_rows(data_dir: str, limit: int = None, as_of: str = None,
     bad = refuse_stale_daily_cache(vintage, res.get("as_of"))
     if bad:
         raise RuntimeError(bad)
-    return res["rows"], res.get("as_of"), (res.get("dropped_mc_divergence") or [])
+    # The fundamentals refusal, now that `as_of` has been resolved AND validated against the
+    # export by `score_universe_now`. Nothing is written until `export()` returns, so
+    # refusing here is just as protective as refusing before the load.
+    bad = refuse_stale_fundamentals(vint, res.get("as_of"))
+    if bad:
+        raise RuntimeError(bad)
+    # THE VINTAGES TRAVEL WITH THE ROWS, so `data_as_of` can name what each input reached
+    # rather than only which session was asked for.
+    _vintages = {"daily_cache": {"newest_row": vintage.get("newest_row"),
+                                 "source": vintage.get("source"),
+                                 "tickers": vintage.get("tickers")},
+                 "export": {k: {"date": (v or {}).get("date"),
+                                "rows": (v or {}).get("rows"),
+                                "column": (v or {}).get("column")}
+                            for k, v in vint.items()}}
+    return (res["rows"], res.get("as_of"), (res.get("dropped_mc_divergence") or []),
+            _vintages)
 
 
 def config_block(name: str | None, cfg_meta: dict | None) -> dict:
@@ -907,8 +1068,9 @@ def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | N
             % (candidate_name, cfg["free_route"]["decile_overlap"], cfg["free_route"]["bar"],
                cfg["free_route"]["source"]))
     dropped, scan_date = [], None
+    _vintages = None
     if data_dir:
-        rows, scan_date, dropped = _full_universe_rows(
+        rows, scan_date, dropped, _vintages = _full_universe_rows(
             data_dir, limit=limit, as_of=as_of, bulk_overlay=bulk_overlay,
             bulk_overlay_names=bulk_overlay_names)
         source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
@@ -933,6 +1095,17 @@ def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | N
     payload["profile_enrichment"] = _enrich_profiles(payload, store)
     payload["scan_date"] = scan_date
     payload["data_as_of"] = scan_date
+    # **WHAT EACH INPUT ACTUALLY REACHES, BESIDE THE DATE THAT WAS ASKED FOR [item 84].**
+    #
+    # `data_as_of` is the session the operator REQUESTED, and on 2026-10-22 it read 2026-10-22
+    # while the fundamentals behind it stopped at 2026-10-02 and the market caps at 2026-10-02.
+    # Both were true statements about different things and the payload carried only the
+    # flattering one. A reader of the JSON can now see the gap without re-deriving it.
+    #
+    # ABSENT ON THE LIVE-SCAN PATH, deliberately: that route reads no export, so an empty
+    # block there would be a claim about files it never opened.
+    if _vintages is not None:
+        payload["data_as_of_inputs"] = _vintages
     payload["source"] = source
     payload["excluded_market_cap_divergence"] = [
         {"ticker": d["ticker"], "daily_mc": d["daily_mc"], "derived_mc": d["derived_mc"],
@@ -1000,8 +1173,9 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
     if "held" not in kw:
         kw["held"] = _previous_book(path)
     dropped, scan_date = [], None
+    _vintages = None
     if data_dir:
-        rows, scan_date, dropped = _full_universe_rows(
+        rows, scan_date, dropped, _vintages = _full_universe_rows(
             data_dir, limit=limit, as_of=as_of, bulk_overlay=bulk_overlay,
             bulk_overlay_names=bulk_overlay_names)
         source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
@@ -1033,6 +1207,17 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
     payload["profile_enrichment"] = _enrich_profiles(payload, store)
     payload["scan_date"] = scan_date
     payload["data_as_of"] = scan_date
+    # **WHAT EACH INPUT ACTUALLY REACHES, BESIDE THE DATE THAT WAS ASKED FOR [item 84].**
+    #
+    # `data_as_of` is the session the operator REQUESTED, and on 2026-10-22 it read 2026-10-22
+    # while the fundamentals behind it stopped at 2026-10-02 and the market caps at 2026-10-02.
+    # Both were true statements about different things and the payload carried only the
+    # flattering one. A reader of the JSON can now see the gap without re-deriving it.
+    #
+    # ABSENT ON THE LIVE-SCAN PATH, deliberately: that route reads no export, so an empty
+    # block there would be a claim about files it never opened.
+    if _vintages is not None:
+        payload["data_as_of_inputs"] = _vintages
     payload["source"] = source
     # Names whose market cap could not be established (DAILY vs shares x price disagree) are
     # excluded from a tradeable book; recorded so the omission is auditable, not silent.
