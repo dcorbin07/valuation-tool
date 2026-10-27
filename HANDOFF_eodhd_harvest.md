@@ -4,11 +4,14 @@
 adopted, no construction change, not a vintage event. Raw rows live under `D:\eodhd` and never in
 git; everything committed here carries counts, rates and field names and never a per-name value.
 
-**STATUS AFTER THE RESET: STEP 3 IS A `GO`, AND NARROWLY. STEP 4 IS DEAD ON BOTH SIDES.** The
-tier harvested (1,064 fundamentals units), step 3 cleared all four of `D9`'s pre-committed bars
-with **zero names of margin on `B2`**, and step 4's gate measured the vendor hole at **95.83% of
-dead names empty against 10.53% of survivors**. The full-universe pass is running. See §6 and §7;
-§1-§5 are the record of the harvest and of what was known before the reset.
+**STATUS 2026-10-26: THE HARVEST IS COMPLETE AND VERIFIES CLEAN. STEP 3 IS A `GO` BY ZERO NAMES OF
+MARGIN. EVERYTHING ELSE IS CLOSED, AND THREE OF THE FOUR CLOSURES ARE NEGATIVE.** The freeze is
+**17,044 of 17,044 units, 0 mismatched, 0 absent, ~4.03 GB**. A 2009-2026 replication is **NOT
+FEASIBLE** against bars committed before the measurement. `tracelead`'s `K1` **FIRES** on the exact
+statistic, killing the candidate. The OSAP download **succeeded**. See §8-§13; §1-§7 are the earlier
+record.
+
+**AND THE ANSWER TO THE QUESTION THAT DECIDES THE SUBSCRIPTION (§13): nothing now in train needs it.**
 
 ---
 
@@ -261,3 +264,202 @@ unusable** (9 unknown + 46 empty) and **2** carry history: **3.5% usable against
 > the out-of-sample era is not available at any amount of analysis, and `3` reuse-suspected names
 > were excluded from both sides of the rate rather than scored against the wrong company.
 
+---
+
+## 8. THE HARVEST IS FINISHED AND VERIFIED
+
+Resumed, not restarted. `--verify` re-hashes every unit against the manifest.
+
+| feed | units | bytes | status |
+|---|---|---|---|
+| `fundamentals` | **9,219** | 3,362,169,316 | complete, 9,219 of 9,705 names |
+| `mktcap` | **7,166** | 100,116,428 | complete |
+| `insider` | **539** | 64,014,964 | complete, 2009-01-01 -> 2026-10-22 |
+| `earnings` | **120** | 507,493,051 | complete, 1999q1 -> 2028q4 |
+| **total** | **17,044** | **~4.03 GB** | **recorded 17,044, verified 17,044, mismatched 0, absent 0** |
+
+**THE 486 MISSING NAMES ARE REAL, NOT TRANSIENT, AND THAT WAS TESTED RATHER THAN ASSUMED.** They
+were retried a full day later on a fresh allowance and **0 of 486 returned anything**. So EODHD
+genuinely does not carry them, and fundamentals is complete at **95.0%** of the universe.
+
+**THE MARKET-CAP REMAINDER CONFIRMS THE SURVIVORSHIP THINNESS A THIRD TIME.** Of 4,154 names,
+**1,675 kept and 2,479 empty** — and the shape is the tell: the first ~1,932 came back empty and
+the rate then recovered to normal, because the remainder begins with the earlier pass's own misses
+being retried and only then reaches never-attempted names. Consistent, and not a defect.
+
+**A CORRECTION TO §3(i), AND IT DOES NOT MOVE THE VERDICT.** That section says both Sharadar stores
+end `2026-10-02`. True when measured; since then **the PRICE store has been refreshed to
+2026-10-23** (Don's 10-23 export, which `DECISIONS.md` 2026-10-24 records). **`fundamentals.csv` is
+still dated 2026-10-04.** So a later comparison date would score fresh prices against stale
+fundamentals — the exact staleness that correction describes — and since step 3 compares
+**fundamentals**, **2026-10-02 remains the right date.** The reason is refined, not reversed, and
+the landed figures are not re-derived.
+
+---
+
+## 9. A 2009-2026 REPLICATION IS **NOT FEASIBLE** — ALL THREE BARS FAIL
+
+The bars were committed **ALONE and BEFORE the measurement** at `3365543`, so the pre-commitment is
+provable from git rather than asserted.
+
+| bar | reading | bar | verdict |
+|---|---|---|---|
+| `R1` cell coverage | **0.8331** | ≥ 0.85 | FAIL by 1.7pp |
+| `R2` per-date minimum | **0.5413** | ≥ 0.70 | FAIL, **15 of 69 dates below** |
+| `R3` survivorship split | **0.4058** | ≤ 0.15 | **FAIL by 2.7x** |
+
+**`R3` IS THE ONE THAT MATTERS AND IT IS THE ONE I PREDICTED WOULD BIND.** Coverage is **0.9885**
+on names still in the panel at its last date and **0.5827** on names that left before it — and the
+names that left carry **110,943 of 289,659 rows, 38% of the panel.** So a replication would quietly
+become a survivors-only backtest, which is **worse than useless: it would be falsely reassuring**,
+because a survivorship-tilted book reads better than the real one and a "confirmation" under that
+tilt confirms nothing.
+
+**AND ALL THREE FAILURES ARE ONE DEFECT SEEN THREE WAYS.** The five worst dates are
+**2009-03-27 (0.5458), 2009-06-26 (0.5413), 2009-09-25 (0.5438), 2009-12-24 (0.5564), 2010-03-29
+(0.5598)** — the panel's earliest cross-sections, which hold the most names that later died. EODHD
+is thin on companies that stopped trading (§7 measured 95.83% empty pre-2009); the panel's early
+window is richest in such companies; so coverage is worst exactly where the backtest's early half
+lives. **7,112 of 9,645 names carry any payload at all.**
+
+**SO NO REGISTER IS DRAFTED AND NO TRIAL IS BOOKED**, which is the instruction and also the right
+way round: committing a register and then finding the universe unusable would have burned trials and
+raised the hurdle on every future equity claim for nothing.
+
+**WHAT IT WOULD HAVE SHOWN, recorded because the question should not be re-opened casually.** Prices
+stay Sharadar's on both sides, so it tests the **fundamentals** only; and 2009-2026 **is** the period
+the model was tuned on, so **it is not out-of-sample in any sense**. The narrow question was whether
+the published backtest would survive a different fundamentals vendor. That question is now
+**unanswerable on this vendor**, not answered.
+
+---
+
+## 10. `tracelead`'s `K1` **FIRES** — THE CANDIDATE IS KILLED ON ITS OWN PRE-COMMITTED BAR
+
+One connection, and the per-year split is **not** a retry loop: the connect **succeeded**, and an
+era-wide `distinct (issuer, date)` pull was rejected for its size, so the same connection asked
+eleven smaller questions. `DECISIONS.md`'s rule protects an account disabled by repeated failed
+**connects**; this account is not refusing.
+
+**485,876 distinct issuer-date pairs, all eleven years pulled, 44 build-era windows:**
+
+| statistic | reading | bar |
+|---|---|---|
+| coverage **minimum** | **0.5886** | 0.70 |
+| coverage **median** | **0.6366** | 0.70 |
+| coverage **maximum** | **0.6913** | 0.70 |
+| windows below the bar | **44 of 44** | — |
+
+**NOT ONE WINDOW CLEARS, AND THE BEST ONE STILL MISSES BY 0.0087.** So this is uniform shortfall
+rather than a marginal call.
+
+**AND IT VINDICATES THE EARLIER CAUTION EXACTLY.** `TRACELEAD_K1_BOUND.json` could only bound
+coverage and its bound **cleared the bar in every year**, reading 0.7325 at its tightest;
+`HANDOFF_tracelead.md` §4 recorded that **a clearing bound is not a pass** and that the bound was
+loosest where it looked best. The exact statistic fails **everywhere**. Had the bound been read as a
+pass, three trials would have been spent on a candidate its own coverage kill forbids.
+
+**THE INSTRUMENT WAS VALIDATED BEFORE IT WAS BELIEVED:** the issuer set is rebuilt locally from the
+persisted spine and **required to reproduce the collector's 428 exactly**, refusing otherwise,
+because a different issuer set would make this a measurement of a different population (`O-1`).
+`K2`, `K3` and `K4` are **not run** and never need to be. **No register, no trial, nothing adopted.**
+
+**TWO DEFECTS OF MY OWN.** The first error capture kept `str(exc)[:300]` and the exception embeds
+the whole SQL, so **300 characters of my own IN-list survived and the database's message — the only
+diagnostic part — was truncated away**; it keeps the tail now. And the session calendar was read
+with `header=None`, so the literal string `"date"` entered it and **sorted last**, which would have
+shifted every window boundary by one and produced a plausible coverage figure from a corrupted
+calendar.
+
+---
+
+## 11. OSAP `EquityDuration` **DOWNLOADED** — AND IT CARRIES A LOOK-AHEAD HAZARD
+
+The Google Drive quota has cleared. **3,259,909 rows, 24,465 permnos, `yyyymm` 196206 -> 202710,
+`EquityDuration` 100% non-null**, banked at `D:\wrds\OSAP_EquityDuration.parquet` and re-read
+successfully under the main interpreter's pandas 3.0.6.
+
+**INSTALLED IN A THROWAWAY VIRTUALENV, DELIBERATELY.** `pip install openassetpricing` silently
+**downgrades pandas to 2.2.3**, and the banked panels are pandas-3 pickles that 2.x cannot read — a
+previous session did that downgrade and had to repair it. The venv keeps 2.2.3 to itself; the main
+interpreter was checked afterwards and still reads **3.0.6**.
+
+> **THE HAZARD, NAMED BEFORE ANYONE BUILDS ON IT: 32,685 rows (1.00%) ARE DATED IN THE FUTURE**,
+> reaching **2027-10**, across **4,848 permnos**, with the counts tapering
+> (4,387 in 2027-03 down to 29 in 2027-10). That taper is the signature of a **forecast horizon**
+> rather than an observation date — `EquityDuration` is built from forecast cash flows. **A register
+> joining this file on `yyyymm` without cutting at the observation date would read values up to a
+> year ahead.** Unmeasured here beyond the count; flagged so it is handled rather than discovered.
+
+**`OSAP3` IS STILL UNTESTED, NOT CLEARED.** Its blocker is gone and **no register is committed and
+no trial is booked** — that charges trials and needs its own blind register.
+
+---
+
+## 12. THE HAND-OFF: IT REACHED THE SHARED FILE AND NOT THE OPTIONS LANE'S OWN
+
+Reported, not acted on; another lane's handoff is not edited here.
+
+* **PRESENT** in `HANDOFF_STATUS.md` — *"THE WIN, AND IT IS THE OPTIONS LANE'S"*, the 4,898 rows
+  forward to 2027-11-19 with the `before_after_market` flag, `DECISIONS.md` 2026-10-16's `F-4`/`F-10`
+  blocker quoted, and **"handed over, licence fence attached"** stated on the line itself. Also in
+  `EODHD_CENSUS.md` §5, the ledger and the research log.
+* **ABSENT** from `HANDOFF_optionsbot.md`: the string `EODHD` appears there **zero times**. So a lane
+  reading only its own handoff would not see it. Whether the cross-lane status file counts as
+  reaching that lane is the manager's call; the checkable fact is the one above.
+
+---
+
+## 13. WHAT STILL NEEDS THE EODHD SUBSCRIPTION — **NOTHING NOW IN TRAIN**
+
+The question the prompt asks, answered against the verified freeze.
+
+**NEEDS IT: NOTHING THAT IS CURRENTLY DECIDED.**
+
+* Step 3 is closed and reads the freeze. Step 4 is dead. The replication is NOT FEASIBLE.
+* **The forward earnings calendar is BANKED FURTHER THAN I EXPECTED, and this is the load-bearing
+  measurement:** the 120 earnings units hold **2,583,800 rows spanning 1999-01-04 -> 2028-02-23**,
+  of which **26,125 are dated after today**. That is roughly **sixteen months of forward dates
+  already on disk**, so `F-4`/`F-10` can be built *and operated* off the freeze well into 2028
+  without the key.
+
+**WOULD NEED IT, AND NEITHER IS COMMISSIONED:**
+
+* **News sentiment** — never harvested. The census found it reaches back to 2016; if the scout wants
+  it, that needs a live key and it is the only feed left unpulled.
+* **Refreshing the forward calendar past ~2028-02**, i.e. operating `F-4`/`F-10` beyond that horizon.
+
+**CANNOT BE HAD AT ANY PRICE ON THIS PLAN:** corporate credit history (403 Forbidden), and
+per-company insider queries (the endpoint accepts and ignores `symbol`).
+
+**SO THE MONTH CAN LAPSE WITHOUT LOSING ANYTHING ALREADY IN TRAIN.** That is a statement about the
+harvest, not a recommendation: whether to keep the subscription is Don's decision, and so is any
+vendor switch, which would also need the licence question answered because the Index is published.
+
+---
+
+## 14. THE SUBSTRING-BAN FAMILY BIT ME FOUR TIMES IN ONE SESSION, ON ONE GUARD
+
+Recorded because the count is the point. `CLAUDE.md` names this family repeatedly and `MB1` wrote
+the fix down after hitting it three times in a single register; I hit it **four times writing a
+single test**, and each attempt looked correct when written.
+
+1. Ban `PREREG_` in the source → **fires on the `K1` script legitimately CITING the draft that
+   supplies its bar.** Prose documenting a rule quotes what the rule forbids.
+2. Ban the head-slice form anywhere → **fires on the CONNECT handler, where keeping the head is
+   right**, because a connection error does not embed a query.
+3. Scope the ban to the per-year loop → **fires on the COMMENT documenting the repair**, which
+   quotes the banned form verbatim.
+4. Strip comments with `tokenize` → **the needle stops matching**, because tokenising spaces slice
+   tokens apart.
+
+**What finally held is the AST**: find the `errs[...]` assignment and read its slice. The durable
+rule is the one this record already states and I did not apply until the fourth try — **a guard must
+assert the PROPERTY, on the syntax tree, rather than the presence or absence of text.**
+
+**AND TWO OF MY MUTATIONS WERE INERT, WHICH IS A FINDING ABOUT THE GUARD RATHER THAN A GAP.**
+Reading the calendar header correctly makes `"date"` a column NAME rather than a value, so the ISO
+filter never sees it; and with the header read properly the filter is redundant. They are
+**independent** protections, so **no single edit reintroduces the defect** — only the combined one
+does, and that is caught. **7 single mutations caught, 2 inert and reported as such, and the
+combined mutation caught: 8 of 10.**
