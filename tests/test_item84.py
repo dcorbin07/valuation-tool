@@ -27,6 +27,7 @@ import ast
 import datetime as dt
 import io
 import os
+import re
 import shutil
 import stat
 import sys
@@ -44,6 +45,10 @@ import refresh_backtest_from_freeze as RS                     # noqa: E402
 from valuation.edge import sharadar_freeze as F               # noqa: E402
 from valuation.edge import valquo_index as V                  # noqa: E402
 from valuation.screener import scan_catchup as SC             # noqa: E402
+
+# ITEM 74's TEXT PARSER FOR THESE FILES, REUSED RATHER THAN REBUILT -- see
+# `ThePendingWorkflowIsInstallable` for the CI defect that forced it.
+import test_item74 as I74                                     # noqa: E402
 
 WORKFLOW = os.path.join(REPO, "pending_workflows", "auto-scan.yml")
 
@@ -511,81 +516,105 @@ class ThePendingWorkflowIsInstallable(unittest.TestCase):
 
     IN THE TRACKED `pending_workflows/`, NOT `data/pending_workflows/`, and that is the repo's
     own ruling (item 58b): a handover inside the gitignored `data/` "has existed only on this
-    machine: unreviewable in the repo and unpinnable by any test". This test is the point.
+    machine: unreviewable in the repo and unpinnable by any test". This class is the point.
+
+    **PARSED WITH ITEM 74's OWN TEXT HELPERS AND NOT WITH PyYAML, AND THAT IS A DEFECT OF MINE
+    THAT THE LAND CAUGHT.** My first cut imported `yaml`: the suite passed here and FAILED on
+    the runner, because PyYAML is in neither `requirements.txt` nor `requirements.lock.txt` and
+    is only incidentally installed on this machine. `wf_jobs`'s own docstring says so in terms --
+    *"PyYAML IS NOT IN THE CI ENVIRONMENT, AND MY FIRST CUT IMPORTED IT ANYWAY ... I wrote a new
+    one instead of reading the neighbouring suite"* -- which makes this the THIRD recorded
+    instance of one mistake (item 65, item 74, this), and the lesson was already written down in
+    a docstring I did not read. There is one text parser for these files and it is reused.
     """
 
     @classmethod
     def setUpClass(cls):
-        cls.text = io.open(WORKFLOW, encoding="utf-8").read()
-        import yaml
-        cls.doc = yaml.safe_load(cls.text)
+        cls.text = I74._read_wf(WORKFLOW)
+        cls.jobs = I74.wf_jobs(cls.text)
+        # NON-VACUITY: a parser returning nothing would make every assertion below pass by
+        # seeing nothing, which is how the version this replaces could have gone green.
+        assert cls.jobs.get("hot"), "wf_jobs found no steps in the hot job"
+        start = cls.text.index("\n  hot:")
+        cls.hot_text = cls.text[start:cls.text.index("\n  themes:", start)]
 
     def test_it_is_in_the_tracked_handover_directory(self):
         self.assertTrue(os.path.exists(WORKFLOW))
-        self.assertFalse(os.path.isabs(os.path.relpath(WORKFLOW, REPO)))
+        self.assertIn("pending_workflows", WORKFLOW)
+        self.assertNotIn(os.path.join("data", "pending_workflows"), WORKFLOW)
 
-    def test_the_yaml_still_parses(self):
-        self.assertIn("hot", self.doc["jobs"])
-        self.assertEqual(sorted(self.doc["jobs"]),
-                         ["hot", "intraday", "paper", "recap", "themes",
-                          "themes-assemble", "watchdog"])
+    def test_every_scheduled_job_is_still_present(self):
+        for job in ("hot", "intraday", "paper", "recap", "themes", "watchdog"):
+            self.assertIn(job, self.jobs, sorted(self.jobs))
 
     def test_the_hot_job_no_longer_requires_one_of_two_cron_strings(self):
         """THE DEFECT. Gated on two exact strings, and GitHub delivered neither on 2026-10-26."""
-        cond = self.doc["jobs"]["hot"]["if"]
+        cond = next(ln for ln in self.hot_text.split("\n") if ln.startswith("    if:"))
         self.assertIn("github.event_name == 'schedule'", cond)
         self.assertNotIn("github.event.schedule == '23 22", cond,
                          "the job must start on any delivered schedule and then decide")
 
     def test_the_decision_runs_before_pip_and_gates_the_scan(self):
-        steps = self.doc["jobs"]["hot"]["steps"]
-        names = [str(s.get("name") or s.get("uses") or s.get("run") or "") for s in steps]
-        dec = next(i for i, n in enumerate(names) if "hot list behind" in n)
-        pip = next(i for i, n in enumerate(names) if "pip install" in n)
-        self.assertLess(dec, pip, "a skip must cost seconds, not a dependency install")
-        gated = [s for s in steps[dec + 1:]
-                 if s.get("if") == "steps.decide.outputs.run == 'true'"]
-        self.assertGreaterEqual(len(gated), 4, [s.get("if") for s in steps])
+        steps = [n for n, _if in self.jobs["hot"]]
+        dec = next(i for i, n in enumerate(steps) if "hot list behind" in n)
+        self.assertLess(self.hot_text.index("hot list behind"),
+                        self.hot_text.index("pip install --require-hashes"),
+                        "a skip must cost seconds, not a dependency install")
+        gated = [n for n, cond in self.jobs["hot"][dec + 1:]
+                 if cond == "steps.decide.outputs.run == 'true'"]
+        self.assertGreaterEqual(len(gated), 3, self.jobs["hot"])
 
     def test_the_scan_step_itself_is_gated(self):
-        step = next(s for s in self.doc["jobs"]["hot"]["steps"]
-                    if "push the daily hot list" in str(s.get("name") or ""))
-        self.assertEqual(step.get("if"), "steps.decide.outputs.run == 'true'")
+        cond = dict(self.jobs["hot"])["Scan the market and push the daily hot list"]
+        self.assertEqual(cond, "steps.decide.outputs.run == 'true'")
 
     def test_the_failure_notifier_keeps_its_own_condition(self):
-        """A SECOND `if` ON ONE STEP IS A DUPLICATE MAPPING KEY -- `yaml.safe_load` silently
-        keeps the last and GitHub may reject the file. Caught by parsing after the edit."""
-        step = next(s for s in self.doc["jobs"]["hot"]["steps"]
-                    if "tell Don this failed" in str(s.get("name") or ""))
-        self.assertEqual(step.get("if"), "failure()")
+        """A SECOND `if` ON ONE STEP IS A DUPLICATE MAPPING KEY, which a YAML loader tolerates
+        by keeping the last and GitHub may reject outright."""
+        cond = next(c for n, c in self.jobs["hot"] if "tell Don this failed" in n)
+        self.assertEqual(cond, "failure()")
 
     def test_no_step_carries_two_if_keys(self):
-        """Read off the TEXT, because the parser hides the duplicate it tolerated."""
-        import re
-        start = self.text.index("  hot:")
-        end = self.text.index("\n  themes:", start)
-        block = self.text[start:end]
-        chunks = re.split(r"\n      - ", block)
+        """Read off the TEXT, because a parser hides the duplicate it tolerated."""
+        chunks = re.split(r"\n      - ", self.hot_text)
         for c in chunks[1:]:
             body = c.split("\n      - ")[0]
             self.assertLessEqual(len(re.findall(r"^        if:", body, re.M)), 1, body[:200])
 
     def test_the_hot_crons_still_scan_unconditionally(self):
         """This ADDS a path; it must not make the primary schedule conditional on a web read."""
-        step = next(s for s in self.doc["jobs"]["hot"]["steps"]
-                    if "hot list behind" in str(s.get("name") or ""))
-        self.assertIn('"23 22 * * 1-5"|"41 23 * * 1-5")', step["run"])
-        self.assertIn("workflow_dispatch", step["run"])
+        self.assertIn('"23 22 * * 1-5"|"41 23 * * 1-5")', self.hot_text)
+        self.assertIn("workflow_dispatch", self.hot_text)
 
     def test_the_decision_calls_the_tested_module(self):
-        step = next(s for s in self.doc["jobs"]["hot"]["steps"]
-                    if "hot list behind" in str(s.get("name") or ""))
-        self.assertIn("valuation.screener.scan_catchup", step["run"])
-        self.assertIn("--json-stdin", step["run"])
+        self.assertIn("valuation.screener.scan_catchup", self.hot_text)
+        self.assertIn("--json-stdin", self.hot_text)
+
+    def test_the_hot_crons_are_still_scheduled(self):
+        crons = I74.wf_crons(self.text)
+        self.assertIn("23 22 * * 1-5", crons)
+        self.assertIn("41 23 * * 1-5", crons)
 
     def test_the_installer_reads_the_tracked_directory(self):
         bat = io.open(os.path.join(REPO, "install_workflows.bat"), encoding="utf-8").read()
         self.assertIn("pending_workflows", bat)
+
+    def test_this_suite_does_not_import_pyyaml(self):
+        """THE DEFECT, PINNED. PyYAML is in neither requirements file, so a suite importing it
+        passes here and fails on the runner -- which is what the land reported."""
+        src = io.open(os.path.abspath(__file__), encoding="utf-8").read()
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    self.assertNotEqual(a.name, "yaml", "PyYAML is not in CI")
+            if isinstance(node, ast.ImportFrom):
+                self.assertNotEqual(node.module, "yaml", "PyYAML is not in CI")
+        for req in ("requirements.txt", "requirements.lock.txt"):
+            p = os.path.join(REPO, req)
+            if os.path.exists(p):
+                self.assertNotIn("pyyaml", io.open(p, encoding="utf-8").read().lower(),
+                                 "%s now ships PyYAML; this guard's premise changed" % req)
 
 
 class WhatThisDidNotDo(unittest.TestCase):

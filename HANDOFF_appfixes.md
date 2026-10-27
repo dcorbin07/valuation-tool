@@ -24543,7 +24543,27 @@ OWN DEFECTS RATHER THAN STALE TESTS.**
   counted in the census rather than raised. **And the real enforcement was never that
   comparison: the land gate refuses any `.github/` change mechanically.**
 
-**62 tests, 39 failing against the pinned baseline** (`scripts/i84_before.py`, which restores the
+**AND A FIFTH DEFECT, THIS ONE CAUGHT BY THE LAND RATHER THAN BY THE LOCAL GATE: MY TESTS
+IMPORTED PyYAML, WHICH IS NOT IN CI.** `tests/test_item84.py` passed here and FAILED on the
+runner. PyYAML is in neither `requirements.txt` nor `requirements.lock.txt` and is only
+incidentally installed on this machine.
+
+**THE LESSON WAS ALREADY WRITTEN DOWN, IN A DOCSTRING I DID NOT READ.** `test_item74.wf_jobs`
+says in terms: *"PyYAML IS NOT IN THE CI ENVIRONMENT, AND MY FIRST CUT IMPORTED IT ANYWAY ...
+`test_item65` carries that lesson in its own docstring ... and I wrote a new one instead of
+reading the neighbouring suite. It is not in `requirements.txt`, which is the check I should
+have run first."* **That makes this the THIRD recorded instance of one mistake** -- item 65,
+item 74, and now me -- each time by a lane that built a new parser rather than reusing the
+one next door.
+
+Rewritten on item 74's own `_read_wf` / `wf_jobs` / `wf_crons`, so there is one text parser
+for these files. **VERIFIED THE WAY THE RUNNER WOULD SEE IT, rather than hoped:** re-run with
+a shim that makes `import yaml` raise, the suite is **64 of 64 green**, and a new guard fails
+if this file ever imports `yaml` again or if either requirements file starts shipping it --
+the second half matters because it means the guard's own premise is checked rather than
+assumed.
+
+**64 tests, 39 failing against the pinned baseline** (`scripts/i84_before.py`, which restores the
 pending workflow too, so Part B's change is measured rather than assumed).
 
 **NOT DONE:** `data/backtest` is untouched, so no live surface and no banked research moved; the
