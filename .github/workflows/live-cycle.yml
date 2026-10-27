@@ -40,34 +40,6 @@ name: LIVE PATH CYCLE (paper slot + live slots)
 # track-row and fleet-cycle use the same two. DISCORD_WEBHOOK_URL optional, and the service
 # holds it, not this job.
 
-# =========================================================================================
-# DO NOT INSTALL YET -- unless the planner fix below is on `origin/main`.
-# =========================================================================================
-#
-# **WHY, IN ONE SENTENCE: THIS SCHEDULE IS WHAT MAKES A STACKING BUG ROUTINE, AND THE FIX IS A
-# SEPARATE CHANGE.** The auditor's third review (2026-10-17) reproduced five full orders against
-# a one-order target -- 500 shares live against a 100-share target -- because a remainder
-# re-send was planned on top of the previous cycle's resting order. With ONE cycle per session
-# that could not happen: a `day` order dies at the close, so "re-send next cycle" really was a
-# re-price. **With the five crons below, two or three in-window cycles per session is the
-# DESIGNED behaviour**, and `cancel-in-progress: false` makes them queue and run in sequence,
-# each seeing the last one's resting order. The stacking was deterministic, not a race.
-#
-# **THE CONDITION TO CHECK BEFORE INSTALLING** -- a condition rather than a date, because a date
-# in a file like this rots:
-#
-#     `order_plan` in valuation/edge/live_slots.py subtracts this slot's own resting
-#     SAME-SIDE quantity, and `reconcile` records `qty_open` on each resting order.
-#
-# That is item 67 part 0 and it ships in the SAME commit as this note, so if you are reading
-# this on `origin/main` the condition is already met and it is safe to install.
-#
-# **THE INSTALLED COPY IS SAFE IN THE MEANTIME.** `.github/workflows/live-cycle.yml` carries the
-# single 14:40Z cron, which is one cycle per session. Nothing needs to be done urgently.
-#
-# PENDING INSTALL -- THREE CHANGES, ONE INSTALL (items 64, 65 and 67). Item 67 adds a
-# READ-ONLY fractional + settlement census step at the end; it places nothing and
-# cannot fail the run.
 # PENDING INSTALL 2026-10-16 (item 64): the schedule below differs from the copy currently
 # installed at .github/workflows/live-cycle.yml, which carries the single 14:40Z cron that has
 # never fired. Don installs this by double-clicking `install_workflows.bat`; until he does, the
@@ -127,24 +99,6 @@ jobs:
   cycle:
     runs-on: ubuntu-latest
     steps:
-      # ---- ITEM 74: HEALTHCHECKS, SO SILENCE IS DETECTABLE FROM OUTSIDE ------------------
-      #
-      # Nothing inside GitHub can report that GitHub stopped running jobs, and it has happened
-      # once (August, a billing hiccup). healthchecks.io expects a ping on this schedule and
-      # tells Don when one does not arrive. Absent key = a warning and carry on; a monitor is
-      # not allowed to stop the job it monitors.
-      - name: "item 74: healthchecks start (live-cycle)"
-        if: always()
-        env:
-          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
-        run: |
-          set -u
-          if [ -z "${HC_PING_KEY:-}" ]; then
-            echo "::warning::HC_PING_KEY is not set -- no outside monitor is watching live-cycle"
-            exit 0
-          fi
-          curl -sS -m 10 --retry 2 "https://hc-ping.com/${HC_PING_KEY}/live-cycle/start" \
-            >/dev/null || true
       - name: Run the live-path cycle (PAPER ONLY - every live slot stays dry)
         env:
           SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
@@ -163,228 +117,25 @@ jobs:
                    -H "X-Admin-Token: ${ADMIN_TOKEN}" \
                    "${SITE_BASE_URL%/}/admin/live-cycle?run=paper") || CODE="000"
           echo "HTTP ${CODE}"
-          cp "$BODY" "$GITHUB_WORKSPACE/live-cycle-body.json" 2>/dev/null || true
-
-          # ---- ONE SHORT LINE PER FIELD  [item 65 part 3] ------------------------------
-          #
-          # **CYCLE 6's BODY WAS LOST BECAUSE IT WAS ONE ~35KB LINE AND GITHUB DROPPED IT**,
-          # and the three summary lines that existed so nobody would have to parse it were in
-          # the same step and went with it. So: `cat "$BODY"` is GONE -- it is what produced
-          # that line -- the body is uploaded as an artifact instead, and every figure below
-          # is printed on its OWN short line. No single line can now be the one that is lost.
-          #
-          # AND THIS RUNS BEFORE THE HTTP CHECK. The first cut checked the status first, so a
-          # failed cycle -- the one outcome most worth reading -- printed nothing at all.
-          python - "$BODY" <<'PYEOF' || echo "(the body could not be summarised)"
-          import json, sys
-          try:
-              d = json.load(open(sys.argv[1])) or {}
-          except Exception as e:
-              print("summary-unavailable: %s" % e); raise SystemExit(0)
-          p = d.get("paper") or {}
-          r = p.get("reconcile") or {}
-          cov = p.get("marks_coverage") or {}
-          sent = p.get("sent") or []
-          ok = [x for x in sent if x.get("ok")]
-          bad = [x for x in sent if not x.get("ok")]
-          print("mode          : %s" % d.get("mode"))
-          print("session       : ok=%s %s" % ((d.get("session") or {}).get("ok"),
-                                              (d.get("session") or {}).get("local_time")))
-          print("event         : %s %s" % (p.get("event"), p.get("event_key")))
-          print("priced        : %s of %s" % (cov.get("n_priced"), cov.get("n_needed")))
-          print("sent          : %d" % len(sent))
-          print("accepted      : %d" % len(ok))
-          print("rejected      : %d" % len(bad))
-          print("filled        : %s of %s orders at the broker" % (r.get("n_filled"),
-                                                                   r.get("n_orders")))
-          print("held          : %d names" % len(r.get("holdings") or {}))
-          print("order_read    : %s" % r.get("order_read"))
-          print("cancelled     : %d" % len(p.get("cancelled") or []))
-          print("blocked       : %d name(s) by an unconfirmed cancel"
-                % len(p.get("blocked_by_cancel") or []))
-          print("send_seq      : %s" % p.get("send_seq"))
-          print("no_progress   : %s" % p.get("attempts_without_progress"))
-          print("account_pinned: %s" % p.get("account_id_recorded"))
-          print("refusal       : %s" % ((p.get("reason") or "")[:200]))
-          # ONE LINE PER DISTINCT REJECTION REASON, counted -- 60 identical lines is the same
-          # unreadable-log failure in a different shape.
-          from collections import Counter
-          c = Counter((x.get("detail") or "no reason given")[:120] for x in bad)
-          for why, n in c.most_common(12):
-              print("reject x%-3d   : %s" % (n, why))
-          if len(c) > 12:
-              print("reject ...    : %d further DISTINCT reason(s) not shown"
-                    % (len(c) - 12))
-          # DEDUPED AND COUNTED, like the rejections above. On a real cycle this printed 22
-          # copies of the same sentence, which is the unreadable-log failure the comment above
-          # names -- applied to one field out of two on the first cut. One line per DISTINCT
-          # (kind, reason), with the names it affected, so nothing is hidden and nothing is
-          # repeated. `live_notify` dedupes what Don is SENT; this is the run log.
-          ac = {}
-          for a in (d.get("alerts") or []):
-              reason = a.get("reason") or ""
-              # **THE KEY IS THE CAUSE WITH THE SUBJECT REMOVED.** Keying on the reason itself
-              # -- even its tail -- made 22 unique keys out of one cause, because
-              # "order for DOCN was rejected: X" and "order for EG was rejected: X" differ in
-              # the TICKER. So the cause is the text after the first colon, and the ticker
-              # becomes one of the names listed against it.
-              parts = reason.split(": ", 1)
-              cause = (parts[1] if len(parts) > 1 else reason)[:140]
-              words = parts[0].split()
-              subject = words[2] if len(words) > 2 and words[0] == "order" else ""
-              k = (a.get("slot"), a.get("kind"), cause)
-              ac.setdefault(k, {"n": 0, "names": []})
-              ac[k]["n"] += 1
-              if subject and subject not in ac[k]["names"] and len(ac[k]["names"]) < 10:
-                  ac[k]["names"].append(subject)
-          ranked = sorted(ac.items(), key=lambda kv: -kv[1]["n"])
-          for (slot, kind, why), v in ranked[:20]:
-              more = ", ..." if v["n"] > len(v["names"]) and v["names"] else ""
-              suffix = (" [%s%s]" % (", ".join(v["names"]), more)) if v["names"] else ""
-              print("::warning::slot %s %s x%d: %s%s" % (slot, kind, v["n"], why, suffix))
-          # **NO SILENT CAP.** The project's own rule: a report that bounds its coverage says
-          # what it dropped, or it reads as having covered everything. On a real cycle this cap
-          # hid 23 of 43 `live_order_sent` lines with nothing saying so.
-          if len(ranked) > 20:
-              hidden = sum(v["n"] for _, v in ranked[20:])
-              print("alerts ...    : %d further group(s) covering %d alert(s) not shown; the "
-                    "full body is attached to this run as an artifact"
-                    % (len(ranked) - 20, hidden))
-          for x in (d.get("slots") or []):
-              print("live slot %s  : pct=%s armed=%s orders=%d parity_ok=%s"
-                    % (x.get("slot"), x.get("pct"), x.get("armed"),
-                       len(x.get("orders") or []), (x.get("parity") or {}).get("ok")))
-          if not (d.get("slots") or []):
-              print("live slots    : none configured -- %s" % ((d.get("reason") or "")[:160]))
-          PYEOF
-
+          cat "$BODY"
           # 200 IS THE ONLY SUCCESS, AND A QUIET CYCLE IS A SUCCESS. Most days carry no event
           # at all -- no rebalance, no percentage change, no open remainder -- and alerting on
-          # that would teach everyone to ignore this job. Checked AFTER the summary above, so a
-          # failure is readable rather than silent.
+          # that would teach everyone to ignore this job.
           [ "$CODE" = "200" ] || { echo "::error::live-cycle returned ${CODE}"; exit 1; }
-
-      # **THE FULL BODY, AS AN ARTIFACT.** `if: always()` because a FAILED cycle's body is the
-      # one most worth having, and that is exactly the run where the step above exits non-zero.
-      - name: Keep the cycle's full body
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: live-cycle-body
-          path: live-cycle-body.json
-          if-no-files-found: ignore
-          retention-days: 30
-
-      # ---- ITEM 67 PART 2: which of the book's names may be traded FRACTIONALLY ----------
-      #
-      # **A GET, AND IT NEVER FAILS THE RUN.** It reads Alpaca's asset master for the book's
-      # names and each slot's own `/v2/account` plus `/v2/account/configurations`. Nothing is
-      # placed on any path. `|| true` is deliberate: the cycle above is the thing that matters
-      # and has already finished, so a report that could not be read must not turn a successful
-      # cycle red.
-      #
-      # It runs every cycle rather than on a flag because the answer MOVES: Alpaca's
-      # fractionable list changes with price and volume, the book changes every rebalance, and
-      # the IRA's own configuration changes the moment Don's keys go in. A census taken once is
-      # a census that is wrong later.
-      - name: Fractional + settlement census (READ-ONLY, places nothing)
-        if: always()
-        env:
-          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
-          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
-        run: |
-          set -uo pipefail
-          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
-            echo "::warning::SITE_BASE_URL or ADMIN_TOKEN is unset; census skipped"
-            exit 0
-          fi
-          CODE=$(curl -sS -o fractional-census.json -w '%{http_code}' --max-time 280 \
-                   -H "X-Admin-Token: ${ADMIN_TOKEN}" \
-                   "${SITE_BASE_URL%/}/admin/live-slots?check=fractional") || CODE="000"
-          echo "== /admin/live-slots?check=fractional -> HTTP ${CODE}"
-          python - <<'PY' || true
-          import json
-          try:
-              d = json.load(open("fractional-census.json", encoding="utf-8"))
-          except Exception as e:
-              print("the census body could not be parsed:", e)
-              raise SystemExit(0)
-          f = (d or {}).get("fractional_check") or {}
-          b = f.get("book") or {}
-          print("book formed on      :", f.get("book_formed_on"))
-          print("names asked         :", b.get("n_asked"))
-          print("fractionable        :", b.get("n_fractionable"))
-          print("whole-share only    :", b.get("n_whole_share_only"),
-                (b.get("whole_share_only") or [])[:20])
-          print("not in the master   :", (b.get("missing_from_master") or [])[:20])
-          print("summary             :", b.get("reason"))
-          for slot, row in sorted((f.get("slots") or {}).items()):
-              print("slot %s fractional   : %s" % (slot, row.get("fractional_trading")
-                                                   or row.get("reason")))
-              acct = row.get("account") or {}
-              if acct:
-                  print("slot %s multiplier   : %s" % (slot, acct.get("multiplier")))
-                  print("slot %s spendable    : %s"
-                        % (slot, (row.get("spendable_without_borrowing") or {}).get("reason")))
-          PY
-
-      - name: Keep the census body
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fractional-census
-          path: fractional-census.json
-          if-no-files-found: ignore
-          retention-days: 30
-
-      # ---- ITEM 74: TELL DON ON DISCORD IF THIS JOB FAILED -------------------------------
-      #
-      # GITHUB-SIDE, AND THAT IS THE POINT RATHER THAN A CONVENIENCE. The service often cannot
-      # post that the service is the thing that failed -- August's billing stoppage is the
-      # recorded case -- so this runs on the runner with nothing but curl. A non-200 from the
-      # service is a failure of the step that called it, so it lands here too.
-      #
-      # Falls back to the routine webhook with a visible prefix when the alerts one is not set
-      # yet, so nothing goes quiet during setup and nobody mistakes the fallback for the
-      # finished configuration. Neither value is ever echoed.
-      - name: "item 74: tell Don this failed"
-        if: failure()
-        env:
-          ALERT_HOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
-          ROUTINE_HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          set -u
-          HOOK="${ALERT_HOOK:-}"; PREFIX=""
-          if [ -z "$HOOK" ]; then
-            HOOK="${ROUTINE_HOOK:-}"; PREFIX="(alerts channel not set) "
-          fi
-          if [ -z "$HOOK" ]; then
-            echo "::warning::neither DISCORD_ALERT_WEBHOOK_URL nor DISCORD_WEBHOOK_URL is set -- Don was NOT told this failed"
-            exit 0
-          fi
-          RUN="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          WF=$(printf '%s' "$GITHUB_WORKFLOW" | tr -d '"\\')
-          JB=$(printf '%s' "$GITHUB_JOB" | tr -d '"\\')
-          # Three short lines: what broke, what it means, what to do.
-          BODY=$(printf '{"content": "%s**%s / %s failed**\\nWhile this is failing that part of the Index machinery is not running.\\nOpen the run and read the failed step: %s"}' \
-                 "$PREFIX" "$WF" "$JB" "$RUN")
-          curl -sS -m 20 -H 'Content-Type: application/json' -d "$BODY" "$HOOK" >/dev/null \
-            || echo "::warning::the Discord post itself failed"
-
-      # ---- ITEM 74: HEALTHCHECKS END -----------------------------------------------------
-      # `if: always()` and the real job status, so a failure pings /fail rather than simply not
-      # pinging -- "failed" and "never ran" are different facts and the monitor must be able to
-      # tell them apart.
-      - name: "item 74: healthchecks end (live-cycle)"
-        if: always()
-        env:
-          HC_PING_KEY: ${{ secrets.HC_PING_KEY }}
-          JOB_STATUS: ${{ job.status }}
-        run: |
-          set -u
-          [ -n "${HC_PING_KEY:-}" ] || exit 0
-          SUFFIX="/fail"
-          if [ "${JOB_STATUS:-}" = "success" ]; then SUFFIX=""; fi
-          curl -sS -m 10 --retry 2 "https://hc-ping.com/${HC_PING_KEY}/live-cycle${SUFFIX}" \
-            >/dev/null || true
-
+          # THE CAUSE IS READ FROM THE BODY RATHER THAN GUESSED -- item 46's lesson, and item
+          # 50's: no substring match on a code, no second copy of a reason that lives in the
+          # service. Alerts are deduped by the service (`live_notify`), so this job prints for
+          # the run log and does not double-post.
+          # THE CAUSE IS READ FROM THE BODY RATHER THAN GUESSED -- item 46's lesson, and
+          # item 50's: no substring match on a code, no second copy of a reason that lives in
+          # the service. Alerts are deduped by the service (`live_notify`), so this job prints
+          # for the run log and does not double-post.
+          #
+          # ONE-LINERS, NOT A HEREDOC. The first cut of this file indented a heredoc body and
+          # its terminator; a terminator must sit at column 0 and indented Python is an
+          # IndentationError, so it would have gone red on every run AFTER the cycle had
+          # already succeeded. `|| true` on each: a summary that cannot be printed must not
+          # fail a job whose real work is already done and reported by HTTP status.
+          python -c 'import json,sys;d=json.load(open(sys.argv[1])) or {};p=d.get("paper") or {};print("paper slot: event=%s acted=%s orders=%d reason=%s" % (p.get("event"),p.get("acted"),len(p.get("orders") or []),(p.get("reason") or "")[:160]))' "$BODY" || echo "(the paper slot could not be summarised)"
+          python -c 'import json,sys;d=json.load(open(sys.argv[1])) or {};s=d.get("slots") or [];print("\n".join("slot %s: pct=%s armed=%s orders=%d parity_ok=%s" % (x.get("slot"),x.get("pct"),x.get("armed"),len(x.get("orders") or []),(x.get("parity") or {}).get("ok")) for x in s) or ("no live slot configured: " + (d.get("reason") or "")[:200]))' "$BODY" || true
+          python -c 'import json,sys;d=json.load(open(sys.argv[1])) or {};print("\n".join("::warning::slot %s %s: %s" % (a.get("slot"),a.get("kind"),(a.get("reason") or "")[:200]) for a in (d.get("alerts") or [])))' "$BODY" || true
