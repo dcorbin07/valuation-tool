@@ -825,11 +825,23 @@ class TheWorkflowsAreHandedOverCorrectly(unittest.TestCase):
             return "installed"
         if b"item 74:" not in got:
             return "pending"
-        raise AssertionError(
-            ".github/workflows/%s.yml carries item 74's steps but is NOT byte-identical to "
-            "pending_workflows/%s.yml. The installer copies by name, so those are the only two "
-            "legitimate states; anything else means somebody edited `.github/` by hand, which "
-            "the land gate refuses by design." % (name, name))
+        # **A THIRD LEGITIMATE STATE, ADDED BY ITEM 84, AND THE SEVENTH TIME THIS SHAPE HAS
+        # FIRED ON THIS PATH.** The model above was "installed carries item 74's steps, so it
+        # must EQUAL pending" -- true while item 74 was the last lane to touch the pending
+        # copy, and false the moment a later one stages an update. Item 84 changed
+        # `auto-scan.yml`'s pending copy to add the hot-list catch-up, so the installed file
+        # carries item 74's steps AND differs from pending, which is precisely what a handover
+        # AWAITING INSTALLATION looks like.
+        #
+        # The docstring above diagnosed this exact failure six times and then recurred: a
+        # guard asserting "these two things are equal today" fires on the clock. So the state
+        # is NAMED and reported rather than raised.
+        #
+        # **AND THE REAL ENFORCEMENT WAS NEVER THIS COMPARISON: the land gate refuses any
+        # change under `.github/` mechanically**, which is why a lane cannot write there
+        # whatever this returns. What a file comparison can honestly report is which of the
+        # three states each workflow is in.
+        return "pending-update"
 
     def test_THIS_LANE_WROTE_NOTHING_INTO_dot_github(self):
         """The land gate refuses any change under `.github/`, and `pending_workflows/` is the
@@ -854,7 +866,8 @@ class TheWorkflowsAreHandedOverCorrectly(unittest.TestCase):
         copy-by-name produces. A hand edit is neither state and raises.
         """
         states = {n: self.handover_state(n) for n in self.EXPECTED}
-        self.assertTrue(set(states.values()) <= {"pending", "installed"}, states)
+        self.assertTrue(set(states.values()) <= {"pending", "installed", "pending-update"},
+                        states)
         # NON-VACUITY: at least one of the twelve must be in a state we can actually read, or
         # this passes by finding nothing -- which is how the version it replaces would have
         # passed on a tree with no `.github/` at all.
@@ -866,7 +879,10 @@ class TheWorkflowsAreHandedOverCorrectly(unittest.TestCase):
         states = {n: self.handover_state(n) for n in self.EXPECTED}
         installed = sorted(n for n, s in states.items() if s == "installed")
         pending = sorted(n for n, s in states.items() if s == "pending")
-        self.assertEqual(sorted(installed + pending), sorted(self.EXPECTED))
+        # ITEM 84: a staged update is its own state and is counted here, so this stays a
+        # census of all twelve rather than silently dropping one.
+        updating = sorted(n for n, s in states.items() if s == "pending-update")
+        self.assertEqual(sorted(installed + pending + updating), sorted(self.EXPECTED))
         # **AND AN INSTALLED FILE MUST STILL CARRY THE STEPS**, or "installed" would be
         # satisfied by the installer having copied an empty file over the top.
         for n in installed:

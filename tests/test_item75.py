@@ -115,6 +115,21 @@ def build_export(root: str, *, n_days: int = 340, extra_days: int = 0, start="20
 
     srows = []
     qends = [d for j, d in enumerate(days) if j % 63 == 0]
+    # **AND ONE FILING ON THE LAST SESSION [item 84].** The 63-day stride left this fixture's
+    # newest `datekey` wherever it happened to land -- 2025-03-17, up to sixty days before its
+    # last price -- which no real export looks like: across ~3,500 names somebody has always
+    # just filed, and the 2026-10-23 export's SF1 reaches 2026-10-22 against prices at 10-23.
+    # Item 84 gave the build a stale-fundamentals refusal at 10 trading days, and this fixture
+    # tripped it. **The fixture is the artificial part, so the fixture moved and the bar did
+    # not** -- relaxing a gate to fit a synthetic input is how a gate stops meaning anything.
+    # ANCHORED TO THE LAST DAY OF THE **BASE** WINDOW, NOT TO `days[-1]`, and that distinction
+    # is the whole correctness of it. `days[-1]` moves with `extra_days`, so the two exports
+    # built for `test_APPENDING_A_LATER_DAY_LEAVES_THE_AS_OF_BOOK_BIT_IDENTICAL` would carry
+    # DIFFERENT filings inside the as-of window and that test would fail -- which is exactly
+    # what my first cut did. `days[n_days - 1]` is the as-of itself and is identical in both.
+    _base_end = days[n_days - 1] if len(days) >= n_days else (days[-1] if days else None)
+    if _base_end and _base_end not in qends:
+        qends.append(_base_end)
     for k, t in enumerate(NAMES):
         if t == "SPY":
             continue

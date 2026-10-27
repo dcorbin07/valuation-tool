@@ -24328,3 +24328,251 @@ reader to trip over.
 
 `valuation/edge/settlement.py`, `valuation/edge/live_cycle.py`, `tests/test_item83.py`,
 `tests/test_item67.py`, `scripts/i83_before.py`.
+
+---
+
+## ITEM 84 — the refresh rebuilt the prices and not the fundamentals; and a cron nobody delivered
+
+### PART A — IT IS ITEM 81's DEFECT ONE STAGE OVER, AND THE PROOF IS IN THE MANIFEST'S OWN NULLS
+
+**THE CAUSE, FOUND IN THE CODE AND THEN CONFIRMED ON DISK.** `stage_derive`'s `done(name)` was
+*"not force AND the file exists AND it is non-empty"* — so the 2026-10-23 refresh, running into
+the same dated freeze the 10-04 one had already filled, **skipped all three derives**. The
+manifest's `fundamentals_rows: null, fundamentals_tickers: 0, insider_rows: null,
+institutional_rows: null` is the exact signature of that branch: `f_rows`/`i_rows`/`n_rows` keep
+their initial `None` and `f_t` its empty set when the skip is taken.
+
+**Item 81 fixed `prepare`'s cache-first skip and `derive` had the identical rule.** Two repairs
+of one idea in two places is how the second one gets missed, so there is now ONE
+`_stale_vs_source` and both stages call it (`B7`).
+
+**MEASURED ON THE FREEZE, and `universe.txt` is the detail that settles it:** the three derived
+tables are stamped **2026-10-04 15:20–15:22** while every raw source is **2026-10-23 19:01–19:29**
+— and `universe.txt` is stamped **10-23**, because it is written *outside* the `done()` guard. So
+the stage ran; only the derives were skipped. The prices stage rebuilds unconditionally, which is
+why the close moved, the fundamentals did not, and `refresh_sharadar.bat` printed SUCCESS.
+
+**THE SHARPEST FORM OF IT: THE EVIDENCE WAS ALREADY IN THE MANIFEST AND NOTHING READ IT.** That
+file recorded `derived["fundamentals.csv"].date_max` = **2026-10-02** and `tables["SF1"].date_max`
+= **2026-10-22**, side by side, and no check compared them. `_checkpoints` scans fundamentals for
+ROWS and TICKERS — which a three-week-stale file passes comfortably — and `_compare_live`
+compares the freeze against the LIVE copy, which **cannot** see this, because the stale derive
+*is* the live copy, byte for byte. That is item 81's rule-9 lesson one level up: storing a figure
+is necessary and not sufficient, because someone has to read it out.
+
+**THE NEW CHECKPOINT COMPARES EACH DERIVED TABLE WITH ITS OWN RAW SOURCE**, not with a clock and
+not with TICKERS, so a vendor publishing SF1 a day behind SF2 moves neither check. Replayed
+against the 10-23 manifest already on disk:
+
+| | derived reaches | its source reaches | gap | verdict |
+|---|---|---|---|---|
+| `fundamentals.csv` | 2026-10-02 | SF1 2026-10-22 | **20 days** | **FAIL** |
+| `insiders.csv` | 2026-10-02 | SF2 2026-10-22 | **20 days** | **FAIL** |
+| `institutional.csv` | 2026-09-30 | SF3A 2026-09-30 | 0 | PASS |
+
+**AND THAT THIRD ROW IS A FINDING, NOT A GAP IN THE CHECK.** SF3A's own span also ends
+2026-09-30, because 13F is quarterly — so **of the three tables that failed to rebuild, only TWO
+were stale in substance.** The 10-22 book's 13F leg was never wrong.
+
+**RE-DERIVED FROM THE 10-23 ZIPS, AND ALL THREE NOW REACH THEIR EXPECTED DATES:** fundamentals
+**2026-10-02 → 2026-10-22** (232,469 → **232,636** rows, 3,520 → **3,522** tickers), insiders
+**→ 2026-10-22** (6,697,260 rows), 13F unchanged at **2026-09-30** (133,988 rows), and 3,751
+price files rebuilt. Written into the FREEZE only; **`data/backtest` was deliberately not
+touched**, so the live app, research, and the ability to reproduce the recorded book are all
+unaffected.
+
+**THREE DEFECTS OF MY OWN, ALL FOUND BY RUNNING THE RE-DERIVE RATHER THAN BY READING, AND THEY
+ARE ONE DEFECT: `stage_derive` COULD NOT RUN TWICE AGAINST A LOCKED FREEZE.** `stage_lock` marks
+every file read-only, and the stage has three unconditional writes. It died first on
+**`universe.txt`** — before reaching any table — and then, after all three tables had rebuilt, on
+the **price purge** (`os.remove` over 3,751 read-only files). Each needed the read-only bit
+lifted; the lock stage puts them back the same run. Item 81 hit this once for the prepare caches
+and I fixed it there only, which is the same narrowness this item is about.
+
+**THE REFRESH NOW FAILS LOUDLY, AND ON THE RIGHT HALF.** `refresh_backtest_from_freeze` gains two
+gates, both BEFORE anything is copied, so a stale table is never installed over the live export:
+`derived_is_stale` (mtime against the raw source, which is the right test here precisely because
+freeze and live were **byte-identical** — a size or checksum comparison could not see it), and
+the freeze's own `MANIFEST.json` verdict.
+
+**A DELIBERATE DEPARTURE FROM "MAKE `clean: false` FAIL THE RUN", ON A MEASUREMENT.** `clean` was
+already **false** on 10-23 — and **entirely** because two bulk CSVs came back **0.259%** and
+**0.099%** smaller in bytes than July's, an ordinary vendor restatement; `checkpoints_failed` was
+**empty**. Gating on the raw flag would have refused that refresh for a reason unrelated to the
+defect, and would refuse a correct one every time Sharadar trims a little history — a gate
+somebody switches off inside a month (`MA21`), taking the real check with it. **So the
+CHECKPOINTS fail the run — and they now contain the test that catches this — while the size
+comparison is reported loudly and does not.** Neither fact is hidden; one stops the run.
+
+**THE BUILD REFUSES STALE FUNDAMENTALS, AT A LOOSER BAR THAN THE MARKET CAP'S, DELIBERATELY.**
+Ten trading days against item 81's five, because **a market cap exists for every name on every
+session while a FILING arrives when a company chooses** — between earnings seasons a perfectly
+current export's newest `datekey` sits a week or more back, and a five-day bar would refuse it.
+Ten covers that and still refuses the three-week gap. Only fundamentals gates: 13F is quarterly
+and insider filings are sporadic, so gating on either would refuse every correct build outside a
+filing window. Both are REPORTED.
+
+**AND THE PAYLOAD NO LONGER CARRIES ONLY THE FLATTERING DATE.** `data_as_of` is the session the
+operator *requested* — on 2026-10-22 it read `2026-10-22` while the fundamentals behind it
+stopped at `2026-10-02`. Both were true statements about different things. `data_as_of_inputs`
+now says what each input actually reached, and is **absent on the live-scan path** rather than
+empty there, because that route opens no export.
+
+**STEP 4 — THE FIDELITY BUILD ON FULLY FRESH INPUTS. A CHECK, NOT A NEW BOOK:** scratch `--out`,
+nothing appended, nothing sent, `data/valquo_index.json` untouched.
+
+| | recorded 2026-10-22 | item 81 (fresh caps) | item 84 (fresh caps AND filings) |
+|---|---|---|---|
+| positions | 81 | 81 | **81** |
+| eligible tier | 806 | 810 | 814 |
+| names scored | 1,835 | 1,834 | 1,844 |
+| overlap with the record | — | 70 of 81 (86.4%) | **71 of 81 (87.7%)** |
+| band retained | 27 | 29 | **27** |
+| conforms | yes | yes | **yes** |
+
+**THE FIVE NAMES THAT FILED BETWEEN 10-03 AND 10-22 ARE IN BOTH BOOKS** — GGG, JEF, MEDP, MU and
+SYF are all `in` recorded and `in` rebuilt. **So the stale fundamentals cost the recorded book
+none of the five names the staleness could most obviously have moved**, and adding fresh filings
+on top of fresh market caps moved the overlap by one name. The market-cap staleness was the
+larger of the two effects by a wide margin.
+
+**`REBALANCE_RUNBOOK_2027-01-25.md` gains the five lines Don reads on the night**, with a table
+of what each must say and what to do when it does not — including that
+`institutional.csv newest 2026-12-31` on a January build is **correct and current**, which is the
+line most likely to look wrong and be right.
+
+**AND ITS §0 IS REWRITTEN, BECAUSE DON SETTLED IT WHILE ITEM 81 WAS LANDING.** The 2026-10-24
+ruling says access lapses around 2026-11-03 and that is fine, he renews around January only if
+the rebalance needs it, and **the lanes do not raise renewal again** — in terms, *"the January
+runbook's §0 is settled by this entry"*. The old §0 pressed him for the decision, so it was
+disobeying a standing ruling the moment that ruling landed. **Item 81's own test fired on the
+change and is repointed here** to the property it stood for: the runbook states the date and says
+what happens on the night in each case.
+
+### PART B — A SCHEDULER FIX THAT DOES NOT DEPEND ON ONE CRON STRING
+
+**THE `hot` JOB WAS GATED ON TWO EXACT CRON STRINGS AND GITHUB DELIVERED NEITHER.** Measured:
+nothing ran between 21:55Z and 23:57Z on 2026-10-26, and the runs at **23:57Z, 00:05Z and
+00:08Z** were `intraday`, `paper` and `recap` — three *different* crons delivered in the window
+after the close while both hot slots were dropped. `auto-scan.yml`'s own comments already
+quantify the mechanism: *"of the 176 cron slots these eight produce, 49 delivered a run and 127
+did not"*. **A backup cron is the same mechanism failing twice**, which is exactly what happened.
+
+**SO THE JOB STOPS ASKING "WHICH CRON AM I?" AND ASKS "IS THE HOT LIST BEHIND?"** It starts on
+any delivered schedule and decides in `valuation/screener/scan_catchup.py` — a pure decision
+function, no network, no scan, fully testable, which is the point: the logic that decides whether
+to publish a hot list should not live in YAML where nothing can reach it.
+
+**THREE THINGS MAKE IT SAFE, and the second cannot be relaxed:**
+
+* **idempotent per session** — it runs only when the published `scan_date` is *strictly older*
+  than the last closed session, so ten delivered crons produce at most one scan;
+* **closes, never intraday** — it refuses while the market is open, because the free feed answers
+  an open-market request with a LIVE quote that would be published under the previous close's
+  date;
+* **it never marks forward** — the target is always `last_closed_session`, the same function the
+  track writer uses, so a job delivered past midnight still records the session it was
+  scheduled for.
+
+**AND A HAZARD I CLOSED THAT THE DESIGN DID NOT START WITH: `now_et` FALLS BACK TO NAIVE UTC
+WITHOUT tzdata.** A naive UTC clock compared against ET market hours is wrong by four or five
+hours — which would permit a catch-up at 14:00 UTC, mid-session. With no timezone it now
+**refuses**: one stale day against publishing a wrong hot list.
+
+**THE COST OF STARTING MORE OFTEN IS ABOUT TWENTY SECONDS.** The decision step runs *before*
+`pip install` and the four scan-bearing steps are gated on it, so a skip is checkout +
+setup-python + one curl. The two hot crons and a hand dispatch still scan unconditionally — this
+ADDS a path rather than making the primary schedule conditional on a web read.
+
+**TWO DEFECTS IN MY OWN YAML EDIT, both caught by re-parsing rather than by reading.** The first
+cut embedded a **multi-line `python -c`** in a block scalar; its lines de-indented to column 0
+and the document stopped parsing — fixed by putting the feed's JSON on stdin and the parsing in
+the tested module, so the step is one line. The second **appended a duplicate `if` key** to item
+74's failure notifier, which already had `if: failure()`; `yaml.safe_load` silently keeps the
+last and GitHub may reject the file. That step is now left alone, and it cannot fire spuriously
+on a skipped run because a run that scans nothing does not fail.
+
+**IT IS IN THE TRACKED `pending_workflows/`, NOT `data/pending_workflows/`, AND THAT CORRECTS THE
+BRIEF ON THE REPO'S OWN RULING.** Item 58b: a handover inside the gitignored `data/` *"has
+existed only on this machine: unreviewable in the repo and unpinnable by any test"*. The tracked
+directory is read by the installer too, and item 84's tests read the file — which is the whole
+reason to prefer it.
+
+**WHAT DON RUNS, both parts, in order:**
+
+1. **`install_workflows.bat`** (double-click) — installs the catch-up to `.github/workflows/`.
+2. **The one-time manual catch-up for the list that is stale now:** Actions → **"Auto scans
+   (free-tier bridge)"** → *Run workflow* → `kind: hot` (its default). **Safe whenever the market
+   is shut** — after 16:15 ET or before 09:30 ET on a weekday, or any time at the weekend —
+   because the scan then prices names at the last closed session's closes. Do not run it
+   mid-session.
+
+**FOUR GUARDS FIRED IN THE FULL GATE AND ALL FOUR ARE REPOINTED HERE, AND TWO OF THEM ARE MY
+OWN DEFECTS RATHER THAN STALE TESTS.**
+
+* **`test_item75.py` -- MY REFUSAL STOOD IN FRONT OF A BETTER ONE, WHICH IS ITEM 83's MISTAKE
+  ONE ITEM LATER.** The fundamentals check ran before the load and pre-empted item 75's own
+  `--as-of` refusals: on its fixture the export ends 2025-03-17 and the as-of is 2025-04-25,
+  where the right complaint is *"your as-of is beyond the data"* and mine arrived first saying
+  the fundamentals were stale. **A stale-fundamentals refusal is only meaningful once the
+  as-of is known to be a session the export covers**, so it moved to beside item 81's
+  post-scoring check. Nothing is written until `export()` returns, so refusing there is just
+  as protective. The vintages are still PRINTED up front.
+* **And then it fired again on a legitimate as-of, and that one was the FIXTURE.** Item 75
+  emits SF1 every 63rd day anchored to the start, so its newest `datekey` landed up to sixty
+  days before its last price -- which no real export looks like: the 10-23 export's SF1
+  reaches 2026-10-22 against prices at 10-23, one day. **The fixture moved and the bar did
+  not**; relaxing a gate to fit a synthetic input is how a gate stops meaning anything. And
+  the fix had to anchor the extra filing to the last day of the BASE window rather than
+  `days[-1]`, or the two exports in
+  `test_APPENDING_A_LATER_DAY_LEAVES_THE_AS_OF_BOOK_BIT_IDENTICAL` would carry different
+  filings inside the as-of window -- which is exactly what my first cut did.
+* **`test_refresh_sharadar.py` -- I MADE AN ABSENT MANIFEST FATAL, AND THAT IS THE THIRD TIME
+  THIS SESSION.** Syncing a freeze whose manifest stage has not run is a legitimate by-hand
+  workflow -- it is the one this very item used, `--stage derive` then sync -- and the brief
+  asked only that a manifest saying `clean: false` fail the run. Absent now WARNS; present
+  and unreadable still fails, because damage is not the same as a stage that has not run.
+  **After item 83's empty cash figure and item 84's as-of ordering, this is a habit worth
+  naming rather than three accidents: a new guard keeps turning a tolerated absence into a
+  hard stop.**
+* **`test_item74.py` -- THE SEVENTH INSTANCE OF A SHAPE ITS OWN DOCSTRING DIAGNOSES SIX
+  TIMES.** Its `handover_state` modelled two legitimate states and inferred *"installed
+  carries item 74's steps, so it must EQUAL pending"* -- true while item 74 was the last lane
+  to touch that pending copy, false the moment a later one stages an update. A handover
+  AWAITING INSTALLATION is a third legitimate state and is now named `pending-update`,
+  counted in the census rather than raised. **And the real enforcement was never that
+  comparison: the land gate refuses any `.github/` change mechanically.**
+
+**AND A FIFTH DEFECT, THIS ONE CAUGHT BY THE LAND RATHER THAN BY THE LOCAL GATE: MY TESTS
+IMPORTED PyYAML, WHICH IS NOT IN CI.** `tests/test_item84.py` passed here and FAILED on the
+runner. PyYAML is in neither `requirements.txt` nor `requirements.lock.txt` and is only
+incidentally installed on this machine.
+
+**THE LESSON WAS ALREADY WRITTEN DOWN, IN A DOCSTRING I DID NOT READ.** `test_item74.wf_jobs`
+says in terms: *"PyYAML IS NOT IN THE CI ENVIRONMENT, AND MY FIRST CUT IMPORTED IT ANYWAY ...
+`test_item65` carries that lesson in its own docstring ... and I wrote a new one instead of
+reading the neighbouring suite. It is not in `requirements.txt`, which is the check I should
+have run first."* **That makes this the THIRD recorded instance of one mistake** -- item 65,
+item 74, and now me -- each time by a lane that built a new parser rather than reusing the
+one next door.
+
+Rewritten on item 74's own `_read_wf` / `wf_jobs` / `wf_crons`, so there is one text parser
+for these files. **VERIFIED THE WAY THE RUNNER WOULD SEE IT, rather than hoped:** re-run with
+a shim that makes `import yaml` raise, the suite is **64 of 64 green**, and a new guard fails
+if this file ever imports `yaml` again or if either requirements file starts shipping it --
+the second half matters because it means the guard's own premise is checked rather than
+assumed.
+
+**64 tests, 39 failing against the pinned baseline** (`scripts/i84_before.py`, which restores the
+pending workflow too, so Part B's change is measured rather than assumed).
+
+**NOT DONE:** `data/backtest` is untouched, so no live surface and no banked research moved; the
+recorded book is not re-derived and nothing is appended; **`DECISIONS.md` is not edited** and a
+test asserts it; **no `.github/` change** and a test asserts that too — the installer is the only
+route; no key read or printed; the manual catch-up is **not** triggered by this lane, because it
+is a credentialed job that writes the public hot list.
+
+`valuation/edge/sharadar_freeze.py`, `valuation/edge/valquo_index.py`,
+`valuation/screener/scan_catchup.py`, `scripts/refresh_backtest_from_freeze.py`,
+`pending_workflows/auto-scan.yml`, `REBALANCE_RUNBOOK_2027-01-25.md`, `tests/test_item84.py`,
+`tests/test_item81.py`, `scripts/i84_before.py`.

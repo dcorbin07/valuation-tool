@@ -437,12 +437,24 @@ class TheRunbook(unittest.TestCase):
                         importlib.import_module(al.name)
                         checked += 1
         self.assertGreaterEqual(checked, 3, "nothing was actually imported")
-    def test_it_says_sharadar_ends_and_that_renewing_is_dons_purchase(self):
+    def test_it_says_what_happens_when_sharadar_lapses(self):
+        """REPOINTED BY ITEM 84, in the commit that changed what the runbook should say.
+
+        It asserted the runbook calls renewal "Don's purchase" and a "decision" -- which was
+        right when written and FIRED once Don ruled on 2026-10-24: access lapses around
+        2026-11-03 and that is fine, he renews around January only if the rebalance needs it,
+        **and the lanes do not raise renewal again before then.** That entry says in terms
+        that "the January runbook's §0 is settled by this entry", so a runbook still pressing
+        him for the decision would be disobeying a standing ruling.
+
+        The PROPERTY this test stood for is unchanged and is what it asserts now: the runbook
+        states the date, and says what happens on the night in each case.
+        """
         self.assertIn("2026-11-03", self.txt)
         low = self.txt.lower()
-        self.assertIn("purchase", low)
-        self.assertIn("don's decision", low)
         self.assertIn("renew", low)
+        self.assertIn("settled", low, "the ruling settles it; the runbook must say so")
+        self.assertIn("authorisation error", low, "and what a lapsed pull looks like")
 
     def test_it_carries_the_steps_that_worked_on_the_night(self):
         for s in ("refresh_sharadar.bat", "--as-of 2027-01-25", "--config taxable",

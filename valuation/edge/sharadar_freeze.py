@@ -80,6 +80,18 @@ DATE_COL = {
     "actions.csv": "date", "events.csv": "date", "tickers.csv": "lastupdated",
 }
 
+#: **HOW FAR BEHIND ITS OWN RAW SOURCE A DERIVED TABLE MAY BE [item 84].**
+#:
+#: A derived table is built from a raw table in the same pull, so in a healthy freeze the two
+#: spans agree. THREE DAYS, in calendar days rather than trading days, because this compares
+#: two VENDOR spans and not a build against a session: a Friday SF1 against a Monday SF2 is a
+#: publication gap and not a defect. The 2026-10-23 freeze was **21 days** behind and would
+#: have failed this by a wide margin.
+#:
+#: -1 is allowed on the other side: a derived table may legitimately reach one day PAST the
+#: raw span this scan read, because the two are scanned on different columns.
+DERIVED_REACH_DAYS = 3
+
 _MB = 1024 * 1024
 
 
@@ -377,17 +389,49 @@ def stage_derive(root: str, live_dir: str, force: bool = False) -> dict:
     bt = os.path.join(root, "backtest")
     os.makedirs(os.path.join(bt, "prices"), exist_ok=True)
 
+    #: WHICH RAW TABLE EACH DERIVED FILE IS BUILT FROM. Named here so the staleness rule can
+    #: compare like with like rather than against a clock or against the freeze as a whole.
+    SOURCES = {"fundamentals.csv": "sf1.csv", "insiders.csv": "sf2.csv",
+               "institutional.csv": "sf3a.csv"}
+
     def done(name):
-        """Each derived file is a single atomic os.replace, so 'present and non-empty'
-        really does mean 'that pass finished' — there is no half-written state to inherit."""
+        """Is this derived file finished AND built from the raw file now on disk?
+
+        Each derived file is a single atomic os.replace, so "present and non-empty" really
+        does mean "that pass finished" -- there is no half-written state to inherit.
+
+        **AND THAT WAS THE WHOLE TEST UNTIL ITEM 84, WHICH IS HOW THE 2026-10-23 REFRESH
+        PULLED FRESH ZIPS AND REBUILT NOTHING.** A second refresh into the same freeze found
+        the 10-04 files present and skipped all three derives, leaving `f_rows`, `i_rows` and
+        `n_rows` at `None` -- which is exactly the `fundamentals_rows: null,
+        fundamentals_tickers: 0` the manifest recorded. The prices stage rebuilds
+        unconditionally, so the close moved while the fundamentals did not, and the refresh
+        printed SUCCESS.
+
+        A file older than the source it came from is no longer "done"; it is last time's
+        answer to a question the data has since changed.
+        """
         p = os.path.join(bt, name)
-        return (not force) and os.path.exists(p) and os.path.getsize(p) > 0
+        if force or not (os.path.exists(p) and os.path.getsize(p) > 0):
+            return False
+        src = SOURCES.get(name)
+        if src and _stale_vs_source(p, os.path.join(bulk, src)):
+            _log(f"{name}: {src} is newer than it -- REBUILDING")
+            _unlock(p)
+            return False
+        return True
 
     live = _live_tickers(live_dir)
     fresh = _fresh_universe(os.path.join(bulk, "tickers.csv"))
     universe = (live | set(fresh) | {"SPY"})
     _log(f"universe: {len(live):,} live + {len(fresh):,} freshly ranked -> {len(universe):,} kept "
          f"({len(set(fresh) - live):,} new names)")
+    # **UNLOCKED FIRST, BECAUSE THIS WRITE IS UNCONDITIONAL [item 84].** `stage_lock` marks
+    # every file in the freeze read-only, so a SECOND derive against a locked freeze died
+    # HERE -- before reaching any table -- with `PermissionError` on `universe.txt`. Found by
+    # running the re-derive this item exists to perform: the stage could not run twice
+    # against its own output.
+    _unlock(os.path.join(bt, "universe.txt"))
     with open(os.path.join(bt, "universe.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(sorted(universe)))
 
@@ -421,8 +465,15 @@ def stage_derive(root: str, live_dir: str, force: bool = False) -> dict:
     # Always rebuilt from scratch: a partial split leaves per-ticker files that LOOK complete
     # but are missing whatever the interrupted pass had not reached, and nothing downstream
     # could tell the difference. Cheap insurance against a silently truncated price series.
+    # **AND THE SAME LOCK AGAIN, THE THIRD PLACE IN THIS STAGE [item 84].** The purge below
+    # is unconditional, so a re-derive against a LOCKED freeze died here too, after the
+    # three tables had already rebuilt. `stage_derive` simply could not run twice against its
+    # own output: `universe.txt`, then the derived tables, then these 3,700 price files. Each
+    # needed the read-only bit lifted, and the lock stage puts them all back the same run.
     for f in os.listdir(pd_dir):
-        os.remove(os.path.join(pd_dir, f))
+        _p = os.path.join(pd_dir, f)
+        _unlock(_p)
+        os.remove(_p)
     got = _split_prices(os.path.join(bulk, "sep.csv"), pd_dir, universe, "sep->prices")
     got |= _split_prices(os.path.join(bulk, "sfp.csv"), pd_dir, universe - got, "sfp->prices")
 
@@ -458,18 +509,48 @@ def stage_derive(root: str, live_dir: str, force: bool = False) -> dict:
 STALE_IF_SOURCE_NEWER = ("actions", "events", "daily", "sf3")
 
 
-def _prepare_stale(cache_dir: str, bulk_dir: str, name: str, source: str) -> bool:
-    """Is `name`'s cache older than the CSV it was built from?
+#: **A DERIVED FILE IS STALE WHEN ITS SOURCE IS NEWER THAN IT IS [items 81 and 84].**
+#:
+#: ONE DEFINITION FOR BOTH STAGES, and the reason is that the same defect happened twice. Item
+#: 81 found `prepare` reusing a cache it found rather than rebuilding it, and fixed `prepare`.
+#: **`derive` had the identical "skip if the file is present" rule and was not looked at**, so
+#: the 2026-10-23 refresh pulled fresh SF1/SF2/SF3A zips and rebuilt NONE of the three tables
+#: built from them. Measured the morning after: `fundamentals.csv`, `insiders.csv` and
+#: `institutional.csv` were all stamped **2026-10-04 15:20-15:22** while every raw source was
+#: stamped **2026-10-23 19:01-19:29**, and the 10-22 rebalance was scored on fundamentals filed
+#: through **2026-10-02**.
+#:
+#: Two repairs of one rule in two places is how the second one gets missed, so there is one
+#: function and both stages call it (`B7`).
+def _stale_vs_source(derived_path: str, source_path: str) -> bool:
+    """Is `derived_path` older than the file it was built from?
 
-    Absent cache -> not "stale", just absent; `prepare_*` builds it either way. A missing
-    source -> not stale, because there is nothing newer to rebuild from and `prepare_*`
-    already degrades to "skipping".
+    Absent derived file -> NOT "stale", merely absent; every caller builds it either way.
+    Absent source -> NOT stale, because there is nothing newer to rebuild from and the
+    builders already degrade to "skipping" on a missing input.
     """
-    c = os.path.join(cache_dir, name + ".pkl")
-    s = os.path.join(bulk_dir, source)
-    if not (os.path.exists(c) and os.path.exists(s)):
+    if not (os.path.exists(derived_path) and os.path.exists(source_path)):
         return False
-    return os.path.getmtime(s) > os.path.getmtime(c)
+    return os.path.getmtime(source_path) > os.path.getmtime(derived_path)
+
+
+def _unlock(path: str) -> None:
+    """Lift the freeze's read-only bit so a rebuild can replace the file.
+
+    `stage_lock` marks every file in a freeze read-only, which is right -- and it means a
+    rebuild fails with `PermissionError` on exactly the files it is trying to refresh. The lock
+    stage puts it back the same run.
+    """
+    try:
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        pass
+
+
+def _prepare_stale(cache_dir: str, bulk_dir: str, name: str, source: str) -> bool:
+    """Item 81's name for the rule, kept so its own tests still read it. Delegates."""
+    return _stale_vs_source(os.path.join(cache_dir, name + ".pkl"),
+                            os.path.join(bulk_dir, source))
 
 
 def stage_prepare(root: str, rebuild: bool = False) -> dict:
@@ -486,11 +567,7 @@ def stage_prepare(root: str, rebuild: bool = False) -> dict:
         # freeze read-only, which is right -- and it means `_save_cache`'s `open(p, "wb")`
         # fails with PermissionError on exactly the files this is trying to refresh. Unlocked
         # here, per file, and re-locked by the lock stage the same run.
-        p = os.path.join(cache_dir, n + ".pkl")
-        try:
-            os.chmod(p, stat.S_IWRITE | stat.S_IREAD)
-        except OSError:
-            pass
+        _unlock(os.path.join(cache_dir, n + ".pkl"))
         _log(f"{n}: {srcs[n]} is newer than the cache -- REBUILDING")
     out = {}
     out["actions"] = len(B.prepare_actions(os.path.join(bulk_dir, "actions.csv"), cache_dir,
@@ -714,6 +791,45 @@ def stage_manifest(root: str, live_dir: str, derived: dict, reuse_hashes: bool =
     if derived:
         man["derive_stats"] = derived
     man["checkpoints"] = _checkpoints(root)
+    # ---- ITEM 84: DOES EACH DERIVED TABLE REACH THE EXPORT IT WAS BUILT FROM? --------------
+    #
+    # **THE EVIDENCE WAS ALREADY IN THIS FILE AND NOTHING READ IT.** The 2026-10-23 manifest
+    # recorded `derived["fundamentals.csv"].date_max` as **2026-10-02** and
+    # `tables["SF1"].date_max` as the 10-23 export's own span, side by side, and no check
+    # compared them. `_checkpoints` scans fundamentals for ROWS and TICKERS -- which a
+    # three-week-stale file passes comfortably -- and `_compare_live` compares the freeze
+    # against the LIVE copy, which cannot see a stale derive at all, because the stale derive
+    # IS the live copy, byte for byte.
+    #
+    # That is item 81's rule-9 lesson one level up: storing a figure is necessary and not
+    # sufficient, because someone has to read it out.
+    #
+    # COMPARED LIKE WITH LIKE: each derived table against the RAW TABLE IT CAME FROM, not
+    # against a clock and not against TICKERS. A vendor who publishes SF1 a day behind SF2 then
+    # moves neither check.
+    _reach = {"fundamentals.csv": "SF1", "insiders.csv": "SF2", "institutional.csv": "SF3A"}
+    for _name, _table in _reach.items():
+        _d = (man["derived"].get(_name) or {}).get("date_max")
+        _t = (man["tables"].get(_table) or {}).get("date_max")
+        _gap = None
+        if _d and _t:
+            try:
+                _gap = (dt.date.fromisoformat(str(_t)[:10])
+                        - dt.date.fromisoformat(str(_d)[:10])).days
+            except ValueError:
+                _gap = None
+        man["checkpoints"].append({
+            "check": "%s reaches its source (%s)" % (_name, _table),
+            # **A MISSING DATE FAILS.** `_scan_csv` returns no `date_max` for a table whose date
+            # column it could not find -- which has happened here, when SF3/SF3A renamed theirs
+            # between exports -- and reading an absent date as "in range" would make this guard
+            # silent in exactly the case it is needed (`C5`).
+            "pass": bool(_d and _t and _gap is not None
+                         and -1 <= _gap <= DERIVED_REACH_DAYS),
+            "got": _d, "expected": "within %d days of %s's %s"
+                                   % (DERIVED_REACH_DAYS, _table, _t or "unknown"),
+            "note": ("the derived table is %s days behind its source" % _gap) if _gap is not None
+                    else "a date could not be read on one or both sides"})
     man["vs_live"] = _compare_live(root, live_dir)
     man["verdict"] = {
         "checkpoints_failed": [c["check"] for c in man["checkpoints"] if not c["pass"]],
