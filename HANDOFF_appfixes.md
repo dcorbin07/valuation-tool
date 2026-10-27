@@ -24148,6 +24148,26 @@ had not checked for before writing a new suite:** that file already owns an Inde
 the two are now separated by name -- `test_live_check.py` owns the checker's general
 behaviour, `test_item82.py` owns the conformance rule.
 
+**AND A CORRECTION TO THE PARAGRAPH ABOVE, MADE AFTER THE LAND BY RE-RUNNING THE CHECKER.**
+At 22:05 UTC that `hot list is fresh` failure really was premature -- the scan cron is 22:23
+-- so the reading was true when it was written. **It then persisted.** Measured at 00:11 UTC:
+`scan_date` is still 2026-10-23, past both the 22:23 primary and the 23:41 backup. So the
+cause is NOT my run's timing: **Monday's hot-list scan never ran at all.** In every recent
+`auto-scan` run the `hot` job reads SKIPPED and only `intraday` executes, because `hot` is
+gated on those two cron strings and **GitHub delivered neither slot** -- there is no run
+between 21:55Z and 23:57Z, and the 23:57/00:05/00:08 runs are intraday crons. That is the
+unreliability `auto-scan.yml`'s own comments already quantify: *"of the 176 cron slots these
+eight produce, 49 delivered a run and 127 did not"*.
+
+**SO THE NEXT SCHEDULED LIVE CHECK WILL STILL FAIL, ON A DIFFERENT CHECK, AND THAT IS SAID
+PLAINLY RATHER THAN LEFT AS A CLAIM THAT IT WILL PASS.** Item 82's own check passes on the
+landed code against the live site; `hot list is fresh` is a separate, pre-existing defect in
+the SCHEDULER rather than in any checker, it is outside both briefs, and fixing it needs a
+`.github` change that both briefs forbid. **Not triggered by hand either:** a
+`workflow_dispatch` of `kind=hot` would run it, but that is a credentialed job that writes the
+live hot list, which is outward-facing and nobody asked for it. **Routed to Don and the owning
+lane.**
+
 **12 tests, 10 of them failing against the pre-change tree** (`scripts/i82_before.py`, baseline
 pinned to the SHA rather than `HEAD`). The headline test asserts `failed == 0` **before** the
 renamed label, so it cannot be satisfied by a rename — it fails pre-fix because the verdict was
