@@ -108,6 +108,23 @@ class Git(object):
         return out.stdout if out.returncode == 0 else None
 
 
+def _comparable(path):
+    """A path flattened so the comparison means the same thing on every platform.
+
+    **`os.path.normcase` IS A NO-OP ON POSIX AND THAT FAILED THE LAND.** The first cut compared
+    `normcase(normpath(abspath(x)))` against `normcase(WORKTREE_MARKER)`, which is right on
+    Windows -- where the installer actually runs -- and wrong on the Linux runner, where
+    `normcase` neither lowercases nor touches separators, so `.CLAUDE\\Worktrees` did not match
+    `.claude/worktrees` and the case test went red. `MB42`'s family, which this project has
+    already paid for once: a path comparison that behaves differently under `ntpath` and
+    `posixpath` is a guard whose real execution is the one nobody tested.
+
+    So the flattening is explicit: backslashes to forward slashes, then lowercase. A guard
+    protecting a Windows folder layout has to give the same answer wherever it is asserted.
+    """
+    return path.replace("\\", "/").lower()
+
+
 def refuse_reason(script_dir):
     """Why this script must not run from `script_dir`, or None when it may.
 
@@ -115,8 +132,13 @@ def refuse_reason(script_dir):
     anything inside the folder, because a lane worktree is a complete checkout and looks exactly
     like the real thing from the inside.
     """
-    norm = os.path.normcase(os.path.normpath(os.path.abspath(script_dir)))
-    if os.path.normcase(WORKTREE_MARKER) in norm:
+    # **NO `abspath` HERE, AND THAT IS THE SECOND HALF OF THE SAME LESSON.** Resolving the input
+    # against the current directory makes the answer depend on where the suite happens to be
+    # run: under `posixpath` a Windows-absolute path like `C:/Users/...` is RELATIVE, so
+    # `abspath` prepends the cwd -- and running the tests from inside a worktree then made this
+    # guard refuse an ordinary folder, i.e. the positive control inverted. Measured, not
+    # imagined. `main` resolves its own path before calling; the comparison itself is pure.
+    if _comparable(WORKTREE_MARKER) in _comparable(script_dir):
         return ("this is a lane worktree (%s), and a worktree carries its own stale copy of the "
                 "handover folder -- run the installer from your main Valquo folder" % script_dir)
     return None
@@ -249,7 +271,10 @@ def main(argv=None):
                          "every .yml in that directory must be named")
     args = ap.parse_args(argv)
 
-    repo_root = args.repo or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Resolved HERE rather than inside `refuse_reason`, so the guard itself has no hidden
+    # dependence on the current directory.
+    repo_root = os.path.abspath(
+        args.repo or os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     why = refuse_reason(repo_root)
     if why:

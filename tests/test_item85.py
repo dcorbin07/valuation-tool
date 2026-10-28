@@ -187,8 +187,29 @@ class TheInstallerTakesItsSourceFromMain(unittest.TestCase):
         self.assertIsNone(IW.refuse_reason(os.path.join("C:\\", "Users", "d", "valuation-tool")))
 
     def test_the_worktree_refusal_is_not_fooled_by_slashes_or_case(self):
-        for p in (r"C:/Users/d/.CLAUDE/Worktrees/x", r"C:\Users\d\.claude\worktrees\x\\"):
+        """**THIS TEST FAILED THE LAND AND THAT IS WHY IT IS WRITTEN THIS WAY.**
+
+        The first cut compared `os.path.normcase(os.path.normpath(...))` against the marker,
+        which is correct on Windows -- where the installer actually runs -- and a no-op on POSIX,
+        so `C:/Users/d/.CLAUDE/Worktrees/x` was ACCEPTED on the Linux runner and the gate went
+        red. `MB42`'s family, already paid for once in this repo: a path comparison that behaves
+        differently under `ntpath` and `posixpath` is a guard whose real execution is the one
+        nobody tested.
+
+        So both separator forms and both cases are asserted, and they hold on either platform.
+        """
+        for p in (r"C:/Users/d/.CLAUDE/Worktrees/x",
+                  "C:\\Users\\d\\.claude\\worktrees\\x",
+                  "/home/runner/work/x/.Claude/WorkTrees/lane",
+                  "relative/.claude/worktrees/lane"):
             self.assertIsNotNone(IW.refuse_reason(p), p)
+
+    def test_the_flattening_is_the_same_on_either_platform(self):
+        """The unit underneath it, so the next person does not have to infer the rule."""
+        self.assertEqual(IW._comparable(".claude\\worktrees"), ".claude/worktrees")
+        self.assertEqual(IW._comparable(".CLAUDE/WorkTrees"), ".claude/worktrees")
+        self.assertEqual(IW._comparable(os.path.join(".claude", "worktrees")),
+                         ".claude/worktrees")
 
 
 # =============================================================================================

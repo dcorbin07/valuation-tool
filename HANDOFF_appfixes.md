@@ -24694,7 +24694,7 @@ files first and the legacy ones after, so the gitignored copy would have won a c
 fixed, the clash is now reported by name, and the test asserts the order where the copying
 actually happens.
 
-### FIVE DEFECTS OF MY OWN, AND TWO OF THEM ARE ONE FAMILY I HAVE A NOTE ABOUT
+### SIX DEFECTS OF MY OWN, AND THE ONE THAT FAILED THE LAND IS A FAMILY THIS REPO HAS PAID FOR BEFORE
 
 **(a) The report was wrong about six files, found by disbelieving a row that said two
 contradictory things at once.** `plan` first compared the pending copy's bytes ON DISK against
@@ -24712,6 +24712,24 @@ the stripper left the commands behind; the second reads the token out of the
 `/admin/live-cycle?run=...` URL the job actually calls, and asserts it found a URL at all.
 
 **(d) The clash order, above** -- caught by item 74's own guard rather than by me.
+
+**(f) THE LAND FAILED ON A PATH COMPARISON THAT IS A NO-OP ON POSIX, AND IT IS `MB42`'s FAMILY
+IN A NEW PLACE.** `refuse_reason` compared `os.path.normcase(os.path.normpath(os.path.abspath(
+x)))` against the marker -- correct on Windows, where the installer actually runs, and meaningless
+on the Linux runner, where `normcase` neither lowercases nor touches separators. So
+`C:/Users/d/.CLAUDE/Worktrees/x` was ACCEPTED there and `tests/test_item85.py` went red on the
+gate while passing here. **My own memory note says this in terms** -- *"`normcase(normpath(x))` is
+EQUAL under `ntpath` and DIFFERS under `posixpath`"* -- and I wrote it anyway. The flattening is
+explicit now (backslashes to slashes, then lowercase), and it is **verified by running the guard
+under both `posixpath` and `ntpath`** rather than by reasoning: 4 worktree paths refused and 2
+ordinary folders accepted under each.
+
+**AND THAT CHECK IMMEDIATELY FOUND A SECOND HALF NOBODY HAD ASKED ABOUT.** Under `posixpath` a
+Windows-absolute path is RELATIVE, so `abspath` prepended the current directory -- and running
+the suite from inside a worktree then made the guard refuse an ordinary folder, **inverting its
+own positive control**. The resolution moved into `main()`, where the cwd genuinely is the
+reference, and the comparison is now pure. A guard whose answer depends on where it is run from
+is a guard that will one day be green for the wrong reason.
 
 **(e) A BATCH PARSING BUG IN THE NEW WRAPPER, found by reading it back.** Written flat,
 `if not defined PY where py >nul 2>nul && set "PY=py"` binds the `&&` to the whole `if`, and an
@@ -24769,7 +24787,7 @@ longer a source **unless every file in it is named on the command line**, so `pr
 still works and an unnamed file is reported rather than silently skipped. And the auditor's
 re-check of item 83 is still owed before the live percentage moves above 0.
 
-**25 tests, all green; the pre-fix control reproduces the accident and restores every source
+**26 tests, all green; the pre-fix control reproduces the accident and restores every source
 byte-for-byte.** `scripts/install_workflows.py`, `install_workflows.bat`, `update_main.bat`,
 `tests/test_item85.py`, `scripts/i85_before.py`, `tests/test_item58b_doors.py` and
 `tests/test_item74.py` (three guards repointed).
