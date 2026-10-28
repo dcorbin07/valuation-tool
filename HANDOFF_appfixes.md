@@ -24576,3 +24576,218 @@ is a credentialed job that writes the public hot list.
 `valuation/screener/scan_catchup.py`, `scripts/refresh_backtest_from_freeze.py`,
 `pending_workflows/auto-scan.yml`, `REBALANCE_RUNBOOK_2027-01-25.md`, `tests/test_item84.py`,
 `tests/test_item81.py`, `scripts/i84_before.py`.
+
+## ITEM 85 — an installer that read whatever folder it sat in rolled two live workflows back ten days
+
+Commit **`ad29600`** (2026-10-27 12:05Z) put 10-16/10-17 copies of `fleet-cycle.yml` and
+`live-cycle.yml` on main: **2 files changed, 19 insertions, 338 deletions**. What went with those
+338 lines is the point — every item-74 healthchecks ping and every "tell Don this failed" Discord
+step from BOTH files, plus item 65's per-field summary, the cycle-body artifact and the
+fractional/settlement census from `live-cycle.yml`.
+
+**MEASURED RATHER THAN INFERRED, AND IT IS THE SHARPEST EVIDENCE IN THIS ITEM: the live cycle ran
+NINE steps yesterday and THREE today.** Yesterday (run `40400452063`): set up, healthchecks
+start, the cycle, keep the body, the census, keep the census, the notifier (skipped, correctly —
+nothing failed), healthchecks end, complete. Today (run `40544056623`): set up, the cycle,
+complete. `fleet-cycle` is down to three the same way. Today's five live cycles carry **zero
+artifacts** against yesterday's two, and the whole run log of the newest one is one line,
+`HTTP 200`.
+
+So nothing was broken in a way anyone would notice, which is the worst shape this can take: the
+cycles still return 200, and the machinery that would have said otherwise is the machinery that
+was removed.
+
+### WHY IT HAPPENED, IN ONE SENTENCE
+
+`install_workflows.bat` copied `%~dp0pending_workflows\*.yml` — the folder the bat happened to
+sit in — and a copy of that bat sits in **five** worktrees (`auditor-live-path-review` 12 pending
+files, `dipcall` 2, `r1-unmeasured` 0, `r1-valreads` 12, `worktree-public-free` 12). One was run
+from `.claude\worktrees\dipcall\`, whose pending folder holds exactly `fleet-cycle.yml` (6,974
+bytes, 10-17) and `live-cycle.yml` (9,295 bytes, 10-16) — the two names and the two versions that
+landed. **The pre-fix control reproduces that selection exactly** (`scripts/i85_before.py`): run
+the old rule against that folder and it returns `fleet-cycle.yml, live-cycle.yml`, and the new
+rule refuses the folder outright.
+
+### THE RESTORE NEEDED NO FILES WRITTEN, WHICH WAS WORTH MEASURING BEFORE AUTHORING ANYTHING
+
+The tracked `pending_workflows/` on main is **byte-identical to what was installed before the
+rollback** — `fleet-cycle.yml` and `live-cycle.yml` both compare equal to their `ad29600^` blobs.
+So the correct current versions were already in the handover folder and the repair is entirely an
+installer fix; reconstructing those files by hand would have been hours of diff-reading for files
+that were already right. `auto-scan.yml` differs by design, because the pending copy carries item
+84B's catch-up and the installed one does not.
+
+Measured on the real repository, the fixed installer's plan reads: **nine unchanged, three to
+install (`auto-scan.yml`, `fleet-cycle.yml`, `live-cycle.yml`), zero refused.** One run.
+
+### THE AGE RULE, AND TWO FORMULATIONS THAT WERE MEASURED AND REJECTED
+
+The brief asks the installer to refuse a file that is "older in git history than the one it
+replaces". **Read as a comparison of the two PATHS' last-touching commits, that rule refuses the
+repair**: `pending_workflows/fleet-cycle.yml` was last committed 2026-10-20 and
+`.github/workflows/fleet-cycle.yml` was last committed by the bad install itself, 2026-10-27. The
+defective file is the newer one, so the literal rule protects the damage.
+
+The second candidate — refuse unless the installed content never came from the pending path — was
+**measured and REFUTED**: the stale lane folder held genuine older versions of the tracked files,
+so the bad content sits in that path's history too (`True` for all three files). A plausible
+discriminator that the data kills.
+
+What discriminates is **position within the pending path's own lineage**. Rank every version that
+path has ever held, newest first:
+
+    fleet-cycle.yml   .github held rank 0, the lane folder offered rank 1  -> BACKWARD, refused
+    live-cycle.yml    .github held rank 0, the lane folder offered rank 3  -> BACKWARD, refused
+
+**That is `ad29600`, refused by the new rule, and it is pinned as a test** — a guard is worth
+nothing until it is shown to bite on the event it was written for. Today's repair reads FORWARD on
+all three files, so the same guard permits the fix. A fourth verdict, `UNKNOWN`, covers content
+`.github` holds that this handover never produced — an unreviewed `.github` edit — and refuses
+that too.
+
+### WHAT THE REGRESSION TEST CAN AND CANNOT BE, STATED BECAUSE THE BRIEF ASKS FOR THE STRONGER ONE
+
+A test that fails whenever an installed workflow lacks a step its pending copy carries is **RED ON
+MAIN RIGHT NOW** — that is the regression. A red test cannot land, and landing it red would turn
+every other lane's gate red for work they did not do. So the shipped check treats "an install is
+awaited and the installer's own plan says it moves FORWARD" as the one legitimate reason for a
+missing step, and fails otherwise. **The allowance is DERIVED from the installer rather than a
+typed list of today's three files, so it clears itself the moment Don installs** and needs no
+follow-up commit. The cost is stated rather than hidden: while a file is legitimately awaiting
+install, that test cannot tell a pending improvement from a rollback. The thing that stops a
+rollback is the age rule, which refuses it at the door.
+
+### THE LEGACY ROUTE GOES BEHIND A CONFIRMATION RATHER THAN AWAY, FOR A MEASURED REASON
+
+The brief offers both: the `data\pending_workflows` route "either goes, or requires an explicit
+typed confirmation naming the files". **It had to be the second, because
+`scripts/propose_workflow.py` stages into exactly that directory** (`PENDING_REL = data/
+pending_workflows`), so deleting the route would have broken a working mechanism — and it would
+have bought nothing, because **the accident did not come from there.** `ad29600` came from
+`%~dp0pending_workflows`, the TRACKED name read out of a worktree. Removing the legacy path would
+have left the actual cause untouched while breaking `propose_workflow`.
+
+So `--legacy-confirm` must name **every** `.yml` in that directory, not a subset: confirming two
+of three and having the third install anyway is this item's own surprise in miniature, and
+confirming two while the third is silently skipped is the other half of it. Unnamed files are
+REPORTED as ignored with the exact command to install them, because a silent skip is how someone
+concludes the install worked while their file went nowhere. No lineage check applies to a legacy
+file, and the report says so — the typed confirmation is what stands in for it.
+
+### THREE EXISTING GUARDS FIRED AGAINST THE CORRECT TREE AND ARE REPOINTED IN THE SAME COMMIT
+
+`test_item58b_doors.py` asserted the two literals `set "SRC2=%~dp0pending_workflows"` and its
+`for` loop, plus the bat's `:installed` label. **The first of those is precisely what `ad29600`
+walked through**: the literals were present and correct, and the bat still read the folder it
+happened to sit in. The property they stood for — the tracked directory is the source, and
+nothing moves a handover file away — is now true more strongly, and both tests assert the
+behaviour instead of the text. Repointed in the same commit so the move shows in the diff
+(`MA59`), never re-asserted and never deleted.
+
+**THE THIRD ONE CAUGHT A REAL REGRESSION OF MINE, which is the argument for repointing rather
+than deleting in one example.** `test_item74.py`'s
+`test_ONE_INSTALL_LEAVES_EXACTLY_ONE_COPY_OF_EACH` pins that a name present in BOTH handover
+folders installs with the TRACKED content, because the tracked copy is written last. It indexed
+the bat's `for %%F in ("%SRC%\*.yml")` literal and raised `ValueError: substring not found` --
+and when I repointed it at the new module it went RED, because **my first cut copied the tracked
+files first and the legacy ones after, so the gitignored copy would have won a clash.** Order
+fixed, the clash is now reported by name, and the test asserts the order where the copying
+actually happens.
+
+### SIX DEFECTS OF MY OWN, AND THE ONE THAT FAILED THE LAND IS A FAMILY THIS REPO HAS PAID FOR BEFORE
+
+**(a) The report was wrong about six files, found by disbelieving a row that said two
+contradictory things at once.** `plan` first compared the pending copy's bytes ON DISK against
+the installed copy's BLOB, and after a Windows checkout the disk copy carries CRLF while the blob
+holds LF — so six byte-identical files read `CHANGED`, each printing `CHANGED` beside `no-op` on
+the same line. An installer whose report is wrong about what it is about to do is this item's own
+subject one level down. Both sides are read through git now.
+
+**(b) and (c) TWO SUBSTRING BANS, IN ONE FILE, WITH THE WARNING IN VIEW.** `test_it_never_pushes`
+banned the word `push` and fired on the comment explaining that `sync.bat` pushes;
+`test_the_send_token_is_still_paper` banned `run=1` and fired on `live-cycle.yml`'s own comment
+documenting that changing `run=paper` to `run=1` is the single edit that permits live sending.
+Both are prose quoting what the rule forbids. The first now strips `rem`/`echo` lines and asserts
+the stripper left the commands behind; the second reads the token out of the
+`/admin/live-cycle?run=...` URL the job actually calls, and asserts it found a URL at all.
+
+**(d) The clash order, above** -- caught by item 74's own guard rather than by me.
+
+**(f) THE LAND FAILED ON A PATH COMPARISON THAT IS A NO-OP ON POSIX, AND IT IS `MB42`'s FAMILY
+IN A NEW PLACE.** `refuse_reason` compared `os.path.normcase(os.path.normpath(os.path.abspath(
+x)))` against the marker -- correct on Windows, where the installer actually runs, and meaningless
+on the Linux runner, where `normcase` neither lowercases nor touches separators. So
+`C:/Users/d/.CLAUDE/Worktrees/x` was ACCEPTED there and `tests/test_item85.py` went red on the
+gate while passing here. **My own memory note says this in terms** -- *"`normcase(normpath(x))` is
+EQUAL under `ntpath` and DIFFERS under `posixpath`"* -- and I wrote it anyway. The flattening is
+explicit now (backslashes to slashes, then lowercase), and it is **verified by running the guard
+under both `posixpath` and `ntpath`** rather than by reasoning: 4 worktree paths refused and 2
+ordinary folders accepted under each.
+
+**AND THAT CHECK IMMEDIATELY FOUND A SECOND HALF NOBODY HAD ASKED ABOUT.** Under `posixpath` a
+Windows-absolute path is RELATIVE, so `abspath` prepended the current directory -- and running
+the suite from inside a worktree then made the guard refuse an ordinary folder, **inverting its
+own positive control**. The resolution moved into `main()`, where the cwd genuinely is the
+reference, and the comparison is now pure. A guard whose answer depends on where it is run from
+is a guard that will one day be green for the wrong reason.
+
+**(e) A BATCH PARSING BUG IN THE NEW WRAPPER, found by reading it back.** Written flat,
+`if not defined PY where py >nul 2>nul && set "PY=py"` binds the `&&` to the whole `if`, and an
+`if` whose condition is FALSE still succeeds -- so `PY` was overwritten with `py` on exactly the
+machines where `python` had already been found, and broke wherever `py` does not exist. The
+parentheses are load-bearing and now carry a comment saying so.
+
+### WHAT THE PAPER SLOT IS DOING — NOT READABLE TODAY, AND THE ROLLBACK IS WHY
+
+The brief asks whether the self-heal trim ran and whether cash is back to about zero. **It cannot
+be read, because the steps that would have recorded it are the steps `ad29600` deleted.** Today's
+five cycles carry no artifact and no per-field summary; the newest log is `HTTP 200` and nothing
+else.
+
+The last readable cycle is yesterday 20:59Z, and it says two useful things. **The 10-22 event is
+still OPEN as a `remainder`**, so item 83's mechanism is intact and a trim is still what the next
+acting cycle plans — 758 orders placed, 531 filled, 89 names held. And **that cycle sent nothing**:
+`acted: false`, `sent: 0`, refusing because 40 of the names it would trade had no usable price at
+that hour, six of them exits the book no longer holds. That is the designed broken-input
+behaviour — no orders plus an alert, never a guess — and at 20:59Z, an hour after the close, it
+is the right answer.
+
+Today's 16:45Z and 16:57Z cycles sit inside the orders window, so they may well have had prices
+and acted. **Whether they did is exactly what is no longer recorded.** The answer arrives with the
+install, which is one more reason to run it.
+
+**No figure from the paper account is quoted here, because none was read.** This lane holds no
+Alpaca credentials, and the census that carries the account fields covers the LIVE slots (slot 1,
+`multiplier: None`, no keys) and not the paper one.
+
+### WHAT DON RUNS, IN ORDER
+
+1. **`update_main.bat`** — new, and `sync.bat` is the wrong tool for this: `sync.bat` PUSHES every
+   `worktree-*` branch on the machine, which hands them to the land gate. This one fetches and
+   fast-forwards and **sends nothing**, pinned by a test that strips the prose first. It refuses
+   rather than discards if the folder has uncommitted work.
+2. **`install_workflows.bat`** — from the main Valquo folder. It now shows the plan and asks
+   before touching main, and it **refuses to run from a worktree at all**.
+3. He should see `auto-scan.yml`, `fleet-cycle.yml` and `live-cycle.yml` listed `CHANGED` and
+   `FORWARD`, nine files `unchanged`, then `INSTALLED on main`. After that the next live cycle
+   runs nine steps rather than three, and the next fleet cycle pings healthchecks.
+
+**The installers in the worktree folders: ignore them, do not delete them.** They are tracked
+files in a checkout, so deleting one shows up as a pending deletion in that lane's branch and
+somebody has to undo it. The new one refuses to run from there, which is the durable fix —
+deleting five copies leaves the sixth person who makes a worktree with a working trap.
+
+### NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+**Nothing under `.github/` changed** — this lane cannot, by design, and the three correct files
+sit in `pending_workflows/` waiting for Don. **No percentage moved, no live order is reachable,
+the send token is still `?run=paper`** (asserted on the URL, not the file). No key or token is
+printed anywhere. `DECISIONS.md` is not edited. The legacy `data\pending_workflows` route is no
+longer a source **unless every file in it is named on the command line**, so `propose_workflow`
+still works and an unnamed file is reported rather than silently skipped. And the auditor's
+re-check of item 83 is still owed before the live percentage moves above 0.
+
+**26 tests, all green; the pre-fix control reproduces the accident and restores every source
+byte-for-byte.** `scripts/install_workflows.py`, `install_workflows.bat`, `update_main.bat`,
+`tests/test_item85.py`, `scripts/i85_before.py`, `tests/test_item58b_doors.py` and
+`tests/test_item74.py` (three guards repointed).

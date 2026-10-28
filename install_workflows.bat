@@ -1,106 +1,76 @@
 @echo off
-setlocal enableextensions enabledelayedexpansion
+setlocal enableextensions
 rem ============================================================
 rem  INSTALL WORKFLOWS - puts GitHub Actions files on main for you.
 rem
-rem  Agents cannot change .github/ (the land gate refuses it, by design), so
-rem  a lane or Cowork drops the finished file into
-rem      data\pending_workflows\<name>.yml
-rem  and you double-click this. It:
-rem    1. fetches the latest main from GitHub,
-rem    2. makes a throwaway copy of main in your TEMP folder (your own
-rem       folder and its uncommitted work are never touched),
-rem    3. copies each pending .yml into .github\workflows\,
-rem    4. commits and pushes to main,
-rem    5. moves the installed files to data\pending_workflows\installed\.
-rem  data\ is gitignored, so the pending files are never committed by
-rem  git_push.bat. Safe to run twice: an already-installed file changes nothing.
+rem  Agents cannot change .github/ (the land gate refuses it, by design), so the finished file
+rem  is committed to the TRACKED folder
+rem      pending_workflows\<name>.yml
+rem  and you double-click this. It shows you what would change, then asks before touching main.
+rem
+rem  ITEM 85 -- WHY THIS FILE IS NOW FOUR LINES OF WORK AND A PYTHON CALL.
+rem
+rem  Until today this bat did the job itself, and it copied `%~dp0pending_workflows\*.yml` --
+rem  the folder the bat happened to sit in. A copy of this bat exists in every lane worktree.
+rem  On 2026-10-27 one was run from .claude\worktrees\dipcall\, whose pending folder held
+rem  10-16/10-17 copies of two live workflows, and commit ad29600 put them on main: 338 lines
+rem  deleted, including every healthchecks ping and every "tell Don this failed" Discord step
+rem  from both the live and fleet cycles. It reported success, because it had done what it was
+rem  told. The source was never meant to be "wherever this file is".
+rem
+rem  So the decision moved into scripts\install_workflows.py, which reads the pending folder of
+rem  the FETCHED origin/main and nothing else, refuses to run from a worktree, prints NEW /
+rem  CHANGED / unchanged per file, and refuses a file that would put an older version over a
+rem  newer one. Two implementations of a rule is how the rule rots, so this file holds none of
+rem  it -- it finds python and calls that one.
 rem ============================================================
 cd /d "%~dp0"
 
-set "GIT="
-where git >nul 2>nul && set "GIT=git"
-if not defined GIT (
-  for /f "delims=" %%d in ('dir /b /ad /o-n "%LOCALAPPDATA%\GitHubDesktop\app-*" 2^>nul') do (
-    if not defined GIT if exist "%LOCALAPPDATA%\GitHubDesktop\%%d\resources\app\git\cmd\git.exe" set "GIT=%LOCALAPPDATA%\GitHubDesktop\%%d\resources\app\git\cmd\git.exe"
-  )
+rem THE PARENTHESES ARE LOAD-BEARING. Written flat as
+rem     if not defined PY where py >nul 2>nul && set "PY=py"
+rem cmd binds the `&&` to the whole `if`, and an `if` whose condition is FALSE still succeeds --
+rem so `PY` was overwritten with `py` on exactly the machines where `python` had already been
+rem found, and broke wherever `py` does not exist. Found by reading it back rather than by it
+rem failing, which is the only way a batch parsing bug like this ever surfaces.
+set "PY="
+where python >nul 2>nul && set "PY=python"
+if not defined PY (
+  where py >nul 2>nul && set "PY=py"
 )
-if not defined GIT ( echo Git not found. & goto :done )
-
-rem ITEM 58b -- TWO SOURCE DIRECTORIES, and the tracked one is the point.
-rem
-rem `data\pending_workflows` is inside the gitignored `/data/`, so every workflow handed over
-rem through it has existed only on this machine: unreviewable in the repo and unpinnable by any
-rem test. For a file that POSTs an admin door on a schedule that is the one place a `?run=1`
-rem could appear with nobody able to see it.
-rem
-rem `pending_workflows` at the repo root is TRACKED. New handovers go there and a test reads
-rem them. The old path is still read so anything already waiting on disk still installs.
-set "SRC=%~dp0data\pending_workflows"
-set "SRC2=%~dp0pending_workflows"
-set "HAVE="
-if exist "%SRC%\*.yml" set "HAVE=1"
-if exist "%SRC2%\*.yml" set "HAVE=1"
-if not defined HAVE (
-  echo Nothing waiting in pending_workflows or data\pending_workflows - nothing to install.
+if not defined PY (
+  echo Python not found on PATH, so the installer cannot run.
+  echo Install Python, or run this from a terminal where `python` works.
   goto :done
 )
 
-echo Fetching the latest main from GitHub...
-"%GIT%" fetch -q origin main || ( echo Could not reach GitHub. Nothing was changed. & goto :done )
-
-set "WT=%TEMP%\valquo_install_wf_%RANDOM%%RANDOM%"
-"%GIT%" worktree add -q --detach "%WT%" origin/main || ( echo Could not make a temporary copy of main. Nothing was changed. & goto :done )
-
-set "NAMES="
-for %%F in ("%SRC%\*.yml") do (
-  copy /y "%%F" "%WT%\.github\workflows\%%~nxF" >nul
-  echo   staged  .github\workflows\%%~nxF
-  set "NAMES=!NAMES! %%~nxF"
-)
-for %%F in ("%SRC2%\*.yml") do (
-  copy /y "%%F" "%WT%\.github\workflows\%%~nxF" >nul
-  echo   staged  .github\workflows\%%~nxF  [tracked]
-  set "NAMES=!NAMES! %%~nxF"
-)
-
-pushd "%WT%"
-"%GIT%" add .github/workflows
-"%GIT%" diff --cached --quiet
-if not errorlevel 1 (
-  echo.
-  echo Already installed on main - nothing changed.
-  popd
-  goto :installed
-)
-"%GIT%" commit -q -m "Install workflow(s):%NAMES% (via install_workflows.bat)"
-"%GIT%" push -q origin HEAD:main
-if errorlevel 1 (
-  echo Main moved while this ran - retrying once on top of the newest main...
-  "%GIT%" pull -q --rebase origin main
-  "%GIT%" push -q origin HEAD:main
-  if errorlevel 1 (
-    echo.
-    echo PUSH FAILED. Nothing reached GitHub. Your files are still in data\pending_workflows.
-    popd
-    goto :cleanup
-  )
-)
+echo ============================================================
+echo  WHAT WOULD CHANGE ON MAIN
+echo ============================================================
 echo.
-echo INSTALLED on main:%NAMES%
-popd
-
-:installed
-rem Only the LEGACY, untracked directory is cleared. Moving a TRACKED file would appear as a
-rem deletion in the next commit, and the installer is idempotent anyway -- it compares against
-rem main and reports "already installed" when nothing differs.
-if exist "%SRC%\*.yml" (
-  if not exist "%SRC%\installed" mkdir "%SRC%\installed"
-  for %%F in ("%SRC%\*.yml") do move /y "%%F" "%SRC%\installed\" >nul
+%PY% -m scripts.install_workflows
+rem Batch `errorlevel N` means "N or higher", so the codes are tested highest first.
+if errorlevel 4 (
+  echo.
+  echo Main is already up to date. Nothing to install.
+  goto :done
+)
+if errorlevel 2 (
+  echo.
+  echo Nothing was installed. Read the reason above.
+  goto :done
 )
 
-:cleanup
-"%GIT%" worktree remove --force "%WT%" >nul 2>nul
+echo.
+set "GO="
+set /p "GO=Install these on main? Type yes to go ahead: "
+if /i not "%GO%"=="yes" (
+  echo.
+  echo Nothing was installed.
+  goto :done
+)
+
+echo.
+%PY% -m scripts.install_workflows --send
 
 :done
 echo.

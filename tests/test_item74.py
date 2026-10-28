@@ -710,17 +710,24 @@ class TheWorkflowsAreHandedOverCorrectly(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.PENDING, "land-agent-branch.yml")))
 
     def test_ONE_INSTALL_LEAVES_EXACTLY_ONE_COPY_OF_EACH(self):
-        """`install_workflows.bat` copies from `data/pending_workflows` and THEN from the
-        tracked `pending_workflows`, into one directory, so a name present in both ends up as a
-        single file with the TRACKED content. Asserted against the installer's own source,
-        because the ordering is the whole guarantee."""
-        src = io.open(os.path.join(REPO, "install_workflows.bat"),
+        """A name present in BOTH handover folders ends up as a single file carrying the
+        TRACKED content, because the tracked copy is written LAST. The ordering is the whole
+        guarantee.
+
+        REPOINTED BY ITEM 85, which moved the install out of the bat and into
+        `scripts/install_workflows.py` -- and **this test earned its keep on the way**: the first
+        cut of that module copied the tracked files first and the legacy ones after, so the
+        gitignored copy would have won a clash. The property is unchanged and is now asserted
+        where the copying actually happens.
+        """
+        src = io.open(os.path.join(REPO, "scripts", "install_workflows.py"),
                       encoding="utf-8", errors="replace").read()
-        legacy = src.index('for %%F in ("%SRC%\\*.yml")')
-        tracked = src.index('for %%F in ("%SRC2%\\*.yml")')
+        body = src[src.index("        clash = sorted("):src.index("        wt = Git(worktree)")]
+        legacy = body.index("LEGACY_DIR, name")
+        tracked = body.index("PENDING_DIR, r[\"name\"]")
         self.assertLess(legacy, tracked,
                         "the tracked directory must be copied LAST so it wins a name clash")
-        self.assertIn('copy /y', src)
+        self.assertIn("shutil.copy2", body)
 
     def test_every_JOB_has_a_failure_alert(self):
         for n in self.EXPECTED:

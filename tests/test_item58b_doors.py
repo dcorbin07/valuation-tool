@@ -22,6 +22,7 @@ WHAT THESE PIN, each a way this class of door has already gone wrong in this rep
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
@@ -298,26 +299,44 @@ class TheScheduledWorkflowIsHandedOverRatherThanInstalled(unittest.TestCase):
         self.assertIn("paper", "\n".join(lines).lower())
 
     def test_the_installer_reads_the_TRACKED_directory(self):
-        """It GLOBS `*.yml`, so it names no individual file -- and naming one would be worse,
-        since the next handover would then need an installer edit. What this item changed is
-        that it reads the tracked directory AS WELL as the legacy untracked one, and that is
-        the thing worth pinning."""
-        bat = os.path.join(REPO, "install_workflows.bat")
-        with open(bat, encoding="utf-8", errors="replace") as fh:
-            src = fh.read()
-        self.assertIn('set "SRC2=%~dp0pending_workflows"', src)
-        self.assertIn('for %%F in ("%SRC2%\\*.yml") do (', src)
-        # AND THE LEGACY PATH STILL WORKS, so anything already waiting on disk still installs.
-        self.assertIn('set "SRC=%~dp0data\\pending_workflows"', src)
+        """REPOINTED BY ITEM 85, in the same commit as the change that moved it.
+
+        This used to assert the two literals `set "SRC2=%~dp0pending_workflows"` and its
+        `for` loop, and that form of the test is exactly what `ad29600` walked through: the
+        literals were present and correct, and the bat still read the folder it happened to sit
+        in -- a copy of which exists in every worktree. The property these literals stood for is
+        **the tracked directory is the source**, and it is now true more strongly, because the
+        tracked directory is read out of the fetched `origin/main` and the legacy one is not read
+        at all without every file in it being named. Asserted on the behaviour rather than on the
+        text, because the text was never the thing that mattered.
+        """
+        from scripts import install_workflows as IW
+        self.assertEqual(IW.PENDING_DIR, "pending_workflows")
+        # `plan` is the only thing that chooses what gets installed, and it reads one directory.
+        src = io.open(os.path.join(REPO, "scripts", "install_workflows.py"),
+                      encoding="utf-8").read()
+        body = src[src.index("def plan("):src.index("def legacy_leftovers")]
+        self.assertIn("PENDING_DIR", body)
+        self.assertNotIn("LEGACY_DIR", body)
+        # AND THE LEGACY PATH STILL WORKS, behind a confirmation naming every file, so that
+        # `scripts/propose_workflow.py` -- which stages into exactly that directory -- is not
+        # quietly broken by this change.
+        self.assertTrue(IW.legacy_confirmed(["x.yml"], ["x.yml"])[0])
+        self.assertFalse(IW.legacy_confirmed(["x.yml"], [])[0])
 
     def test_the_installer_does_not_move_the_tracked_file_away(self):
         """Moving it would show up as a DELETION in the next commit. The installer is
-        idempotent, so leaving it in place costs nothing."""
-        bat = os.path.join(REPO, "install_workflows.bat")
-        with open(bat, encoding="utf-8", errors="replace") as fh:
-            src = fh.read()
-        tail = src[src.index(":installed"):]
-        self.assertNotIn("SRC2", tail, "the installer moves the tracked file away")
+        idempotent, so leaving it in place costs nothing.
+
+        REPOINTED BY ITEM 85: the old form read the bat's `:installed` label, which no longer
+        exists because the bat no longer does the install. The property is unchanged and is now
+        trivially true -- nothing anywhere moves or deletes a file out of the tracked directory.
+        """
+        src = io.open(os.path.join(REPO, "scripts", "install_workflows.py"),
+                      encoding="utf-8").read()
+        for banned in ("os.remove", "shutil.move", "os.rename", "os.unlink"):
+            self.assertNotIn(banned, src,
+                             "the installer moves or deletes a handover file: %r" % banned)
 
 
 if __name__ == "__main__":
