@@ -102,6 +102,52 @@ def _job_ifs(block: str) -> dict:
     return out
 
 
+def _job_blocks(block: str) -> dict:
+    """`{job name: its own text}` for a jobs fragment, same hand-parsing as `_job_ifs`."""
+    out, cur, buf = {}, None, []
+    for line in block.splitlines():
+        m = re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)
+        if m:
+            if cur:
+                out[cur] = "\n".join(buf)
+            cur, buf = m.group(1), []
+            continue
+        if cur:
+            buf.append(line)
+    if cur:
+        out[cur] = "\n".join(buf)
+    return out
+
+
+def _decides_internally(job_text: str):
+    """The id of a step whose OUTPUT gates later steps in the same job, or None.
+
+    **ITEM 86 ADDED THIS, BECAUSE ITEM 84B MADE THE OLD MODEL WRONG RATHER THAN BROKEN.** Both
+    guards below assumed a job is alive on exactly the crons its `if` names, so "fires on every
+    schedule" and "does its work on every cron" were the same statement. Item 84B separated
+    them deliberately: its fix for a hot list that went stale when ONE cron string stopped being
+    delivered was to stop keying the job on a cron at all, fire on every schedule, and decide
+    inside the job whether the list is actually behind (`scan_catchup.catchup_decision`). The
+    work is gated on `steps.decide.outputs.run`, so the thing the guards protect -- a job must
+    not do its work on every cron -- is still honoured, by a decision step instead of by the
+    `if`.
+
+    So the rule becomes "name your cron, OR prove you decide", which is not a loophole: this
+    looks for a step carrying an `id` whose `steps.<id>.outputs.*` actually gates something
+    later in the same job. A job that merely fires on everything and runs still fails.
+    """
+    for sid in re.findall(r"^\s{8,}id:\s*([A-Za-z0-9_-]+)\s*$", job_text, re.M):
+        if re.search(r"steps\.%s\.outputs\.[A-Za-z0-9_]+" % re.escape(sid), job_text):
+            return sid
+    return None
+
+
+def _fires_on_every_schedule(expr: str) -> bool:
+    e = (expr or "").replace('"', "'")
+    return ("event_name == 'schedule'" in e
+            and "github.event.schedule ==" not in e)
+
+
 def _path_lists(block: str) -> list:
     """Every `path:` value in a jobs fragment, as a list of the paths it names.
 
@@ -202,7 +248,7 @@ def _workflow_job_ifs() -> dict:
 class EveryJobNamesItsOwnSchedule(unittest.TestCase):
     """The house rule, on the proposal and on the committed workflow alike."""
 
-    def _assert_named(self, where, job, expr):
+    def _assert_named(self, where, job, expr, job_text=""):
         self.assertIsNotNone(expr, "%s: job `%s` has no `if:` at all, so it runs on every "
                                    "event the workflow accepts" % (where, job))
         # (a) NO `always()`. It defeats `needs:` and makes a job run when its dependency was
@@ -212,10 +258,17 @@ class EveryJobNamesItsOwnSchedule(unittest.TestCase):
                          "skipped or failed" % (where, job))
         # (b) IF IT MENTIONS THE SCHEDULE EVENT AT ALL, IT MUST NAME A CRON. This is the exact
         # defect: `github.event_name == 'schedule'` alone is true for every cron in the file.
-        if "event_name == 'schedule'" in expr.replace('"', "'"):
-            self.assertIn("github.event.schedule ==", expr,
-                          "%s: job `%s` fires on the SCHEDULE EVENT without naming a cron, so "
-                          "it runs on every cron in this workflow" % (where, job))
+        if _fires_on_every_schedule(expr):
+            # ITEM 86's REPOINT. Naming a cron is one way to be scoped; deciding inside the job
+            # is the other, and item 84B chose the second ON PURPOSE -- keying the hot scan on
+            # one cron string is what let the list go stale when that string stopped being
+            # delivered. The property is unchanged: the job must not do its WORK on every cron.
+            gate = _decides_internally(job_text)
+            self.assertIsNotNone(
+                gate,
+                "%s: job `%s` fires on the SCHEDULE EVENT, names no cron, and gates nothing on "
+                "a decision step -- so it runs its work on every cron in this workflow"
+                % (where, job))
         # (c) IF IT MENTIONS DISPATCH INPUTS, IT MUST GUARD ON THE DISPATCH EVENT. Reading
         # `inputs.kind` on a schedule event yields an empty string, which compares unequal and
         # so happens to be harmless -- but it is harmless by accident, and the existing five
@@ -224,16 +277,20 @@ class EveryJobNamesItsOwnSchedule(unittest.TestCase):
             self.assertIn("github.event_name == 'workflow_dispatch'", expr.replace('"', "'"),
                           "%s: job `%s` reads inputs.kind without guarding on the dispatch "
                           "event" % (where, job))
-        # (d) IT MUST NAME SOMETHING. A condition with neither a cron nor a dispatch kind is
-        # not a scoped condition.
-        self.assertTrue("github.event.schedule ==" in expr or "inputs.kind" in expr,
-                        "%s: job `%s` names neither a cron nor a dispatch kind" % (where, job))
+        # (d) IT MUST NAME SOMETHING, OR DECIDE. A condition with no cron, no dispatch kind
+        # and no internal decision is not scoped at all.
+        self.assertTrue("github.event.schedule ==" in expr or "inputs.kind" in expr
+                        or _decides_internally(job_text),
+                        "%s: job `%s` names neither a cron nor a dispatch kind, and decides "
+                        "nothing internally" % (where, job))
 
     def test_the_PROPOSAL_jobs_each_name_their_own_schedule(self):
-        ifs = _job_ifs(_jobs_block(_read(PROPOSAL)))
+        block = _jobs_block(_read(PROPOSAL))
+        ifs = _job_ifs(block)
+        blocks = _job_blocks(block)
         self.assertEqual(sorted(ifs), ["themes", "themes-assemble"], ifs)
         for job, expr in ifs.items():
-            self._assert_named("PROPOSAL", job, expr)
+            self._assert_named("PROPOSAL", job, expr, blocks.get(job, ""))
 
     def test_both_proposal_jobs_name_the_THEMES_cron_and_nothing_else(self):
         """Not merely 'a' cron — the one this proposal adds. A job naming the hot cron would
@@ -269,10 +326,13 @@ class EveryJobNamesItsOwnSchedule(unittest.TestCase):
     def test_the_COMMITTED_workflow_obeys_the_same_rule(self):
         """So the rule survives the paste. Five jobs today, all five already compliant — which
         is what makes this a house rule rather than a new invention."""
-        ifs = _workflow_job_ifs()
+        src = _authoritative()
+        body = src.split("\njobs:", 1)[1]
+        ifs = _job_ifs(body)
+        blocks = _job_blocks(body)
         self.assertGreaterEqual(len(ifs), 5, ifs)
         for job, expr in ifs.items():
-            self._assert_named("auto-scan.yml", job, expr)
+            self._assert_named("auto-scan.yml", job, expr, blocks.get(job, ""))
 
     def test_the_rule_would_CATCH_session_70s_text(self):
         """THE POSITIVE CONTROL. Without this the assertions above are consistent with a rule
@@ -543,8 +603,31 @@ class EveryCronReachesAJob(unittest.TestCase):
         return crons, gates
 
     def test_the_committed_workflow_has_no_dead_cron(self):
-        crons, gates = self._crons_and_gates(WORKFLOW, _authoritative())
+        """ITEM 86's REPOINT, and the old form was wrong rather than broken.
+
+        It asked whether every cron is NAMED by some job's `if`, which was the same question as
+        "does every cron reach a job" only while every job named its crons. Item 84B broke that
+        equivalence on purpose: the hot job now fires on EVERY schedule and decides inside
+        whether the list is behind, precisely so that one cron string going undelivered cannot
+        strand the scan again. Under the old form each of the hot crons then read as DEAD while
+        being the only crons that actually do anything.
+
+        The property is unchanged -- no cron may fire a run in which nothing happens -- so a
+        cron is alive if a job names it OR a job fires on every schedule and gates its work on
+        a decision step.
+        """
+        src = _authoritative()
+        crons, gates = self._crons_and_gates(WORKFLOW, src)
         self.assertTrue(crons, "no crons were parsed, so this guard is looking at nothing")
+        body = src.split("\njobs:", 1)[1]
+        blocks = _job_blocks(body)
+        catch_all = sorted(j for j, e in _job_ifs(body).items()
+                           if _fires_on_every_schedule(e)
+                           and _decides_internally(blocks.get(j, "")))
+        if catch_all:
+            return self.assertTrue(
+                True, "every cron reaches %s, which fires on all schedules and decides "
+                      "internally" % ", ".join(catch_all))
         dead = [c for c in crons if c not in gates]
         self.assertEqual(dead, [], "these crons match no job's `if`, so every run they fire "
                                    "does nothing: %s" % dead)

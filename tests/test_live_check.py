@@ -758,14 +758,44 @@ class TheFreshnessUsesTheMarketCalendar(unittest.TestCase):
         self.assertEqual(rep.skipped, 1, rep.lines)
 
     def test_a_stale_run_time_fails_during_a_session(self):
+        """REPOINTED BY ITEM 86, and the old case is the defect it was asserting.
+
+        It used `run_time 2026-10-02 23:08` on Monday 2026-10-05 at 13:45Z and required a FAIL.
+        But 2026-10-02 is the FRIDAY -- the previous trading session -- and Monday's feed cannot
+        exist at 13:45Z, fifteen minutes after the open, when the first intraday cron is 13:23Z
+        and GitHub delivers it hours late. That is the 2026-10-30 false alarm in a fixture: the
+        check ran at 18:50:13Z and the intraday job ran 18:47:36 -> 18:59:54Z, so it failed on a
+        feed that was still being written.
+
+        So the stale case is now GENUINELY stale -- several sessions back -- and the
+        previous-session case has its own test below.
+        """
         rep = LC.Report()
-        # A Monday, inside the UTC band the checker uses.
+        monday = _dt.datetime(2026, 10, 5, 13, 45)
+        with _Net({("GET", "/api/signals"): _j({"run_time": "2026-09-25 14:08",
+                                                "rows": [{"t": 1}]})}):
+            LC.check_signals("https://x", rep, monday)
+        self.assertTrue(any("FAIL" in ln and "current" in ln for ln in rep.lines), rep.lines)
+
+    def test_the_previous_sessions_feed_passes_during_a_session(self):
+        """The 2026-10-30 shape: Friday's feed, read on Monday morning, is not a failure."""
+        rep = LC.Report()
         monday = _dt.datetime(2026, 10, 5, 13, 45)
         with _Net({("GET", "/api/signals"): _j({"run_time": "2026-10-02 23:08",
                                                 "rows": [{"t": 1}]})}):
             LC.check_signals("https://x", rep, monday)
-        self.assertTrue(any("FAIL" in ln and "today's session" in ln for ln in rep.lines),
-                        rep.lines)
+        self.assertEqual(rep.failed, 0, rep.lines)
+        self.assertTrue(any("not due yet" in ln for ln in rep.lines), rep.lines)
+
+    def test_a_feed_recorded_outside_the_clock_band_is_not_a_failure(self):
+        """GitHub decides when the job runs. A 23:04 run is still that day's feed, and the old
+        rule called it a failure -- measuring the queue rather than the product."""
+        rep = LC.Report()
+        monday = _dt.datetime(2026, 10, 5, 19, 0)
+        with _Net({("GET", "/api/signals"): _j({"run_time": "2026-10-05 23:04",
+                                                "rows": [{"t": 1}]})}):
+            LC.check_signals("https://x", rep, monday)
+        self.assertEqual(rep.failed, 0, rep.lines)
 
     def test_a_fresh_run_time_passes_during_a_session(self):
         rep = LC.Report()

@@ -49,7 +49,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
+      # FULL HISTORY, AND IT IS NOT AN OPTIMISATION -- IT IS WHY THIS JOB NEVER COMMITTED.
+      #
+      # `actions/checkout` defaults to depth 1, and in a depth-1 clone HEAD is a root commit as
+      # far as git is concerned, so EVERY tracked file's history is the single commit HEAD.
+      # `tests/test_valreads.py`'s blind-register guard reads `git log -- <path>` for the
+      # register and for the recorder, got `[HEAD]` for both, concluded they "share a commit"
+      # and went red against a correct tree -- on 2026-10-18, 2026-10-25 and 2026-11-01, every
+      # run this workflow has ever had. Each time the recorder had already run for ~27 minutes
+      # and verified its append-only guarantee, and "Commit the week" was skipped because the
+      # suite was red. Three weeks of reads computed and thrown away.
+      #
+      # The test now reports a shallow clone as UNVERIFIABLE rather than violated, so the week
+      # commits either way; this makes the guarantee actually CHECKED here rather than deferred
+      # to the land gate.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

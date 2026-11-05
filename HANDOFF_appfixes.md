@@ -24791,3 +24791,292 @@ re-check of item 83 is still owed before the live percentage moves above 0.
 byte-for-byte.** `scripts/install_workflows.py`, `install_workflows.bat`, `update_main.bat`,
 `tests/test_item85.py`, `scripts/i85_before.py`, `tests/test_item58b_doors.py` and
 `tests/test_item74.py` (three guards repointed).
+
+## ITEM 86 — three jobs reported as one bad Sunday, measured as weeks; and a rebalance six minutes short
+
+Every one of the three failures was handed over as a single day's fault. **Not one of them was**,
+and the run history says so in each case:
+
+| what | reported | measured |
+|---|---|---|
+| theme crawl | failed Sunday 11-01 | failed **every Sunday since Tradier closed** — 10-11, 10-18, 10-25, 11-01; last success 2026-10-06, two days before the 10-08 closure |
+| `valreads-record` | failed Sunday 11-01 | failed **all three runs it has ever had** — 10-18, 10-25, 11-01 |
+| LIVE CHECK | 10-30 and 11-02 | two different single FAILs, and **both are the check running before the thing it checks could exist** |
+
+And a fourth thing nobody reported, found on the way: **`main` has been RED since 2026-10-29**
+and no lane could have known, because the last land gate ran on 10-28.
+
+### 1. THE THEME CRAWL IS A TRADIER FEATURE THAT NOBODY MOVED
+
+The crawl runs `--universe broker`, which is `broker_universe.build()`, which is Tradier's
+`markets/lookup`. **Tradier was closed on 2026-10-08** and `DECISIONS` says in terms that every
+feature which used it moves to another source. This one did not. It exits 3 with
+`REFUSED: the broker universe came back empty` and `served 0 from scan broker_top_1500`, two to
+three seconds in — and the workflow's own comment documents that exact sentence as the thing
+that happens without the token, so the failure was foreseen and read as a token problem rather
+than an account problem.
+
+**THE REFUSAL WAS RIGHT AND THE ANSWER WAS WRONG.** A cache built over nothing reads to
+`live_themes.py` exactly like the absent file the builder exists to replace, so refusing beat
+crawling nothing. But the broker is not the only universe there is, and **the live scan already
+proved it**: measured on the live site, `health.universe` is **1500** beside
+`universe_note: "no TRADIER_TOKEN — cannot source the broker universe; falling back"`, and it
+scored 1,456 names. `providers.get_universe` cascades broker → SEC EDGAR → bundled, which is why
+the hot list kept working all month while the crawl died.
+
+So an empty broker now falls back to **that same resolution** rather than a second one invented
+for the crawl (`B7`), and the artifact records the source it actually got
+(`scan_date: live_universe_top_1500`) rather than the `broker_top_1500` the command line claims.
+**It needs no workflow change**, which is the point: next Sunday works without waiting on an
+install.
+
+**AND THE TRUNCATION IS NOT AN ARBITRARY SLICE — checked, because that was the thing most likely
+to be wrong.** EDGAR's `company_tickers.json` comes back **size-ordered** (NVDA, AAPL, MSFT,
+GOOGL, AMZN, AVGO, META, TSLA…), so the first 1,500 are the large end. `B12`'s alphabetical-slice
+defect was looked for and is absent, and the cut is pinned to happen BEFORE the alphabetical sort
+so it stays absent.
+
+**WHAT THE LIVE SCORE HAS BEEN READING, from the LIVE CHECK's own lines rather than inference:**
+`institutional 0.70`, `insider 0.71`, `capital_discipline 0.93` — all three PASS, so **the themes
+do still contribute.** They contribute from the **2026-10-06** crawl, kept alive by the `hot`
+job's daily cache restore, on the 31-MAR-2026 13F period. Not a partial cache and not none: a
+whole one, four weeks old. The assemble job's own comment predicted this state exactly — *"the
+`hot` job's restore then misses and the scan runs on the themes it runs on today — a degradation,
+not a failure"* — except the restore did not miss, so the degradation is staleness rather than
+absence.
+
+**A MANUAL RUN IS SAFE AND IS NOT NEEDED BEFORE SUNDAY, and the live service answers that in
+numbers rather than leaving it to judgement.** `health.theme_sources.live_themes.cache` reads
+`built: 2026-10-06`, `age_days: 29`, **`max_age_days: 120`** and **`rows: 1424`** against
+`asked: 1456`:
+
+  * the 10-06 date is the diagnosis above confirmed from the other end — the service names the
+    last successful crawl itself;
+  * **29 of 120 allowed days**, so the cache will not be refused for about three more months;
+  * **1,424 of 1,456 scored names covered — 97.8%.** The universe moving from the broker-era
+    1,500 to the EDGAR-era 1,500 did NOT strand the cache, which was the one thing that would
+    have made a manual run urgent;
+  * `period_age_days: 218` with `period_curr: 31-MAR-2026`, and SEC has still not published
+    30-JUN-2026 — so **a crawl today would use the same 13F quarter the stale cache already
+    has.** The institutional leg gains nothing until SEC publishes; what a refresh buys is four
+    weeks of Form 4 and XBRL filings plus the current universe.
+
+Safe if Don wants it anyway, and it fails in the same three seconds until this lands: the
+assemble job has no `git push`, no commit, no admin door and no token, and publishes through the
+Actions cache the `hot` job restores, so nothing a failure could corrupt. ~111 minutes across
+three shards. The click path is in the summary, and the automatic Sunday run (2026-11-08) will
+now work on its own.
+
+### 2. `valreads-record` — A HISTORY TEST IN A SHALLOW CLONE
+
+The failing test is `test_the_register_is_a_strict_git_ancestor_of_the_recorder`, and it fails on
+its last line: *"the register may never share a commit with the recorder"*. **The two commit
+lists are each one commit long and identical.** `valreads-record.yml` uses `actions/checkout@v4`
+with no `fetch-depth`, so depth 1 — and in a depth-1 clone HEAD is a root commit as far as git is
+concerned, so **every tracked file's history is HEAD alone.** The register and the recorder
+therefore "share a commit" in any shallow checkout.
+
+Proved rather than inferred: the 11-01 sha is `2390985`, a *fleet backup* commit that touched
+only `data_export/` and neither of these two files; the 10-18 run failed identically on
+`69c39d4`, whatever HEAD was that week. And a real `--depth 1` clone of this repo reproduces it:
+**unfixed → the production assertion, fixed → skips with its reason, fix removed → fails again.**
+
+**THIS WEEK'S RECORD IS LOST AND SO ARE THE OTHER TWO.** `record_week` dates on
+`time.strftime("%Y-%m-%d")` and reads the LIVE site, so the reads for 10-18, 10-25 and 11-01 are
+simply gone — the valuation page's past is not stored anywhere. Step 7 verified the append-only
+guarantee and step 9 was skipped, so 27 minutes of reads were computed and discarded, three times.
+
+**A LATE RE-RUN IS SAFE AND RECOVERS NOTHING.** It writes a NEW week at today's date through
+`append_only.append(append_only=True)`, and `write_week` REFUSES a date already on disk, so it
+cannot overwrite. **It must never be given `--date`:** passing `--date 2026-11-01` would stamp
+today's live reads as last week's, which is precisely the backfill §8.2 forbids ("forward-only by
+register; there is no backfill door"). So: re-run bare, or wait for Sunday.
+
+**UNVERIFIABLE IS NOT VIOLATED (`C5`).** The guard now reports a shallow clone as a loud skip
+naming where the property IS enforced — the land gate, which checks out at `fetch-depth: 0` and
+runs this same suite on every push — so the week commits. `pending_workflows/valreads-record.yml`
+adds `fetch-depth: 0` so it is checked in the recorder's own job too, once Don installs it.
+
+### 3. BOTH LIVE CHECK FAILURES ARE THE CHECK ARRIVING LATE AND THEN DEMANDING THE FUTURE
+
+| | ran at | the one FAIL | why |
+|---|---|---|---|
+| 11-02 | 22:27:32Z | `hot list is fresh — scan_date 2026-10-30, last session 2026-11-02` | the scan published later that evening; the live `scan_date` is now **2026-11-02** |
+| 10-30 | 18:50:13Z | `signals ran during today's session — run_time '2026-10-29 23:27'` | the intraday job ran **18:47:36 → 18:59:54Z**, so the feed was still being written |
+
+**THE CRUX IS THAT THE CHECK'S OWN CRON IS DELIVERED HOURS LATE.** Its schedules are 13:45Z and
+23:05Z; those two runs were at 18:50Z and 22:27Z — the MORNING cron, **5.1 and 8.7 hours late**,
+landing in the afternoon and evening and then asking for publications that had only just started.
+**Both are FALSE ALARMS, so both are fixed in the check**, which is the brief's own rule.
+
+And the delay is worse than this repo's workflows claim. Their comments record a measured
+**3.45–7.48h** band; on 2026-11-02 the five live-cycle crons were delivered **7.3, 9.0, 9.4, 8.2
+and 7.3 hours** late. That matters beyond this item — see 4.
+
+**THE FIX IS A DUE-TIME RULE, MODELLED ON `check_index_track`, INCLUDING ITS REFINEMENT.** That
+check already says it: *"BEFORE THE DEADLINE THE CHECK FALLS BACK TO THE SESSION BEFORE, RATHER
+THAN SKIPPING. The first cut of this skipped, and a skip before noon every day is a check that
+asserts nothing for half its runs — a writer that died a week ago would pass."* So:
+
+* **hot list** — the session's own scan passes outright; before the next-morning deadline the
+  PREVIOUS session's scan passes with its reason; anything older FAILS even before the deadline;
+  after the deadline the session's own scan is required. **It never skips.** Both deadlines now
+  come from one function (`B7`) rather than two copies of the day roll.
+* **signals** — judged on AGE, not on the clock the runner happened to start at. The old rule
+  also required `run_time` to fall inside 13:00–21:30Z, and **that was wrong about reality in
+  general**: the feed's own recorded times include 10-29 23:27 and 10-30 23:04, because a 13:23Z
+  cron is routinely delivered 7–9 hours late. A feed produced at 23:04 is still that day's feed,
+  and calling it a failure measures GitHub's queue rather than the product. The rule is now "no
+  older than the previous trading session" — asserted on every run, never fires on a late
+  delivery, catches a dead feed within one session. **The limit is stated rather than hidden: one
+  session of slack is the price of GitHub's delivery.**
+
+**AND THE OUTSIDE-THE-WINDOW SKIP IS GONE, WHICH MAKES THE CHECK STRONGER RATHER THAN LOOSER.**
+It existed because the old rule was unanswerable outside market hours. The age rule is answerable
+at any hour, so standing down only cost coverage -- the 11-02 report reads `SKIP ... it is 22:27
+UTC, outside 13:00-21:30`, meaning the EVENING check, half of this job's runs, asserted nothing
+about the feed at all. A feed that died a week ago would have been reported by the morning run
+alone, and only if that one landed inside the band. A non-trading day still stands down, because
+nothing should have run then -- a fact about the market rather than a gap in what can be measured.
+
+**ONE EXISTING TEST ENCODED THE DEFECT AND IS REPOINTED IN THE SAME COMMIT.**
+`test_a_stale_run_time_fails_during_a_session` used a FRIDAY feed on Monday at 13:45Z and
+required a FAIL — but Monday's feed cannot exist fifteen minutes after the open. That is the
+10-30 false alarm in a fixture. Its stale case is now genuinely stale, and the previous-session
+case has its own test. **The whole suite was GREEN before this item while the check was wrong,
+because the test agreed with the check** — which is the only reason this ran for a month.
+
+### 4. THE PAPER REBALANCE IS SIX ORDERS AND SIX MINUTES SHORT
+
+**The 10-22 event is NOT closed** (`event_closed: false`, still `remainder rebalance:2026-10-22`,
+`targets_are_frozen` for it) on day eleven. The newest cycles refuse on price coverage — 56 of 81
+names priceable at 23:26Z — but the 20:50Z cycle is the one that tells the story:
+
+    session ok      False   15:51 ET — too late to place a day order; the window closes at 15:45 ET
+    priced          81 of 81
+    preflight ok    True
+    computed        6 order(s) and sent none
+
+**It priced everything, passed preflight, computed the plan, and missed the window by six
+minutes.** All five of 11-02's cycles landed at or after 20:50Z against a window that shuts at
+20:45Z under EST, because of the 7.3–9.4h delivery delays above.
+
+What is left, from the plan itself:
+
+* **VLO is the only real gap** — `current_value 0.00` against `target_value 1626.13`, 4.244
+  shares. `book_vs_record` says 81 book names, 80 recorded, 1 not held, and names it.
+* five rounding top-ups totalling **$22.91** (CINF, DELL, DINO, IMO, KSPI).
+* **Cash is POSITIVE, and it is computed rather than guessed:** `pct` is 100.0 and the 81 targets
+  sum to **96,960.87**, exactly `slot_value`, so equity is $96,960.87 and the book is
+  **$1,649.04** short of its targets — i.e. roughly that much in cash. **Item 83's negative cash
+  self-healed exactly as predicted**: the plan is now BUYS, where on 10-26 every name was above
+  target and the plan was sells.
+* **No rejections anywhere** — `sent` carries zero `ok: false` across the cycles read, and
+  `order_read: ok`. Over the event, 866 orders placed and **606 filled**; the other 260 are day
+  limits that expired, which is what a day limit does.
+* Holdings are **80 of 81 names**, and the one missing name is 1.70% of the book.
+
+**ONE MANUAL RUN INSIDE THE WINDOW FINISHES IT.** The click path is in the summary. Nothing here
+is a code change: the plan is correct, the preflight passes, and the only defect is arrival time.
+
+### MAIN WAS RED FOR FOUR DAYS AND THIS ITEM IS WHY IT IS GREEN
+
+Don ran item 85's fixed installer on **2026-10-29 19:39** — `817ca26`, *"Install workflow(s):
+auto-scan.yml fleet-cycle.yml live-cycle.yml (from main's own pending_workflows)"* — and it
+installed all three in one run, exactly as designed. That put item 84B's hot job, which fires on
+EVERY schedule by design and decides internally, onto main; and two guards in
+`test_proposal_auto_scan_themes.py` assumed a job is alive on exactly the crons its `if` names.
+**The last land gate ran 2026-10-28, before the install, so the suite had been red on main since
+and no lane could have found out.**
+
+Both guards are repointed to the property they stood for — **no cron may fire a run in which
+nothing happens, and no job may do its work on every cron** — with the rule becoming "name your
+cron, OR prove you decide": a job may fire on all schedules if it gates its work on a step whose
+output actually gates later steps. **That is not a loophole, and it is pinned both ways:** a
+catch-all job that decides nothing is still refused, session 70's own text is still caught, and
+the real hot job is permitted and names its decision step (`decide`).
+
+### TWO MORE GUARDS WENT RED, AND BOTH HAD EXPIRED RATHER THAN CAUGHT ANYTHING
+
+The full gate came back **343 suites, 3 failures** -- the known pandas-3-local one, plus two that
+are worth recording because neither was finding a defect.
+
+**ITEM 85's OWN POSITIVE CONTROL EXPIRED THE DAY THE BUG WAS FIXED.**
+`test_the_checker_catches_a_lost_step_when_nothing_is_awaited` fed a fake `no-op` plan row for
+the real `live-cycle.yml` and relied on the installed copy having LOST every item-74 step. True
+when it was written; false from 2026-10-29 19:39, when Don's install restored them. So the
+control found nothing missing and failed, reporting *"so it is measuring nothing"* **about
+itself**. That is a positive control keyed on LIVE STATE, which evaporates the moment the thing
+it demonstrates against is repaired -- and the only reason it was caught is that it failed
+loudly. Its inputs are synthetic now, so the checker's behaviour is asserted for good, and the
+half it used to cover by accident -- that the installed copies really do carry item 74's steps
+again -- is its own measurement beside it.
+
+**AND ITEM 42's "THE LIVE CHECK IS NOT WEAKENED" CLASS WAS TWO LITERAL PINS.** One asserted the
+source contains `MARKET_OPEN_UTC <= t <= MARKET_CLOSE_UTC`, the other `want %s between`. Item 86
+removed both, and removing them is the correction rather than the weakening: that clock test
+required the feed's `run_time` to land inside 13:00-21:30Z while GitHub delivers the crons 7-9
+hours late. **Don's ruling is the property and it is untouched** -- *"The live check keeps
+reporting honestly"* -- so both tests now RUN the check instead of grepping it: a feed several
+sessions old still FAILS, a current one passes, and the 22:27Z hour where it used to stand down
+now asserts. A guard that pins a format string goes red on every legitimate edit to the line it
+names, and this one did.
+
+### A THIRD RED SUITE ON MAIN, WHICH ONLY THE LAND COULD SEE
+
+The land failed on `tests/test_index_book_publish.py` — a suite this item never touched, green
+in the local gate, and red on the runner. **The local gate could not have caught it**, for the
+reason item 44 wrote down: a lane's tree is stale by construction, and the gate tests the MERGE.
+`rebalance_build_2026-10-22.py` arrived on main in `3d4109e` ("Update 2026-11-01 21:39"), a bulk
+commit, and the book-path consumer census flagged it as a new reader. It is absent from this
+worktree, so locally there was nothing to flag.
+
+**IT IS THE ONLY WRITER EVER ADDED TO THAT ALLOWLIST, and it reconciles anyway — on evidence in
+the script rather than in the comment.** It does not implement a second opinion about what the
+Index IS: it INVOKES THE SHIPPED BUILDER with `--out data/valquo_index.json`, so the writer is
+still the one writer, pointed at the one path. What it changes is which Sharadar bulk caches that
+builder reads — `daily` and `sf3` from the 2026-10-04 freeze, because `refresh_sharadar.bat` does
+not update `data/bulk/prepared` and the shipped path would otherwise have taken July market caps,
+which its own docstring measures at 84 of ~1,280 names crossing the $10B line. It backs the book
+up first, nothing imports or schedules it, and the book it produced is the one in force (the live
+check reads `n_positions 81`).
+
+**AND ITS OWN FIRST LINE SAYS IT SHOULD NOT BE IN THE REPO** — *"One-off rebalance build for
+2026-10-22 (manager script, not committed)"*. So the real resolution is removal, which is Don's
+call on Don's file and not a lane's to take. Registering costs nothing either way: the assertion
+is one-directional (`set(hits) - expected`), so the entry goes inert the moment the file goes.
+
+**VERIFIED THE WAY THE RUNNER WOULD SEE IT** rather than reasoned about: origin/main's copy was
+materialised into this tree, the suite run (17 of 17, no complaint), and the file removed in a
+`finally` with `git status` confirmed clean for that path.
+
+### A CORRECTION TO MY OWN RECORD: THE AUDITOR RE-CHECK IS DONE
+
+Items 83 and 85 both closed saying the auditor's re-check of item 83 was still owed before the
+live percentage moves above 0. **It landed on 2026-10-26 23:07** — `0af1531`,
+*"AUDITOR TENTH REVIEW after item 83: SAFE TO RAISE ABOVE 0% — and my ninth review was wrong
+because of one fixture, repeated nine times"*, 293 lines in
+`AUDITOR_REVIEW10_live_path_2026-10-27.md`. So that blocker is cleared and I had been repeating a
+stale one. **Nothing here raises anything**: the percentage is Don's decision, every slot still
+ships at 0%, and the send token is still `?run=paper`.
+
+### NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+**No `.github/` change** — `pending_workflows/valreads-record.yml` carries the `fetch-depth: 0`
+and waits for Don's installer; everything else in this item is code and lands today. The dead
+`TRADIER_TOKEN` env on the themes job is now harmless and is **left alone** rather than forcing
+an install for a tidy-up. **The three lost valreads weeks are not reconstructed** and cannot be.
+**The crawl's 13F period is not advanced by this item** — the next successful crawl does that.
+**No percentage moved, no live order, no key or token printed, nothing appended to the record by
+hand, `DECISIONS.md` untouched.** And **reported outside this lane** (`RUN_RULES` rule 3): the
+live scan's universe is a 1,500-name EDGAR fallback whose own note says the broker is gone — it
+works and it is nobody's declared design, which is the screener lane's to confirm.
+
+**26 new tests; 32 of 32 on the repointed proposal suite; the pre-fix control scores 18 of 26
+failing before, and `test_proposal_auto_scan_themes` 2 failures before and 0 after.**
+`scripts/theme_cache_build.py`, `scripts/live_check.py`, `tests/test_item86.py`,
+`tests/test_live_check.py`, `tests/test_valreads.py`,
+`tests/test_proposal_auto_scan_themes.py`, `pending_workflows/valreads-record.yml`,
+`scripts/i86_before.py`, two expired guards repointed in `tests/test_item85.py` and
+`tests/test_item42_basis_label.py`, and the book-path census reconciled in
+`tests/test_index_book_publish.py`.

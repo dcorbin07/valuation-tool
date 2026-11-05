@@ -373,6 +373,31 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         # PT-SPLIT risk: it never writes the path, never resolves it, and forms no opinion
         # about what the Index IS -- the construction it builds is explicitly NOT the Index.
         "scripts/index_candidate_fidelity.py",
+        # **THE ONLY ENTRY ON THIS LIST THAT WRITES THE PATH**, which is why it is reasoned about
+        # at length rather than appended. Added to main by `3d4109e` ("Update 2026-11-01 21:39"),
+        # a bulk commit, and found on 2026-11-05 by this guard taking the land red -- item 86 was
+        # the first land since 2026-10-28, so nothing had surfaced it for four days.
+        #
+        # RECONCILED, AND IT IS NOT A PT-SPLIT, for a reason that is in the script rather than in
+        # this comment: it does not implement a second opinion about what the Index IS. It
+        # INVOKES THE SHIPPED BUILDER -- `python -m valuation.edge.valquo_index ... --out
+        # data/valquo_index.json` -- so the writer is still the one writer, pointed at the one
+        # path. What it changes is which of the Sharadar bulk caches that builder reads: two of
+        # them (`daily`, `sf3`) come from the 2026-10-04 freeze because `refresh_sharadar.bat`
+        # does not update `data/bulk/prepared`, and built the shipped way the book would have
+        # taken point-in-time market caps from July -- measured in its own docstring at 84 of
+        # ~1,280 names crossing the $10B line. It also backs the book up before writing.
+        #
+        # AND IT IS A DATED ONE-OFF THAT HAS ALREADY RUN. The book it produced is the one in
+        # force: the live check reads `n_positions 81 against the contract floor of 50`. Nothing
+        # imports it, nothing schedules it, and the only references anywhere are documents.
+        #
+        # **ITS OWN FIRST LINE SAYS IT SHOULD NOT BE HERE** -- "One-off rebalance build for
+        # 2026-10-22 (manager script, not committed)" -- so the real resolution is removal, and
+        # that is Don's call on Don's file rather than a lane's to take. This entry is safe
+        # either way: the assertion below is one-directional (`set(hits) - expected`), so the
+        # moment the file goes the entry is inert rather than red.
+        "rebalance_build_2026-10-22.py",       # WRITER — one-off, delegates to the real builder
     }
     unexpected = set(hits) - expected
     assert not unexpected, (

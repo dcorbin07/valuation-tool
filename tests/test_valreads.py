@@ -64,6 +64,29 @@ class TestTheRegisterCameFirst(unittest.TestCase):
                                  cwd=HERE, capture_output=True)
             return [x for x in out.stdout.decode("utf-8", "replace").split() if x]
 
+        # **A SHALLOW CLONE CANNOT ANSWER THIS, AND ASSERTING ANYWAY BLOCKED THE RECORD FOR
+        # THREE WEEKS.** `valreads-record.yml` checks out at `actions/checkout`'s default depth
+        # of 1. In a depth-1 clone HEAD is a root commit as far as git is concerned, so EVERY
+        # tracked file's history is the single commit HEAD -- `git log -- <path>` returns
+        # `[HEAD]` for the register and `[HEAD]` for the recorder, they "share a commit", and
+        # this guard fired against a perfectly correct tree. It happened on 2026-10-18,
+        # 2026-10-25 and 2026-11-01, each time naming whatever HEAD was that week (the 11-01
+        # sha, `2390985`, is a fleet-backup commit that touched only `data_export/` and neither
+        # of these two files). The recorder had already run for 27 minutes and verified its
+        # append-only guarantee; the commit step was then skipped because the suite was red.
+        #
+        # UNVERIFIABLE IS NOT VIOLATED (`C5`). The property is real and still enforced -- the
+        # land gate checks out at `fetch-depth: 0` and runs this same suite on every push -- so
+        # the honest thing here is to say the question cannot be answered in this checkout and
+        # name where it is. `pending_workflows/valreads-record.yml` adds `fetch-depth: 0` so it
+        # is answered in the recorder's own job too, once Don installs it.
+        out = subprocess.run(["git", "rev-parse", "--is-shallow-repository"],
+                             cwd=HERE, capture_output=True)
+        if out.stdout.decode("utf-8", "replace").strip() == "true":
+            self.skipTest("this is a SHALLOW clone, where every file's history is HEAD alone, "
+                          "so the register's ancestry cannot be read here. It is enforced by "
+                          "the land gate, which checks out at fetch-depth 0.")
+
         reg_all = shas("PREREG_valuation_reads.md")
         rec_all = shas("valuation/edge/valreads.py")
         if not reg_all or not rec_all:
