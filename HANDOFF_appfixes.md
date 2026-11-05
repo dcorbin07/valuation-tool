@@ -25022,6 +25022,44 @@ sessions old still FAILS, a current one passes, and the 22:27Z hour where it use
 now asserts. A guard that pins a format string goes red on every legitimate edit to the line it
 names, and this one did.
 
+### A THIRD RED SUITE ON MAIN, WHICH ONLY THE LAND COULD SEE
+
+The land failed on `tests/test_index_book_publish.py` — a suite this item never touched, green
+in the local gate, and red on the runner. **The local gate could not have caught it**, for the
+reason item 44 wrote down: a lane's tree is stale by construction, and the gate tests the MERGE.
+`rebalance_build_2026-10-22.py` arrived on main in `3d4109e` ("Update 2026-11-01 21:39"), a bulk
+commit, and the book-path consumer census flagged it as a new reader. It is absent from this
+worktree, so locally there was nothing to flag.
+
+**IT IS THE ONLY WRITER EVER ADDED TO THAT ALLOWLIST, and it reconciles anyway — on evidence in
+the script rather than in the comment.** It does not implement a second opinion about what the
+Index IS: it INVOKES THE SHIPPED BUILDER with `--out data/valquo_index.json`, so the writer is
+still the one writer, pointed at the one path. What it changes is which Sharadar bulk caches that
+builder reads — `daily` and `sf3` from the 2026-10-04 freeze, because `refresh_sharadar.bat` does
+not update `data/bulk/prepared` and the shipped path would otherwise have taken July market caps,
+which its own docstring measures at 84 of ~1,280 names crossing the $10B line. It backs the book
+up first, nothing imports or schedules it, and the book it produced is the one in force (the live
+check reads `n_positions 81`).
+
+**AND ITS OWN FIRST LINE SAYS IT SHOULD NOT BE IN THE REPO** — *"One-off rebalance build for
+2026-10-22 (manager script, not committed)"*. So the real resolution is removal, which is Don's
+call on Don's file and not a lane's to take. Registering costs nothing either way: the assertion
+is one-directional (`set(hits) - expected`), so the entry goes inert the moment the file goes.
+
+**VERIFIED THE WAY THE RUNNER WOULD SEE IT** rather than reasoned about: origin/main's copy was
+materialised into this tree, the suite run (17 of 17, no complaint), and the file removed in a
+`finally` with `git status` confirmed clean for that path.
+
+### A CORRECTION TO MY OWN RECORD: THE AUDITOR RE-CHECK IS DONE
+
+Items 83 and 85 both closed saying the auditor's re-check of item 83 was still owed before the
+live percentage moves above 0. **It landed on 2026-10-26 23:07** — `0af1531`,
+*"AUDITOR TENTH REVIEW after item 83: SAFE TO RAISE ABOVE 0% — and my ninth review was wrong
+because of one fixture, repeated nine times"*, 293 lines in
+`AUDITOR_REVIEW10_live_path_2026-10-27.md`. So that blocker is cleared and I had been repeating a
+stale one. **Nothing here raises anything**: the percentage is Don's decision, every slot still
+ships at 0%, and the send token is still `?run=paper`.
+
 ### NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
 
 **No `.github/` change** — `pending_workflows/valreads-record.yml` carries the `fetch-depth: 0`
@@ -25039,5 +25077,6 @@ failing before, and `test_proposal_auto_scan_themes` 2 failures before and 0 aft
 `scripts/theme_cache_build.py`, `scripts/live_check.py`, `tests/test_item86.py`,
 `tests/test_live_check.py`, `tests/test_valreads.py`,
 `tests/test_proposal_auto_scan_themes.py`, `pending_workflows/valreads-record.yml`,
-`scripts/i86_before.py`, and two expired guards repointed in `tests/test_item85.py` and
-`tests/test_item42_basis_label.py`.
+`scripts/i86_before.py`, two expired guards repointed in `tests/test_item85.py` and
+`tests/test_item42_basis_label.py`, and the book-path census reconciled in
+`tests/test_index_book_publish.py`.
