@@ -776,6 +776,35 @@ def _as_served_rows(rows) -> list:
     return out
 
 
+def served_from_live_universe(limit: int = 1500) -> dict:
+    """`served_from_store`'s shape, from THE LIVE SCAN'S OWN universe resolution.
+
+    One resolution, not a second one written for the crawl: `FreeProvider.get_universe` is the
+    function the shipped scan calls, and it cascades broker -> SEC EDGAR -> bundled. Calling it
+    here means the theme cache covers the names the scan scores, and that a source going away
+    moves both together instead of leaving the crawl pointed at a dead broker for a month.
+
+    `scan_date` NAMES THE SOURCE IT ACTUALLY GOT, including the provider's own note, because a
+    cache is only meaningful beside a statement of which population it covers -- and after this
+    fallback that population is no longer the one the workflow's command line claims.
+    """
+    try:
+        from valuation.config import CONFIG
+        from valuation.screener.providers import FreeProvider
+        prov = FreeProvider(CONFIG, None)
+        rows = prov.get_universe("whole_market") or []
+        note = (getattr(prov, "universe_note", "") or "").strip()
+    except Exception as e:                                           # noqa: BLE001
+        return {"served": [], "scan_date": None,
+                "reason": "the live universe could not be resolved (%s)" % type(e).__name__}
+    served = _as_served_rows(rows[:limit] if limit else rows)
+    if not served:
+        return {"served": [], "scan_date": None,
+                "reason": "the live universe resolution returned no names"}
+    return {"served": served, "scan_date": "live_universe_top_%d" % len(served),
+            "reason": "the live scan's universe cascade%s" % ((" (%s)" % note) if note else "")}
+
+
 def served_from_universe(spec: str, limit: int = 1500) -> dict:
     """`served_from_store`'s shape, from the broker ranking or a ticker file.
 
@@ -802,9 +831,37 @@ def served_from_universe(spec: str, limit: int = 1500) -> dict:
         from valuation.screener import broker_universe
         rows = broker_universe.build(CONFIG, limit=limit) or []
         served = _as_served_rows(rows)
-        return {"served": served, "scan_date": "broker_top_%d" % limit,
-                "reason": "the broker liquidity ranking" if served
-                          else "the broker universe came back empty"}
+        if served:
+            return {"served": served, "scan_date": "broker_top_%d" % limit,
+                    "reason": "the broker liquidity ranking"}
+        # **THE BROKER IS GONE, AND REFUSING HERE STOPPED THE WEEKLY CRAWL FOR A MONTH.**
+        #
+        # Tradier was closed on 2026-10-08 (DECISIONS) and this is a feature that used it. The
+        # refusal was correct in itself -- a cache built over nothing reads to `live_themes.py`
+        # exactly like the absent file this builder exists to replace -- but it is the wrong
+        # answer to an empty BROKER, because the broker is not the only universe there is. The
+        # crawl failed on 10-11, 10-18, 10-25 and 11-01, every Sunday since the closure, and
+        # the live score has been reading the 10-06 cache ever since.
+        #
+        # THE LIVE SCAN ALREADY SOLVED THIS AND THE CRAWL DID NOT FOLLOW. `providers.
+        # get_universe` cascades broker -> SEC EDGAR -> bundled, which is why the hot list kept
+        # working throughout: measured on the live site, `health.universe` is 1500 beside
+        # `universe_note: "no TRADIER_TOKEN -- cannot source the broker universe; falling
+        # back"`. So the same resolution is used here rather than a second one invented for the
+        # crawl (`B7`), and the cache then covers the population the scan actually scores --
+        # which is the only population it is useful for.
+        #
+        # AND THE TRUNCATION IS NOT AN ARBITRARY SLICE, which was the thing worth checking
+        # before relying on it: EDGAR's `company_tickers.json` comes back size-ordered (NVDA,
+        # AAPL, MSFT, GOOGL, AMZN, AVGO, META, TSLA...), so the first `limit` names are the
+        # large end rather than an alphabetical cut -- `B12`'s defect, looked for and absent.
+        fell_back = served_from_live_universe(limit=limit)
+        fell_back["reason"] = ("the broker universe came back empty (Tradier closed 2026-10-08), "
+                               "so the live scan's own universe was used instead: %s"
+                               % fell_back["reason"])
+        return fell_back
+    if spec == "live":
+        return served_from_live_universe(limit=limit)
     try:
         with io.open(spec, encoding="utf-8") as fh:
             served = _as_served_rows(

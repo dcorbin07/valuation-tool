@@ -193,23 +193,76 @@ class TheLiveCheckIsNOTWeakened(unittest.TestCase):
     afternoon-only delivery is a decision about the PRODUCT, not permission to stop measuring.
     """
 
-    def test_the_in_session_window_check_still_exists_and_still_fails(self):
-        src = read(os.path.join(REPO, "scripts", "live_check.py"))
-        self.assertIn("signals ran during today's session", src)
-        # The window is still asserted, not softened to "ran at all" -- and it is read from the
-        # market-calendar CONSTANTS rather than a literal hour, which is the better property:
-        # the first cut of this test asserted "13:00" and failed, because the check formats
-        # those constants rather than spelling the time. A guard on the formatting would have
-        # gone red the day the window moved legitimately.
-        self.assertIn("MARKET_OPEN_UTC <= t <= MARKET_CLOSE_UTC", src)
-        self.assertIn("MARKET_OPEN_UTC", src)
-        self.assertIn("MARKET_CLOSE_UTC", src)
+    def test_the_signals_check_still_exists_and_still_FAILS(self):
+        """REPOINTED BY ITEM 86, and both halves of this class were literal pins.
 
-    def test_nothing_in_this_item_touched_the_live_check(self):
-        """A ruling that accepts a failure is not a ruling to stop detecting it. Pinned by
-        asserting the check's own bad-path message survives verbatim."""
-        src = read(os.path.join(REPO, "scripts", "live_check.py"))
-        self.assertIn("want %s between", src)
+        One asserted the source contains `MARKET_OPEN_UTC <= t <= MARKET_CLOSE_UTC` and the
+        other that it contains `want %s between`. Item 86 removed both -- not to soften the
+        check but because that clock test was wrong about reality: it required the feed's
+        `run_time` to fall inside 13:00-21:30Z, and GitHub delivers these crons 7-9 hours late,
+        so the feed's own recorded times include 2026-10-29 23:27 and 2026-10-30 23:04. The old
+        rule failed the 10-30 run on a feed that was still being written, which is measuring
+        GitHub's queue rather than the product.
+
+        **DON'S RULING IS THE PROPERTY, AND IT IS UNCHANGED:** *"The live check keeps reporting
+        honestly."* So this asserts what that means -- the check can still FAIL on a stale feed
+        -- by RUNNING it rather than by grepping for a sentence. A guard that pins a format
+        string goes red on every legitimate edit to the line it names, and this one did.
+        """
+        import datetime as _d
+        import json as _json
+        sys.path.insert(0, os.path.join(REPO, "scripts"))
+        from scripts import live_check as LC
+
+        class _Rep(LC.Report):
+            def _emit(self, verdict, name, detail):
+                self.lines.append("%s %s %s" % (verdict, name, detail))
+
+        def _with_feed(run_time, now):
+            rep = _Rep()
+            keep = LC.fetch
+            LC.fetch = lambda base, path, **kw: (
+                200, _json.dumps({"run_time": run_time, "rows": [{"t": 1}]}).encode(), "")
+            try:
+                LC.check_signals("https://x", rep, now)
+            finally:
+                LC.fetch = keep
+            return rep
+
+        # A feed several sessions old on a trading day STILL FAILS.
+        stale = _with_feed("2026-09-25 14:08", _d.datetime(2026, 10, 5, 13, 45))
+        self.assertTrue(any(l.startswith("FAIL") for l in stale.lines), stale.lines)
+        # And it is not softened to "ran at all": a current feed passes, so the two outcomes
+        # are distinguishable and the check is measuring something.
+        fresh = _with_feed("2026-10-05 13:23", _d.datetime(2026, 10, 5, 13, 45))
+        self.assertFalse(any(l.startswith("FAIL") for l in fresh.lines), fresh.lines)
+
+    def test_the_afternoon_delivery_ruling_did_not_stop_the_measurement(self):
+        """A ruling that accepts a failure is not a ruling to stop detecting it.
+
+        Item 86 made this STRONGER rather than weaker, which is the thing worth pinning: the
+        check used to stand down entirely outside 13:00-21:30Z -- half its runs -- and now
+        asserts on every run of a trading day.
+        """
+        import datetime as _d
+        import json as _json
+        from scripts import live_check as LC
+
+        class _Rep(LC.Report):
+            def _emit(self, verdict, name, detail):
+                self.lines.append("%s %s %s" % (verdict, name, detail))
+
+        rep = _Rep()
+        keep = LC.fetch
+        LC.fetch = lambda base, path, **kw: (
+            200, _json.dumps({"run_time": "2026-09-25 14:08", "rows": [{"t": 1}]}).encode(), "")
+        try:
+            # 22:27Z on a trading day: the hour the 11-02 check ran, where it used to SKIP.
+            LC.check_signals("https://x", rep, _d.datetime(2026, 10, 30, 22, 27))
+        finally:
+            LC.fetch = keep
+        self.assertEqual(rep.skipped, 0, rep.lines)
+        self.assertTrue(any(l.startswith("FAIL") for l in rep.lines), rep.lines)
 
 
 if __name__ == "__main__":

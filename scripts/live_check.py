@@ -180,7 +180,35 @@ def check_hot_list(base, rep, session):
     if scan == want:
         rep.ok("hot list is fresh", "scan_date %s == last session" % scan)
     else:
-        rep.bad("hot list is fresh", "scan_date %s, last session %s" % (scan or "(none)", want))
+        # A SCAN IS NOT MISSING UNTIL IT IS DUE, and this check had no due rule at all.
+        #
+        # The scan runs at 22:23 and 23:41 UTC on the session day -- after the close, because the
+        # ranking needs it -- and GitHub delivers these crons hours late. On 2026-11-02 this
+        # check itself was the 13:45Z cron delivered at 22:27Z, 8.7 hours late, and it then
+        # demanded Monday's scan: measured afterwards, the live `scan_date` IS 2026-11-02, so the
+        # scan published later that same evening and the check was simply early. `PT-GAPDUE`'s
+        # shape, and the second time this repo has paid for it.
+        #
+        # BEFORE THE DEADLINE IT ASSERTS THE PREVIOUS SESSION RATHER THAN SKIPPING -- the
+        # track-row rule's own lesson, verbatim: a skip asserts nothing, and a scanner that died
+        # a week ago would pass. The previous session's scan IS due by then, so there is always
+        # something to assert.
+        due = _due_the_morning_after(session, HOT_SCAN_DUE_UTC_HOUR, HOT_SCAN_DUE_UTC_MINUTE)
+        prev = _previous_session(session)
+        pw = prev.isoformat() if prev else None
+        if due is not None and _utcnow() < due and pw and scan == pw:
+            rep.ok("hot list is fresh",
+                   "scan_date %s; %s is not due until %s UTC (the scan runs after the close and "
+                   "GitHub delivers it late)"
+                   % (pw, want, due.strftime("%Y-%m-%d %H:%M")))
+        elif due is not None and _utcnow() < due:
+            rep.bad("hot list is fresh",
+                    "scan_date %s, and %s was already due; %s is not due until %s UTC"
+                    % (scan or "(none)", pw or "(no previous session)", want,
+                       due.strftime("%Y-%m-%d %H:%M")))
+        else:
+            rep.bad("hot list is fresh",
+                    "scan_date %s, last session %s" % (scan or "(none)", want))
 
     tc = (d.get("health") or {}).get("theme_contributing") or {}
     for theme in ("institutional", "insider", "capital_discipline"):
@@ -514,14 +542,39 @@ def _previous_session(session):
                             tzinfo=_d.timezone.utc))
 
 
+#: The hour, the morning AFTER a session, by which that session's hot-list scan must exist.
+#:
+#: **MEASURED, BECAUSE THE OBVIOUS RULE CRIED WOLF.** `auto-scan.yml` scans at 22:23 and 23:41
+#: UTC on the session day -- after the close, because the ranking needs it -- and GitHub delivers
+#: this repo's crons hours late. Measured on 2026-11-02 the five live-cycle crons were delivered
+#: **7.3 to 9.4 hours** late, which is worse than the 3.45-7.48h band the workflows' own comments
+#: record. So a session's scan can legitimately first appear in the small hours of the next
+#: morning, and demanding it on the evening of the session itself is `PT-GAPDUE` exactly: the
+#: 11-02 check ran at 22:27Z, demanded Monday's scan, and Monday's scan published later that
+#: evening. 12:00 the next day is the same deadline the track-row rule uses, for the same reason.
+HOT_SCAN_DUE_UTC_HOUR = 12
+HOT_SCAN_DUE_UTC_MINUTE = 0
+
+
+def _due_the_morning_after(session, hour, minute=0):
+    """The UTC moment something owed for `session` stops being "not yet" and starts being late.
+
+    ONE function for both deadlines (`B7`). Two copies of "the morning after a session" is two
+    places to get the day roll wrong, and the roll is the only hard part.
+    """
+    import datetime as _d
+    if session is None:
+        return None
+    nxt = session + _d.timedelta(days=1)
+    return _d.datetime(nxt.year, nxt.month, nxt.day, hour, minute, tzinfo=_d.timezone.utc)
+
+
 def _track_row_due_after(session):
     """The UTC moment a row for `session` stops being "not yet" and starts being missing."""
     import datetime as _d
     if session is None:
         return None
-    nxt = session + _d.timedelta(days=1)
-    return _d.datetime(nxt.year, nxt.month, nxt.day, TRACK_ROW_DUE_UTC_HOUR,
-                       TRACK_ROW_DUE_UTC_MINUTE, tzinfo=_d.timezone.utc)
+    return _due_the_morning_after(session, TRACK_ROW_DUE_UTC_HOUR, TRACK_ROW_DUE_UTC_MINUTE)
 
 
 def check_index_track(base, rep, session):
@@ -668,26 +721,47 @@ def check_signals(base, rep, now_utc):
         rep.skip("signals ran during today's session",
                  "%s is not a trading day — nothing should have run" % today.isoformat())
         return
-    if not (MARKET_OPEN_UTC <= now_utc.time() <= MARKET_CLOSE_UTC):
-        rep.skip("signals ran during today's session",
-                 "it is %s UTC, outside %s-%s, so today's feed is not due yet"
-                 % (now_utc.strftime("%H:%M"), MARKET_OPEN_UTC.strftime("%H:%M"),
-                    MARKET_CLOSE_UTC.strftime("%H:%M")))
-        return
-    d10, _, hhmm = rt.partition(" ")
-    ok_date = d10 == today.isoformat()
-    try:
-        t = _dt.datetime.strptime(hhmm.strip()[:5], "%H:%M").time()
-        ok_time = MARKET_OPEN_UTC <= t <= MARKET_CLOSE_UTC
-    except Exception:                                                # noqa: BLE001
-        ok_time = False
-    if ok_date and ok_time:
-        rep.ok("signals ran during today's session", "run_time %s" % rt)
+    # **THE OUTSIDE-THE-WINDOW SKIP IS GONE, AND REMOVING IT MAKES THIS CHECK STRONGER.**
+    #
+    # It existed because the old rule demanded a run TODAY inside 13:00-21:30Z, which is
+    # unanswerable outside those hours. The age rule below is answerable at any hour, so the
+    # skip now only costs coverage: the 2026-11-02 report shows `SKIP ... it is 22:27 UTC,
+    # outside 13:00-21:30`, i.e. the evening check -- half of this job's runs -- asserted
+    # nothing about the feed at all. A skip is not a pass, and a check that stands down for half
+    # its runs is the shape `check_index_track`'s own docstring warns about: a feed that died a
+    # week ago would have been reported only by the morning run, if that one happened to land
+    # inside the band. On a non-trading day it still stands down, because nothing should have
+    # run then -- that is a fact about the market, not a gap in what can be measured.
+    # **THE FEED IS JUDGED ON HOW OLD IT IS, NOT ON WHAT TIME THE RUNNER HAPPENED TO START.**
+    #
+    # The old rule required the newest `run_time` to be TODAY and to fall inside 13:00-21:30Z,
+    # and it failed the 2026-10-30 check for a reason that was not a product fault: the check ran
+    # at 18:50:13Z and the intraday job ran 18:47:36 -> 18:59:54Z, so it demanded a feed that was
+    # STILL BEING WRITTEN. Nine and a half minutes early.
+    #
+    # And the clock half of that rule was wrong about reality in general, which is why it is gone
+    # rather than merely widened. GitHub decides when these jobs run, not this project: the
+    # feed's own recorded times include 2026-10-29 23:27 and 2026-10-30 23:04, both well outside
+    # the band, because a 13:23Z cron is routinely delivered 7-9 hours late. A feed produced at
+    # 23:04 is still that day's feed, and a check that calls it a failure is measuring GitHub's
+    # queue rather than the product.
+    #
+    # SO: no older than the PREVIOUS trading session. That asserts something on every run (no
+    # vacuous skip), never fires on a late delivery, and catches a feed that has actually stopped
+    # within one session. **THE LIMIT IS STATED RATHER THAN HIDDEN: one session of slack is the
+    # price of GitHub's delivery, so a feed that dies today is reported tomorrow, not today.**
+    d10 = rt.partition(" ")[0]
+    prev = _previous_session(today)
+    pw = prev.isoformat() if prev else None
+    if d10 == today.isoformat():
+        rep.ok("signals feed is current", "run_time %s is today's" % rt)
+    elif pw and d10 == pw:
+        rep.ok("signals feed is current",
+               "run_time %s is the previous session's; today's is not due yet (GitHub delivers "
+               "the intraday crons hours late)" % rt)
     else:
-        rep.bad("signals ran during today's session",
-                "run_time %r (want %s between %s and %s UTC)"
-                % (rt, today.isoformat(), MARKET_OPEN_UTC.strftime("%H:%M"),
-                   MARKET_CLOSE_UTC.strftime("%H:%M")))
+        rep.bad("signals feed is current",
+                "run_time %r is older than the previous session (%s)" % (rt, pw or "unknown"))
 
 
 def check_pages(base, rep):

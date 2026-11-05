@@ -338,17 +338,56 @@ class TheInstalledCopyNeverSilentlyLosesAStep(unittest.TestCase):
                              "%s: %s" % (r["name"], r["note"]))
 
     def test_the_checker_catches_a_lost_step_when_nothing_is_awaited(self):
-        """The positive control. Without it this class could pass by finding nothing to look at."""
+        """The positive control. Without it this class could pass by finding nothing to look at.
+
+        **REWRITTEN BY ITEM 86, BECAUSE THE FIRST VERSION EXPIRED THE DAY THE BUG WAS FIXED.**
+        It fed a fake `no-op` plan row for the real `live-cycle.yml` and relied on the installed
+        copy having lost every item-74 step -- true when it was written, and false from
+        2026-10-29 19:39, when Don ran the installer (`817ca26`) and restored them. The control
+        then found nothing missing and failed, reporting "so it is measuring nothing" about
+        itself.
+
+        That is a control keyed on LIVE STATE, which is a control that evaporates the moment the
+        defect it demonstrates against is repaired -- and it fails LOUDLY rather than quietly,
+        which is the only reason it was caught. The inputs are synthetic now, so the checker's
+        own behaviour is asserted for good: a pending copy carrying a step the installed copy
+        lacks, with no install awaited, must be reported.
+        """
+        class _FakeGit(object):
+            def bytes_at(self, ref, path):
+                if path.startswith(IW.PENDING_DIR):
+                    return (b"name: x\n\non:\n  workflow_dispatch: {}\n\njobs:\n  j:\n"
+                            b"    runs-on: ubuntu-latest\n    steps:\n"
+                            b"      - name: do the work\n        run: echo 1\n"
+                            b"      - name: tell Don this failed\n        run: echo 2\n")
+                return (b"name: x\n\non:\n  workflow_dispatch: {}\n\njobs:\n  j:\n"
+                        b"    runs-on: ubuntu-latest\n    steps:\n"
+                        b"      - name: do the work\n        run: echo 1\n")
+
+        rows = [{"name": "anything.yml", "state": "unchanged", "direction": "no-op",
+                 "note": "", "ok": True}]
+        report = missing_step_report(_FakeGit(), "ref", rows)
+        self.assertTrue(report, "the checker found no missing step on a pair where one is "
+                                "plainly absent, so it is measuring nothing")
+        name, missing, direction = report[0]
+        self.assertEqual(name, "anything.yml")
+        self.assertEqual(direction, "no-op")
+        self.assertEqual(missing, ["tell Don this failed"])
+
+    def test_the_installed_workflows_now_carry_the_steps_again(self):
+        """The other half of what the control used to assert, kept as its own measurement.
+
+        Don's install on 2026-10-29 put item 74's healthchecks and Discord steps back, so this
+        says so against the installed copies rather than leaving the restore unverified.
+        """
         git = _git()
         ref = _ref(git)
-        fake = [{"name": "live-cycle.yml", "state": "unchanged", "direction": "no-op",
-                 "note": "", "ok": True}]
-        report = missing_step_report(git, ref, fake)
-        self.assertTrue(report, "the checker found no missing steps on a file that has lost "
-                                "every item-74 step, so it is measuring nothing")
-        name, missing, direction = report[0]
-        self.assertEqual(direction, "no-op")
-        self.assertTrue(missing)
+        for name in ("fleet-cycle.yml", "live-cycle.yml"):
+            body = git.bytes_at(ref, "%s/%s" % (IW.TARGET_DIR, name))
+            self.assertIsNotNone(body, name)
+            text = body.decode("utf-8", "replace")
+            for needle in ITEM74_STEPS:
+                self.assertIn(needle, text, "%s has lost %r again" % (name, needle))
 
     def test_step_names_finds_real_steps(self):
         names = step_names(_read_wf(os.path.join(REPO, IW.PENDING_DIR, "live-cycle.yml")))
