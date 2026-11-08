@@ -3,7 +3,7 @@
  "part": "day-1 self-check",
  "register": "PREREG_valuation_reads.md",
  "recorder_version": "1",
- "at_utc": "2026-10-13T22:32:31Z",
+ "at_utc": "2026-11-08T14:16:38Z",
  "cases": [
   {
    "case": "row_round_trips_unchanged",
@@ -27,12 +27,12 @@
    "case": "append_only_byte_prefix_and_refusals",
    "pass": true,
    "detail": "prefix held True (+55 bytes); backward refused True; retry was a no-op True",
-   "vacuity_control": "a backward date and a duplicate date are distinguishable: refusing to write 1999-12-26 into C:\\Users\\donni\\A"
+   "vacuity_control": "a backward date and a duplicate date are distinguishable: refusing to write 1999-12-26 into /tmp/valreads_se"
   },
   {
    "case": "a_recorded_week_is_not_rewritten",
    "pass": true,
-   "detail": "refusing to rewrite C:\\Users\\donni\\AppData\\Local\\Temp\\valreads_selfche",
+   "detail": "refusing to rewrite /tmp/valreads_selfcheck_1_1ux643/data_export/valre",
    "vacuity_control": "and the original bytes are untouched: True"
   },
   {
