@@ -45,8 +45,8 @@
       "max_seq": 16
     },
     "f21_v6opt_dip_csp": {
-      "last_seen": "2026-10-30T17:29:11",
-      "max_seq": 19,
+      "last_seen": "2026-11-06T18:41:49",
+      "max_seq": 24,
       "reanchors": [
         {
           "archive": "f21_v6opt_dip_csp.1.superseded.csv",
@@ -59,8 +59,8 @@
       ]
     },
     "f22_dip_csp_random_twin": {
-      "last_seen": "2026-10-30T17:29:11",
-      "max_seq": 19,
+      "last_seen": "2026-11-06T18:41:49",
+      "max_seq": 24,
       "reanchors": [
         {
           "archive": "f22_dip_csp_random_twin.1.superseded.csv",
@@ -81,8 +81,8 @@
       "max_seq": 16
     },
     "f3_bear_puts": {
-      "last_seen": "2026-10-30T17:31:18",
-      "max_seq": 760
+      "last_seen": "2026-11-06T18:41:55",
+      "max_seq": 915
     },
     "f4_eventfree_premium": {
       "last_seen": "2026-10-23T16:09:22",
@@ -105,8 +105,8 @@
       "max_seq": 17
     },
     "testbook": {
-      "last_seen": "2026-10-30T17:31:19",
-      "max_seq": 113
+      "last_seen": "2026-11-06T18:41:56",
+      "max_seq": 133
     }
   },
   "ok": true,
